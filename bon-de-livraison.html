@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bon de Livraison — VOTRE ENTREPRISE</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --yellow:        #F5C842;
+    --yellow-deep:   #D4A017;
+    --yellow-light:  #FFF8E1;
+    --yellow-pale:   #FFFBF0;
+    --black:         #0C0C0C;
+    --dark:          #1A1A1A;
+    --gray:          #6B6B6B;
+    --gray-mid:      #ADADAD;
+    --gray-light:    #F4F4F4;
+    --white:         #FFFFFF;
+    --border:        #E6E6E6;
+    --green:         #16A34A;
+    --green-bg:      #F0FDF4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: #EDEDED;
+    color: var(--black);
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+
+  .page {
+    background: var(--white);
+    width: 210mm;
+    min-height: 297mm;
+    margin: 32px auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER diagonal ── */
+  .header {
+    padding: 38px 52px 28px;
+    position: relative;
+    overflow: hidden;
+    border-bottom: 3px solid var(--yellow);
+  }
+
+  /* Grand bloc géométrique décoratif */
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -20px; right: -20px;
+    width: 280px; height: 120px;
+    background: var(--yellow);
+    transform: skewX(-20deg);
+    opacity: 0.08;
+    transform-origin: top right;
+  }
+
+  .header::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 6px;
+    height: 100%;
+    background: var(--yellow);
+  }
+
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .brand-logo {
+    font-size: 25px;
+    font-weight: 900;
+    letter-spacing: -1.5px;
+    color: var(--black);
+    text-transform: uppercase;
+  }
+
+  .brand-logo span { color: var(--yellow-deep); }
+
+  .brand-tagline {
+    margin-top: 5px;
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  .doc-identity { text-align: right; }
+
+  .doc-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--gray);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .doc-number {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--black);
+    letter-spacing: -2px;
+    line-height: 1;
+  }
+
+  /* Traceur de progression livraison */
+  .delivery-progress {
+    margin-top: 18px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  .dp-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+
+  .dp-step:last-child { flex: 0; }
+
+  .dp-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+
+  .dp-circle.done {
+    background: var(--yellow);
+    color: var(--black);
+  }
+
+  .dp-circle.current {
+    background: var(--black);
+    color: var(--yellow);
+    box-shadow: 0 0 0 3px var(--yellow-light);
+  }
+
+  .dp-circle.pending {
+    background: var(--gray-light);
+    color: var(--gray-mid);
+    border: 1.5px dashed var(--border);
+  }
+
+  .dp-info { line-height: 1; }
+  .dp-name { font-size: 10px; font-weight: 600; color: var(--dark); }
+  .dp-date { font-size: 9px; color: var(--gray); margin-top: 1px; }
+
+  .dp-line {
+    flex: 1;
+    height: 2px;
+    background: var(--border);
+    margin: 0 8px;
+  }
+
+  .dp-line.done { background: var(--yellow); }
+
+  /* ── MÉTA ── */
+  .meta-row {
+    display: flex;
+    margin: 0 52px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 0;
+  }
+
+  .meta-cell { flex: 1; padding-right: 20px; }
+  .meta-cell:last-child { padding-right: 0; }
+  .meta-cell + .meta-cell { border-left: 1px solid var(--border); padding-left: 20px; }
+
+  .meta-label {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--yellow-deep);
+    margin-bottom: 4px;
+    display: block;
+  }
+
+  .meta-value { font-size: 14px; font-weight: 600; color: var(--black); }
+  .meta-sub { font-size: 11px; color: var(--gray); font-weight: 300; }
+
+  /* ── ADRESSES EXPÉDITION / LIVRAISON ── */
+  .parties {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 20px 52px;
+  }
+
+  .party-block { padding: 18px 20px; border-radius: 6px; }
+  .party-block.expediteur { background: var(--gray-light); }
+  .party-block.destinataire {
+    background: var(--yellow-pale);
+    border: 1.5px solid var(--yellow);
+  }
+
+  .party-tag {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 3.5px;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .party-block.destinataire .party-tag { color: var(--yellow-deep); }
+  .party-name { font-size: 15px; font-weight: 700; color: var(--black); margin-bottom: 4px; }
+  .party-details { font-size: 12px; color: var(--gray); line-height: 1.8; }
+  .party-details strong { color: var(--dark); font-weight: 500; }
+
+  /* ── TABLE ── */
+  .table-wrap { margin: 0 52px 22px; }
+  .table-wrap table { width: 100%; border-collapse: collapse; }
+  .table-wrap thead tr { background: var(--black); }
+
+  .table-wrap thead th {
+    padding: 11px 14px;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--white);
+    text-align: left;
+  }
+
+  .table-wrap thead th.c { text-align: center; }
+  .table-wrap thead th.r { text-align: right; }
+  .table-wrap thead th:first-child { border-radius: 4px 0 0 0; }
+  .table-wrap thead th:last-child  { border-radius: 0 4px 0 0; }
+
+  .table-wrap tbody tr { border-bottom: 1px solid var(--border); }
+  .table-wrap tbody tr:nth-child(even) { background: var(--gray-light); }
+
+  .table-wrap tbody td {
+    padding: 12px 14px;
+    font-size: 13px;
+    vertical-align: middle;
+    color: var(--dark);
+  }
+
+  .table-wrap tbody td.c { text-align: center; }
+  .table-wrap tbody td.r { text-align: right; }
+
+  .ref-code { font-size: 10px; font-weight: 700; color: var(--yellow-deep); letter-spacing: 1px; }
+  .td-title { font-weight: 600; color: var(--black); margin-bottom: 2px; }
+  .td-sub { font-size: 11px; color: var(--gray); font-weight: 300; }
+
+  /* Badge statut livraison */
+  .qty-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .qty-ok {
+    background: #DCFCE7;
+    color: var(--green);
+  }
+
+  .qty-partial {
+    background: var(--yellow-light);
+    color: var(--yellow-deep);
+  }
+
+  .qty-missing {
+    background: #FEF2F2;
+    color: #DC2626;
+  }
+
+  /* Colonne observation */
+  .obs-cell {
+    font-size: 11px;
+    color: var(--gray);
+    font-style: italic;
+    font-family: 'Cormorant Garamond', serif;
+  }
+
+  /* ── RÉCAP ÉTAT ── */
+  .recap-bar {
+    margin: 0 52px 22px;
+    background: var(--black);
+    border-radius: 6px;
+    padding: 14px 22px;
+    display: flex;
+    gap: 0;
+  }
+
+  .recap-item {
+    flex: 1;
+    text-align: center;
+    border-right: 1px solid rgba(255,255,255,0.1);
+    padding: 0 16px;
+  }
+
+  .recap-item:first-child { padding-left: 0; }
+  .recap-item:last-child { border-right: none; padding-right: 0; }
+
+  .recap-label {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .recap-value {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--white);
+  }
+
+  .recap-value.yellow { color: var(--yellow); }
+  .recap-value.green  { color: #4ADE80; }
+
+  /* ── CONDITION MARCHANDISES ── */
+  .condition-section {
+    margin: 0 52px 22px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+
+  .condition-block {
+    background: var(--gray-light);
+    border-radius: 6px;
+    padding: 16px 20px;
+  }
+
+  .condition-block h5 {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--yellow-deep);
+    margin-bottom: 10px;
+  }
+
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 0;
+    font-size: 12px;
+    color: var(--gray);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .check-row:last-child { border-bottom: none; }
+
+  .check-box {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-radius: 3px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .check-box.checked {
+    background: var(--yellow);
+    border-color: var(--yellow);
+    font-size: 9px;
+    font-weight: 900;
+  }
+
+  /* ── SIGNATURES DOUBLE ── */
+  .signature-section {
+    margin: 0 52px 32px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .sign-block h5 {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gray);
+    margin-bottom: 10px;
+  }
+
+  .sign-area {
+    border: 1.5px dashed var(--border);
+    border-radius: 6px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 10px 14px;
+  }
+
+  .sign-area .sign-placeholder {
+    font-size: 10px;
+    color: var(--gray-mid);
+    font-style: italic;
+    font-family: 'Cormorant Garamond', serif;
+  }
+
+  .sign-area .sign-line {
+    border-top: 1px solid var(--border);
+    font-size: 9px;
+    color: var(--gray-mid);
+    padding-top: 6px;
+  }
+
+  .sign-block.client .sign-area {
+    border-color: var(--yellow);
+    background: var(--yellow-pale);
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    margin-top: auto;
+    background: var(--black);
+    padding: 14px 52px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-brand { font-size: 12px; font-weight: 700; color: var(--yellow); }
+  .footer-legal { font-size: 9px; color: rgba(255,255,255,0.3); text-align: center; line-height: 1.6; }
+  .footer-page  { font-size: 9px; color: rgba(255,255,255,0.3); text-align: right; }
+  .footer-page span { color: var(--yellow); font-weight: 700; }
+
+  @media print {
+    body { background: white; }
+    .page { box-shadow: none; margin: 0; width: 100%; }
+    @page { margin: 0; size: A4; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ HEADER ══ -->
+  <header class="header">
+    <div class="header-top">
+      <div>
+        <div class="brand-logo">VOTRE<span>.</span>BRAND</div>
+        <div class="brand-tagline">Agence créative &amp; conseil stratégique</div>
+      </div>
+      <div class="doc-identity">
+        <span class="doc-label">Bon de livraison</span>
+        <div class="doc-number">#BL-2024-201</div>
+      </div>
+    </div>
+
+    <!-- Barre de progression de livraison -->
+    <div class="delivery-progress">
+      <div class="dp-step">
+        <div class="dp-circle done">✓</div>
+        <div class="dp-info">
+          <div class="dp-name">Commande</div>
+          <div class="dp-date">15 nov. 2024</div>
+        </div>
+      </div>
+      <div class="dp-line done"></div>
+      <div class="dp-step">
+        <div class="dp-circle done">✓</div>
+        <div class="dp-info">
+          <div class="dp-name">Préparation</div>
+          <div class="dp-date">20 nov. 2024</div>
+        </div>
+      </div>
+      <div class="dp-line done"></div>
+      <div class="dp-step">
+        <div class="dp-circle current">●</div>
+        <div class="dp-info">
+          <div class="dp-name">Expédition</div>
+          <div class="dp-date">En cours</div>
+        </div>
+      </div>
+      <div class="dp-line"></div>
+      <div class="dp-step">
+        <div class="dp-circle pending">4</div>
+        <div class="dp-info">
+          <div class="dp-name">Réception</div>
+          <div class="dp-date">Prévue 10 déc.</div>
+        </div>
+      </div>
+      <div class="dp-line"></div>
+      <div class="dp-circle pending" style="flex-shrink:0">5</div>
+      <div class="dp-info" style="margin-left:8px">
+        <div class="dp-name">Validation</div>
+        <div class="dp-date">—</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ MÉTA ══ -->
+  <div class="meta-row">
+    <div class="meta-cell">
+      <span class="meta-label">Date d'expédition</span>
+      <div class="meta-value">22 novembre 2024</div>
+    </div>
+    <div class="meta-cell">
+      <span class="meta-label">Livraison prévue</span>
+      <div class="meta-value">10 décembre 2024</div>
+      <div class="meta-sub">Délai contractuel</div>
+    </div>
+    <div class="meta-cell">
+      <span class="meta-label">BC de référence</span>
+      <div class="meta-value">#BC-2024-156</div>
+    </div>
+    <div class="meta-cell">
+      <span class="meta-label">Transporteur / Suivi</span>
+      <div class="meta-value">Livraison digitale</div>
+      <div class="meta-sub">Lien sécurisé partagé</div>
+    </div>
+  </div>
+
+  <!-- ══ ADRESSES ══ -->
+  <div class="parties">
+    <div class="party-block expediteur">
+      <span class="party-tag">Expéditeur</span>
+      <div class="party-name">VotreBrand Studio SAS</div>
+      <div class="party-details">
+        12 rue de la Création, 75008 Paris<br>
+        <strong>Contact :</strong> Sophie Lemaire<br>
+        <strong>Tél :</strong> +33 1 23 45 67 89<br>
+        <strong>Email :</strong> livraison@votrebrand.fr
+      </div>
+    </div>
+    <div class="party-block destinataire">
+      <span class="party-tag">Destinataire</span>
+      <div class="party-name">ABC Technologies SAS</div>
+      <div class="party-details">
+        45 avenue de l'Innovation, 69003 Lyon<br>
+        <strong>Contact :</strong> Marie Dupont<br>
+        <strong>Tél :</strong> +33 4 56 78 90 12<br>
+        <strong>Email :</strong> reception@abc-tech.fr
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TABLE DÉTAIL LIVRAISON ══ -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:90px">Réf.</th>
+          <th>Désignation du livrable</th>
+          <th class="c" style="width:70px">Qté commandée</th>
+          <th class="c" style="width:70px">Qté livrée</th>
+          <th class="c" style="width:80px">État</th>
+          <th style="width:110px">Observations</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="ref-code">VB-AUD-01</span></td>
+          <td>
+            <div class="td-title">Rapport Audit &amp; Stratégie</div>
+            <div class="td-sub">Fichier PDF — Plateforme de marque complète</div>
+          </td>
+          <td class="c">1</td>
+          <td class="c">1</td>
+          <td class="c"><span class="qty-badge qty-ok">✓ Livré</span></td>
+          <td class="obs-cell">Conforme aux attentes</td>
+        </tr>
+        <tr>
+          <td><span class="ref-code">VB-IDV-02</span></td>
+          <td>
+            <div class="td-title">Pack identité visuelle</div>
+            <div class="td-sub">Fichiers AI, SVG, PNG — Charte graphique PDF</div>
+          </td>
+          <td class="c">1</td>
+          <td class="c">1</td>
+          <td class="c"><span class="qty-badge qty-ok">✓ Livré</span></td>
+          <td class="obs-cell">Tous formats inclus</td>
+        </tr>
+        <tr>
+          <td><span class="ref-code">VB-UX-03</span></td>
+          <td>
+            <div class="td-title">Fichiers design UI/UX Figma</div>
+            <div class="td-sub">Lien Figma partagé — 8 pages desktop + mobile</div>
+          </td>
+          <td class="c">1</td>
+          <td class="c">1</td>
+          <td class="c"><span class="qty-badge qty-ok">✓ Livré</span></td>
+          <td class="obs-cell">Prototype navigable inclus</td>
+        </tr>
+        <tr>
+          <td><span class="ref-code">VB-DEV-04</span></td>
+          <td>
+            <div class="td-title">Site web — Accès CMS &amp; hébergement</div>
+            <div class="td-sub">Accès WordPress + documentation technique</div>
+          </td>
+          <td class="c">1</td>
+          <td class="c">0</td>
+          <td class="c"><span class="qty-badge qty-partial">⏳ En cours</span></td>
+          <td class="obs-cell">Livraison prévue 10 déc.</td>
+        </tr>
+        <tr>
+          <td><span class="ref-code">VB-FOR-05</span></td>
+          <td>
+            <div class="td-title">Session de formation CMS</div>
+            <div class="td-sub">Visioconférence 2h — Support PDF</div>
+          </td>
+          <td class="c">1</td>
+          <td class="c">0</td>
+          <td class="c"><span class="qty-badge qty-missing">✗ Non livré</span></td>
+          <td class="obs-cell">À planifier après mise en ligne</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ RÉCAP ══ -->
+  <div class="recap-bar">
+    <div class="recap-item">
+      <span class="recap-label">Articles commandés</span>
+      <div class="recap-value">5</div>
+    </div>
+    <div class="recap-item">
+      <span class="recap-label">Livrés ce jour</span>
+      <div class="recap-value green">3</div>
+    </div>
+    <div class="recap-item">
+      <span class="recap-label">En attente</span>
+      <div class="recap-value yellow">2</div>
+    </div>
+    <div class="recap-item">
+      <span class="recap-label">Taux de livraison</span>
+      <div class="recap-value yellow">60 %</div>
+    </div>
+    <div class="recap-item">
+      <span class="recap-label">Livraison complète</span>
+      <div class="recap-value">10 déc.</div>
+    </div>
+  </div>
+
+  <!-- ══ ÉTAT DES MARCHANDISES ══ -->
+  <div class="condition-section">
+    <div class="condition-block">
+      <h5>Contrôle à la réception</h5>
+      <div class="check-row">
+        <div class="check-box checked">✓</div>
+        <span>Livrables conformes au bon de commande</span>
+      </div>
+      <div class="check-row">
+        <div class="check-box checked">✓</div>
+        <span>Fichiers sources complets et exploitables</span>
+      </div>
+      <div class="check-row">
+        <div class="check-box"></div>
+        <span>Livraison totale effectuée (partielle ce jour)</span>
+      </div>
+      <div class="check-row">
+        <div class="check-box"></div>
+        <span>Réserves émises (préciser ci-dessous)</span>
+      </div>
+    </div>
+    <div class="condition-block">
+      <h5>Réserves &amp; observations du réceptionneur</h5>
+      <div style="border: 1.5px dashed var(--border); border-radius: 6px; height: 72px; padding: 8px 12px;">
+        <p style="font-size:10px; color:var(--gray-mid); font-style:italic; font-family:'Cormorant Garamond',serif">
+          Aucune réserve — ou décrire les anomalies constatées à la réception…
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SIGNATURES ══ -->
+  <div class="signature-section">
+    <div class="sign-block">
+      <h5>Signature livreur / Expéditeur</h5>
+      <div class="sign-area">
+        <span class="sign-placeholder">Signature et cachet de l'expéditeur</span>
+        <div class="sign-line">Date d'expédition : _____ / _____ / _______</div>
+      </div>
+    </div>
+    <div class="sign-block client">
+      <h5>Signature réceptionneur / Client (Bon pour réception)</h5>
+      <div class="sign-area">
+        <span class="sign-placeholder">Signature du client — Mention « Reçu sans réserve »</span>
+        <div class="sign-line">Date de réception : _____ / _____ / _______</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ FOOTER ══ -->
+  <footer class="footer">
+    <span class="footer-brand">VOTREBRAND.</span>
+    <div class="footer-legal">
+      VotreBrand Studio SAS — SIRET 123 456 789 00012<br>
+      12 rue de la Création, 75008 Paris — livraison@votrebrand.fr
+    </div>
+    <div class="footer-page">Page <span>1</span> / 1</div>
+  </footer>
+
+</div>
+</body>
+</html>

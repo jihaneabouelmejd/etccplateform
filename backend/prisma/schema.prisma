@@ -1,0 +1,1156 @@
+// ============================================================================
+// ETCC Platform - Prisma Schema
+// Gestion complète construction : Devis → BC → BL → Facture → Paiement
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum Role {
+  ADMIN
+  GERANT
+  COMPTABLE
+  EMPLOYE
+}
+
+enum Language {
+  FR
+  AR
+}
+
+enum ProjectStatus {
+  ACTIVE
+  LATE
+  COMPLETED
+  ARCHIVED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
+enum DevisStatus {
+  DRAFT
+  SENT
+  VALIDATED
+  REJECTED
+  EXPIRED
+}
+
+enum BCSource {
+  INTERNAL       // Créé à partir d'un devis validé
+  IMPORTED_OCR   // Importé du client (scan PDF)
+  IMPORTED_MANUAL
+}
+
+enum BCStatus {
+  OPEN
+  PARTIALLY_DELIVERED
+  DELIVERED
+  CANCELLED
+}
+
+enum BLStatus {
+  PREPARING
+  DELIVERED
+  SIGNED
+  INVOICED
+}
+
+enum InvoiceDirection {
+  ISSUED    // Facture émise au client
+  RECEIVED  // Facture d'achat reçue du fournisseur
+}
+
+enum InvoiceSource {
+  INTERNAL  // Générée par le système
+  SCANNED   // Scannée via OCR
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentType {
+  VIREMENT
+  ESPECES
+  CHEQUE
+  EFFET
+  AUTRE
+}
+
+enum PaymentDirection {
+  IN   // Client paye ETCC
+  OUT  // ETCC paye fournisseur
+}
+
+enum StockMovementType {
+  IN          // Achat, retour
+  OUT         // BL, consommation
+  ADJUSTMENT  // Inventaire
+}
+
+enum MovementSource {
+  PURCHASE
+  BL
+  RETURN
+  INVENTORY
+  MANUAL
+}
+
+enum SignatureType {
+  UPLOADED
+  DRAWN
+  PHOTO_STAMP
+}
+
+enum ExpenseCategory {
+  MATERIEL
+  MAIN_OEUVRE
+  TRANSPORT
+  CARBURANT
+  OUTILS
+  SOUS_TRAITANCE
+  AUTRE
+}
+
+enum ExpenseStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BankMatchStatus {
+  UNMATCHED
+  SUGGESTED
+  MATCHED
+  NO_INVOICE      // Virement sans facture trouvée !
+  MULTI_MATCH
+}
+
+enum AlertType {
+  NO_INVOICE_FOUND
+  UNKNOWN_BENEFICIARY
+  AMOUNT_MISMATCH
+  DUPLICATE_PAYMENT
+  LOW_STOCK
+  OVERDUE_INVOICE
+  EXPENSE_WITHOUT_RECEIPT
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  IGNORED
+}
+
+// ============================================================================
+// COMPANY & SYSTEM
+// ============================================================================
+
+/// Informations de la société (utilisées sur tous les PDFs)
+model Company {
+  id              String   @id @default(uuid())
+  
+  // Identité
+  commercial_name String
+  legal_name      String
+  legal_form      String?  // SARL, SA, SNC
+  capital         Decimal? @db.Decimal(12, 2)
+  
+  // Identifiants légaux (Maroc)
+  ice             String   @unique
+  rc              String?
+  if              String?  // Identifiant fiscal
+  cnss            String?
+  patente         String?
+  tva_intra       String?
+  
+  // Adresse
+  address_line    String
+  postal_code     String?
+  city            String
+  country         String   @default("Maroc")
+  
+  // Contact
+  phone           String?
+  mobile          String?
+  email           String?
+  website         String?
+  
+  // Visuel
+  logo_url        String?
+  primary_color   String?  @default("#F4B315")
+  favicon_url     String?
+  
+  // Banque (sur factures émises)
+  bank_name       String?
+  rib             String?
+  iban            String?
+  swift           String?
+  
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  
+  @@map("companies")
+}
+
+// ============================================================================
+// USERS & AUTH
+// ============================================================================
+
+model User {
+  id                  String   @id @default(uuid())
+  
+  // Authentification (Admin crée directement)
+  username            String   @unique
+  email               String?  @unique
+  password_hash       String
+  
+  // Profil
+  first_name          String
+  last_name           String
+  phone               String?
+  avatar_url          String?
+  preferred_language  Language @default(FR)
+  
+  // Rôle & statut
+  role                Role
+  is_active           Boolean  @default(true)
+  
+  // Tracking
+  last_login_at       DateTime?
+  password_changed_at DateTime?
+  created_by          String?  // UUID de l'Admin qui a créé
+  
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+  
+  // Relations
+  signatures          Signature[]
+  created_projects    Project[]     @relation("ProjectCreator")
+  assigned_tasks      TaskAssignment[]
+  created_devis       Devis[]
+  created_bcs         BonCommande[]
+  created_bls         BonLivraison[]
+  created_invoices    Invoice[]
+  submitted_expenses  Expense[]     @relation("ExpenseSubmitter")
+  approved_expenses   Expense[]     @relation("ExpenseApprover")
+  stock_movements     StockMovement[]
+  daily_reports       DailyReport[]
+  audit_logs          AuditLog[]
+  refresh_tokens      RefreshToken[]
+  notifications       Notification[]
+  
+  @@index([username])
+  @@index([email])
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  token_hash  String   @unique
+  user_id     String
+  expires_at  DateTime
+  revoked_at  DateTime?
+  created_at  DateTime @default(now())
+  
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id])
+  @@map("refresh_tokens")
+}
+
+/// Bibliothèque de signatures (réutilisables sur Devis, BL, Factures)
+model Signature {
+  id          String        @id @default(uuid())
+  user_id     String
+  name        String
+  image_url   String        // S3 URL
+  type        SignatureType
+  is_default  Boolean       @default(false)
+  created_at  DateTime      @default(now())
+  
+  user        User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  devis       Devis[]
+  bls         BonLivraison[]
+  invoices    Invoice[]
+  
+  @@index([user_id])
+  @@map("signatures")
+}
+
+// ============================================================================
+// CLIENTS & FOURNISSEURS
+// ============================================================================
+
+model Client {
+  id              String   @id @default(uuid())
+  
+  // Identité
+  commercial_name String
+  legal_name      String?
+  
+  // Identifiants légaux
+  ice             String?
+  rc              String?
+  if              String?
+  
+  // Contact
+  contact_person  String?
+  phone           String?
+  email           String?
+  address         String?
+  city            String?
+  
+  // Score (calculé)
+  reliability_score Int?   @default(50) // 0-100
+  
+  // Status
+  is_active       Boolean  @default(true)
+  archived_at     DateTime?
+  
+  // Notes privées
+  internal_notes  String?  @db.Text
+  
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  
+  // Relations
+  projects        Project[]
+  devis           Devis[]
+  bcs             BonCommande[]
+  bls             BonLivraison[]
+  invoices        Invoice[]
+  
+  @@index([ice])
+  @@index([commercial_name])
+  @@map("clients")
+}
+
+model Fournisseur {
+  id              String   @id @default(uuid())
+  
+  // Identité
+  name            String
+  ice             String?  @unique
+  rc              String?
+  if              String?
+  
+  // Catégorie
+  category        String?  // Matériaux BTP, Transport, Services...
+  
+  // Contact
+  contact_person  String?
+  phone           String?
+  email           String?
+  address         String?
+  city            String?
+  
+  // 🏦 Coordonnées bancaires (CRUCIAL pour matching automatique)
+  bank_name       String?
+  rib             String?  @unique  // ⭐ Clé de matching
+  iban            String?
+  swift           String?
+  
+  // Stats
+  is_active       Boolean  @default(true)
+  
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  
+  // Relations
+  invoices        Invoice[]
+  payments        Payment[]
+  
+  @@index([rib])
+  @@index([ice])
+  @@map("fournisseurs")
+}
+
+// ============================================================================
+// PROJECTS & TASKS
+// ============================================================================
+
+model Project {
+  id              String          @id @default(uuid())
+  code            String          @unique // ETCC-2026-001
+  name            String
+  description     String?         @db.Text
+  
+  // Client & Status
+  client_id       String
+  status          ProjectStatus   @default(ACTIVE)
+  
+  // Budget
+  budget_amount   Decimal         @db.Decimal(12, 2)
+  actual_amount   Decimal         @default(0) @db.Decimal(12, 2)
+  
+  // Dates
+  start_date      DateTime?
+  end_date        DateTime?       // Échéance
+  completed_at    DateTime?
+  
+  // Adresse chantier
+  address         String?
+  city            String?
+  latitude        Float?
+  longitude       Float?
+  
+  // Meta
+  created_by      String
+  
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  
+  // Relations
+  client          Client          @relation(fields: [client_id], references: [id])
+  creator         User            @relation("ProjectCreator", fields: [created_by], references: [id])
+  tasks           Task[]
+  devis           Devis[]
+  bcs             BonCommande[]
+  bls             BonLivraison[]
+  invoices        Invoice[]
+  expenses        Expense[]
+  dettes          Dette[]
+  stock_movements StockMovement[]
+  photos          ProjectPhoto[]
+  
+  @@index([client_id])
+  @@index([status])
+  @@map("projects")
+}
+
+model ProjectPhoto {
+  id          String   @id @default(uuid())
+  project_id  String
+  url         String
+  caption     String?
+  is_before   Boolean  @default(false)
+  is_after    Boolean  @default(false)
+  uploaded_at DateTime @default(now())
+  
+  project     Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  
+  @@map("project_photos")
+}
+
+model Task {
+  id              String           @id @default(uuid())
+  project_id      String
+  title           String
+  description     String?          @db.Text
+  
+  status          TaskStatus       @default(TODO)
+  progress        Int              @default(0)  // 0-100
+  priority        Int              @default(0)
+  
+  due_date        DateTime?
+  completed_at    DateTime?
+  
+  // Google Calendar sync
+  google_event_id String?
+  
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+  
+  project         Project          @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  assignments     TaskAssignment[]
+  comments        TaskComment[]
+  
+  @@index([project_id])
+  @@index([status])
+  @@map("tasks")
+}
+
+model TaskAssignment {
+  id          String   @id @default(uuid())
+  task_id     String
+  user_id     String
+  assigned_at DateTime @default(now())
+  
+  task        Task     @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@unique([task_id, user_id])
+  @@map("task_assignments")
+}
+
+model TaskComment {
+  id         String   @id @default(uuid())
+  task_id    String
+  user_id    String
+  content    String   @db.Text
+  photo_url  String?
+  created_at DateTime @default(now())
+  
+  task       Task     @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  
+  @@map("task_comments")
+}
+
+// ============================================================================
+// STOCK & PRODUCTS
+// ============================================================================
+
+model Product {
+  id              String          @id @default(uuid())
+  sku             String          @unique
+  name            String
+  category        String?
+  unit            String          // sacs, m³, kg, barres, m²
+  
+  // Stock
+  quantity        Decimal         @default(0) @db.Decimal(10, 2)
+  min_threshold   Decimal         @default(0) @db.Decimal(10, 2)
+  
+  // Prix
+  unit_price      Decimal         @db.Decimal(10, 2)
+  
+  // Meta
+  description     String?
+  is_active       Boolean         @default(true)
+  
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  
+  movements       StockMovement[]
+  bc_lines        BCLine[]
+  bl_lines        BLLine[]
+  material_requests MaterialRequest[]
+  
+  @@index([sku])
+  @@map("products")
+}
+
+model StockMovement {
+  id          String            @id @default(uuid())
+  product_id  String
+  type        StockMovementType
+  quantity    Decimal           @db.Decimal(10, 2)
+  source      MovementSource
+  
+  // Références
+  bl_id       String?
+  project_id  String?
+  
+  // Meta
+  notes       String?
+  created_by  String
+  
+  created_at  DateTime          @default(now())
+  
+  product     Product           @relation(fields: [product_id], references: [id])
+  project     Project?          @relation(fields: [project_id], references: [id])
+  creator     User              @relation(fields: [created_by], references: [id])
+  
+  @@index([product_id])
+  @@index([project_id])
+  @@map("stock_movements")
+}
+
+model MaterialRequest {
+  id          String   @id @default(uuid())
+  product_id  String
+  project_id  String?
+  quantity    Decimal  @db.Decimal(10, 2)
+  reason      String?
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED, DELIVERED
+  requested_by String
+  approved_by String?
+  approved_at DateTime?
+  created_at  DateTime @default(now())
+  
+  product     Product  @relation(fields: [product_id], references: [id])
+  
+  @@map("material_requests")
+}
+
+// ============================================================================
+// COMMERCIAL DOCUMENTS
+// ============================================================================
+
+model Devis {
+  id              String      @id @default(uuid())
+  number          String      @unique // DEV-2026-0089
+  
+  // Relations
+  client_id       String
+  project_id      String?
+  created_by      String
+  signature_id    String?
+  
+  // Dates
+  issue_date      DateTime    @default(now())
+  validity_days   Int         @default(30)
+  
+  // Contenu
+  object          String?
+  
+  // Montants
+  total_ht_brut   Decimal     @db.Decimal(12, 2)   // Avant réduction
+  discount_rate   Decimal     @default(0) @db.Decimal(5, 2) // En %
+  discount_amount Decimal     @default(0) @db.Decimal(12, 2)
+  total_ht_net    Decimal     @db.Decimal(12, 2)   // Après réduction
+  tva_rate        Decimal     @default(20) @db.Decimal(5, 2)
+  tva_amount      Decimal     @db.Decimal(12, 2)
+  total_ttc       Decimal     @db.Decimal(12, 2)
+  
+  // Conditions
+  payment_terms   String?
+  notes           String?     @db.Text
+  
+  // Status
+  status          DevisStatus @default(DRAFT)
+  sent_at         DateTime?
+  validated_at    DateTime?
+  rejected_at     DateTime?
+  expires_at      DateTime?
+  
+  created_at      DateTime    @default(now())
+  updated_at      DateTime    @updatedAt
+  
+  // Relations
+  client          Client      @relation(fields: [client_id], references: [id])
+  project         Project?    @relation(fields: [project_id], references: [id])
+  creator         User        @relation(fields: [created_by], references: [id])
+  signature       Signature?  @relation(fields: [signature_id], references: [id])
+  lines           DevisLine[]
+  bcs             BonCommande[]
+  
+  @@index([client_id])
+  @@index([status])
+  @@index([number])
+  @@map("devis")
+}
+
+model DevisLine {
+  id          String  @id @default(uuid())
+  devis_id    String
+  description String
+  quantity    Decimal @db.Decimal(10, 2)
+  unit_price  Decimal @db.Decimal(10, 2)
+  total_ht    Decimal @db.Decimal(12, 2)
+  order       Int     @default(0)
+  
+  devis       Devis   @relation(fields: [devis_id], references: [id], onDelete: Cascade)
+  
+  @@map("devis_lines")
+}
+
+model BonCommande {
+  id              String         @id @default(uuid())
+  number          String         @unique // BC-2026-0067
+  
+  // Source
+  source          BCSource
+  devis_id        String?        // Si INTERNAL
+  imported_file_url String?      // Si IMPORTED_OCR/MANUAL
+  ocr_raw_data    Json?          // Données brutes OCR
+  
+  // Relations
+  client_id       String
+  project_id      String?
+  created_by      String
+  
+  // Dates
+  issue_date      DateTime       @default(now())
+  expected_delivery DateTime?
+  
+  // Montants (optionnel, peut venir du devis)
+  total_ht        Decimal?       @db.Decimal(12, 2)
+  total_ttc       Decimal?       @db.Decimal(12, 2)
+  
+  // Status
+  status          BCStatus       @default(OPEN)
+  
+  notes           String?        @db.Text
+  
+  created_at      DateTime       @default(now())
+  updated_at      DateTime       @updatedAt
+  
+  // Relations
+  devis           Devis?         @relation(fields: [devis_id], references: [id])
+  client          Client         @relation(fields: [client_id], references: [id])
+  project         Project?       @relation(fields: [project_id], references: [id])
+  creator         User           @relation(fields: [created_by], references: [id])
+  lines           BCLine[]
+  bls             BonLivraison[]
+  invoices        Invoice[]
+  
+  @@index([client_id])
+  @@index([devis_id])
+  @@index([status])
+  @@map("bons_commande")
+}
+
+model BCLine {
+  id          String      @id @default(uuid())
+  bc_id       String
+  product_id  String?
+  description String
+  quantity    Decimal     @db.Decimal(10, 2)
+  unit_price  Decimal?    @db.Decimal(10, 2)
+  total_ht    Decimal?    @db.Decimal(12, 2)
+  order       Int         @default(0)
+  
+  bc          BonCommande @relation(fields: [bc_id], references: [id], onDelete: Cascade)
+  product     Product?    @relation(fields: [product_id], references: [id])
+  
+  @@map("bc_lines")
+}
+
+model BonLivraison {
+  id              String       @id @default(uuid())
+  number          String       @unique // BL-2026-0055
+  
+  // Références (CHAIN)
+  bc_id           String?      // Optionnel — peut venir direct d'un devis
+  devis_id        String?      // Pour traçabilité
+  
+  // Relations
+  client_id       String
+  project_id      String?
+  created_by      String
+  signature_id    String?
+  
+  // Dates
+  issue_date      DateTime     @default(now())
+  delivery_date   DateTime?
+  delivered_at    DateTime?
+  signed_at       DateTime?
+  
+  // Livraison
+  delivered_by    String?      // Nom du livreur
+  delivery_address String?
+  client_signature_url String?  // Photo/signature du client
+  
+  // Status
+  status          BLStatus     @default(PREPARING)
+  
+  notes           String?      @db.Text
+  
+  created_at      DateTime     @default(now())
+  updated_at      DateTime     @updatedAt
+  
+  // Relations
+  bc              BonCommande? @relation(fields: [bc_id], references: [id])
+  client          Client       @relation(fields: [client_id], references: [id])
+  project         Project?     @relation(fields: [project_id], references: [id])
+  creator         User         @relation(fields: [created_by], references: [id])
+  signature       Signature?   @relation(fields: [signature_id], references: [id])
+  lines           BLLine[]
+  invoices        Invoice[]
+
+  @@index([bc_id])
+  @@index([client_id])
+  @@index([status])
+  @@map("bons_livraison")
+}
+
+model BLLine {
+  id          String       @id @default(uuid())
+  bl_id       String
+  product_id  String?
+  description String
+  quantity    Decimal      @db.Decimal(10, 2)
+  // ⚠ PAS de prix sur BL (les prix viennent du Devis et apparaissent sur Facture)
+  order       Int          @default(0)
+  
+  bl          BonLivraison @relation(fields: [bl_id], references: [id], onDelete: Cascade)
+  product     Product?     @relation(fields: [product_id], references: [id])
+  
+  @@map("bl_lines")
+}
+
+// ============================================================================
+// INVOICES (Factures émises ET d'achat)
+// ============================================================================
+
+model Invoice {
+  id              String           @id @default(uuid())
+  number          String           @unique // FAC-2026-0043 ou AUTO
+  
+  // Direction & Source
+  direction       InvoiceDirection // ISSUED (client) ou RECEIVED (fournisseur)
+  source          InvoiceSource    // INTERNAL ou SCANNED
+  
+  // Références (CHAIN pour ISSUED)
+  bl_id           String?
+  bc_id           String?
+  devis_id        String?
+  
+  // Fournisseur (si RECEIVED)
+  fournisseur_id  String?
+  scanned_file_url String?        // Facture scannée
+  ocr_raw_data    Json?
+  
+  // Relations
+  client_id       String?
+  project_id      String?
+  created_by      String
+  signature_id    String?
+  
+  // Dates
+  issue_date      DateTime         @default(now())
+  due_date        DateTime?        // Échéance
+  paid_at         DateTime?
+  
+  // Montants
+  total_ht_brut   Decimal          @db.Decimal(12, 2)
+  discount_rate   Decimal          @default(0) @db.Decimal(5, 2)
+  discount_amount Decimal          @default(0) @db.Decimal(12, 2)
+  total_ht_net    Decimal          @db.Decimal(12, 2)
+  tva_rate        Decimal          @default(20) @db.Decimal(5, 2)
+  tva_amount      Decimal          @db.Decimal(12, 2)
+  total_ttc       Decimal          @db.Decimal(12, 2)
+  acompte_amount  Decimal          @default(0) @db.Decimal(12, 2)
+  amount_paid     Decimal          @default(0) @db.Decimal(12, 2)
+  balance         Decimal          @db.Decimal(12, 2) // total_ttc - amount_paid
+  
+  // Paiement
+  payment_method  PaymentType?
+  payment_terms   String?
+  
+  // Status
+  status          InvoiceStatus    @default(DRAFT)
+  
+  // Rapprochement
+  reconciled      Boolean          @default(false)
+  reconciliation_note String?
+  
+  notes           String?          @db.Text
+  
+  created_at      DateTime         @default(now())
+  updated_at      DateTime         @updatedAt
+  
+  // Relations
+  bl              BonLivraison?    @relation(fields: [bl_id], references: [id])
+  bc              BonCommande?     @relation(fields: [bc_id], references: [id])
+  fournisseur     Fournisseur?     @relation(fields: [fournisseur_id], references: [id])
+  client          Client?          @relation(fields: [client_id], references: [id])
+  project         Project?         @relation(fields: [project_id], references: [id])
+  creator         User             @relation(fields: [created_by], references: [id])
+  signature       Signature?       @relation(fields: [signature_id], references: [id])
+  lines           InvoiceLine[]
+  payments        Payment[]
+  
+  @@index([direction])
+  @@index([status])
+  @@index([client_id])
+  @@index([fournisseur_id])
+  @@index([bl_id])
+  @@index([number])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String  @id @default(uuid())
+  invoice_id  String
+  description String
+  quantity    Decimal @db.Decimal(10, 2)
+  unit_price  Decimal @db.Decimal(10, 2)
+  total_ht    Decimal @db.Decimal(12, 2)
+  order       Int     @default(0)
+  
+  invoice     Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  
+  @@map("invoice_lines")
+}
+
+// ============================================================================
+// PAYMENTS & BANK RECONCILIATION
+// ============================================================================
+
+model Payment {
+  id              String            @id @default(uuid())
+  type            PaymentType
+  direction       PaymentDirection
+  amount          Decimal           @db.Decimal(12, 2)
+  date            DateTime
+  
+  // Référence facture (optionnelle pour cash exceptionnels)
+  invoice_id      String?
+  
+  // Contreparties
+  fournisseur_id  String?           // Si OUT
+  client_name     String?           // Si IN sans client enregistré
+  
+  // Source
+  bank_line_id    String?           @unique  // Si vient du relevé bancaire
+  manual          Boolean           @default(false)
+  
+  // ⚠ Pour cash sans facture
+  has_invoice     Boolean           @default(true)
+  justification   String?           @db.Text
+  receipt_url     String?
+  
+  // Meta
+  reference       String?           // Numéro de chèque, virement, etc.
+  notes           String?           @db.Text
+  created_by      String
+  
+  created_at      DateTime          @default(now())
+  
+  // Relations
+  invoice         Invoice?          @relation(fields: [invoice_id], references: [id])
+  fournisseur     Fournisseur?      @relation(fields: [fournisseur_id], references: [id])
+  bank_line       BankStatementLine? @relation(fields: [bank_line_id], references: [id])
+  
+  @@index([invoice_id])
+  @@index([fournisseur_id])
+  @@index([type, direction])
+  @@map("payments")
+}
+
+model BankStatement {
+  id          String              @id @default(uuid())
+  file_url    String
+  bank_name   String?
+  account     String?
+  period_from DateTime
+  period_to   DateTime
+  uploaded_by String
+  created_at  DateTime            @default(now())
+  
+  lines       BankStatementLine[]
+  
+  @@map("bank_statements")
+}
+
+model BankStatementLine {
+  id              String           @id @default(uuid())
+  statement_id    String
+  
+  // Contenu parsé
+  date            DateTime
+  amount          Decimal          @db.Decimal(12, 2)
+  is_credit       Boolean          // true = crédit, false = débit
+  description     String           @db.Text
+  beneficiary     String?
+  rib_detected    String?          @db.VarChar(50)
+  reference       String?
+  
+  // Matching
+  match_status    BankMatchStatus  @default(UNMATCHED)
+  match_score     Int?             // 0-100
+  matched_invoice_id String?
+  matched_at      DateTime?
+  matched_by      String?
+  
+  // ⚠ Alertes
+  alert_id        String?
+  
+  created_at      DateTime         @default(now())
+  
+  statement       BankStatement    @relation(fields: [statement_id], references: [id], onDelete: Cascade)
+  payment         Payment?
+  alert           Alert?           @relation(fields: [alert_id], references: [id])
+  
+  @@index([statement_id])
+  @@index([match_status])
+  @@index([rib_detected])
+  @@map("bank_statement_lines")
+}
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+model Alert {
+  id              String      @id @default(uuid())
+  type            AlertType
+  status          AlertStatus @default(OPEN)
+  
+  title           String
+  description     String?     @db.Text
+  
+  // Références
+  related_type    String?     // "BankStatementLine", "Product", "Invoice"...
+  related_id      String?
+  
+  // Actions
+  amount          Decimal?    @db.Decimal(12, 2)
+  severity        String      @default("WARN") // INFO, WARN, DANGER
+  
+  // Assignation
+  target_role     Role?
+  assigned_to     String?
+  resolved_by     String?
+  resolved_at     DateTime?
+  resolution_note String?     @db.Text
+  
+  created_at      DateTime    @default(now())
+  
+  bank_lines      BankStatementLine[]
+  
+  @@index([status])
+  @@index([type])
+  @@map("alerts")
+}
+
+// ============================================================================
+// EXPENSES & REPORTS
+// ============================================================================
+
+model Expense {
+  id              String          @id @default(uuid())
+  project_id      String?
+  
+  category        ExpenseCategory
+  amount          Decimal         @db.Decimal(10, 2)
+  tva_amount      Decimal?        @db.Decimal(10, 2)
+  date            DateTime        @default(now())
+  description     String
+  
+  // Paiement
+  payment_method  PaymentType?
+  notes           String?         @db.Text
+
+  // Reçu
+  receipt_url     String?
+  has_receipt     Boolean         @default(false)
+
+  // Validation
+  status          ExpenseStatus   @default(PENDING)
+  submitted_by    String
+  approved_by     String?
+  approved_at     DateTime?
+  rejection_reason String?
+  
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  
+  project         Project?        @relation(fields: [project_id], references: [id])
+  submitter       User            @relation("ExpenseSubmitter", fields: [submitted_by], references: [id])
+  approver        User?           @relation("ExpenseApprover", fields: [approved_by], references: [id])
+  
+  @@index([status])
+  @@index([project_id])
+  @@map("expenses")
+}
+
+model DailyReport {
+  id          String   @id @default(uuid())
+  user_id     String
+  project_id  String?
+  date        DateTime
+  
+  summary     String   @db.Text
+  hours_worked Decimal? @db.Decimal(4, 2)
+  
+  photos      Json?    // Array of URLs
+  
+  created_at  DateTime @default(now())
+  
+  user        User     @relation(fields: [user_id], references: [id])
+  
+  @@index([user_id, date])
+  @@map("daily_reports")
+}
+
+// ============================================================================
+// NOTIFICATIONS & AUDIT
+// ============================================================================
+
+model Notification {
+  id          String   @id @default(uuid())
+  user_id     String
+  
+  title       String
+  message     String   @db.Text
+  type        String   // INFO, SUCCESS, WARN, DANGER
+  
+  link        String?
+  is_read     Boolean  @default(false)
+  read_at     DateTime?
+  
+  created_at  DateTime @default(now())
+  
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  
+  @@index([user_id, is_read])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  user_id     String
+  action      String   // CREATE_INVOICE, DELETE_USER, etc.
+  entity_type String?
+  entity_id   String?
+  changes     Json?
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+  
+  user        User     @relation(fields: [user_id], references: [id])
+  
+  @@index([user_id])
+  @@index([entity_type, entity_id])
+  @@map("audit_logs")
+}
+
+// ============================================================================
+// DETTES & PAIEMENTS MAIN D'OEUVRE
+// ============================================================================
+
+enum DetteStatut {
+  EN_COURS
+  PARTIELLE
+  SOLDEE
+}
+
+model Dette {
+  id           String      @id @default(uuid())
+  nom          String
+  description  String
+  montant      Decimal     @db.Decimal(10, 2)
+  montant_paye Decimal     @db.Decimal(10, 2) @default(0)
+  date         DateTime    @default(now())
+  statut       DetteStatut @default(EN_COURS)
+  project_id   String?
+  notes        String?     @db.Text
+  created_at   DateTime    @default(now())
+  updated_at   DateTime    @updatedAt
+
+  project      Project?         @relation(fields: [project_id], references: [id])
+  paiements    PaiementDette[]
+
+  @@index([statut])
+  @@map("dettes")
+}
+
+model PaiementDette {
+  id         String      @id @default(uuid())
+  dette_id   String
+  montant    Decimal     @db.Decimal(10, 2)
+  date       DateTime    @default(now())
+  mode       PaymentType @default(ESPECES)
+  notes      String?     @db.Text
+  created_at DateTime    @default(now())
+
+  dette      Dette       @relation(fields: [dette_id], references: [id], onDelete: Cascade)
+
+  @@index([dette_id])
+  @@map("paiements_dettes")
+}

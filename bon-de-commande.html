@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bon de Commande — VOTRE ENTREPRISE</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --yellow:        #F5C842;
+    --yellow-deep:   #D4A017;
+    --yellow-light:  #FFF8E1;
+    --yellow-pale:   #FFFBF0;
+    --black:         #0C0C0C;
+    --dark:          #1A1A1A;
+    --gray:          #6B6B6B;
+    --gray-mid:      #ADADAD;
+    --gray-light:    #F4F4F4;
+    --white:         #FFFFFF;
+    --border:        #E6E6E6;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: #EDEDED;
+    color: var(--black);
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+
+  .page {
+    background: var(--white);
+    width: 210mm;
+    min-height: 297mm;
+    margin: 32px auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── HEADER avec bande jaune latérale ── */
+  .header {
+    display: flex;
+    position: relative;
+  }
+
+  .header-accent {
+    width: 8px;
+    background: var(--yellow);
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .header-accent::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0;
+    width: 8px;
+    height: 40px;
+    background: var(--yellow-deep);
+  }
+
+  .header-inner {
+    flex: 1;
+    padding: 38px 52px 28px 44px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: relative;
+  }
+
+  /* Triangle coin droit */
+  .header-inner::after {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 140px; height: 140px;
+    background: var(--yellow-pale);
+    clip-path: polygon(100% 0, 0 0, 100% 100%);
+  }
+
+  .brand-logo {
+    font-size: 25px;
+    font-weight: 900;
+    letter-spacing: -1.5px;
+    color: var(--black);
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  .brand-logo span { color: var(--yellow-deep); }
+
+  .brand-tagline {
+    margin-top: 5px;
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  .doc-identity {
+    text-align: right;
+    position: relative;
+    z-index: 1;
+  }
+
+  .doc-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--gray);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .doc-number {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--black);
+    letter-spacing: -2px;
+    line-height: 1;
+  }
+
+  .doc-sub {
+    font-size: 11px;
+    color: var(--gray);
+    margin-top: 4px;
+    font-family: 'Cormorant Garamond', serif;
+    font-style: italic;
+  }
+
+  /* ── BARRE ── */
+  .header-bar {
+    height: 2px;
+    background: linear-gradient(90deg, transparent 8px, var(--yellow) 8px, var(--yellow-deep) 60%, transparent 100%);
+    margin: 0 0 0 8px;
+  }
+
+  /* ── MÉTA ── */
+  .meta-row {
+    display: flex;
+    margin: 0 52px 0 60px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 0;
+  }
+
+  .meta-cell { flex: 1; padding-right: 20px; }
+  .meta-cell:last-child { padding-right: 0; }
+  .meta-cell + .meta-cell { border-left: 1px solid var(--border); padding-left: 20px; }
+
+  .meta-label {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--yellow-deep);
+    margin-bottom: 4px;
+    display: block;
+  }
+
+  .meta-value { font-size: 14px; font-weight: 600; color: var(--black); }
+  .meta-sub { font-size: 11px; color: var(--gray); font-weight: 300; }
+
+  /* ── ADRESSES ── */
+  .parties {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 20px 52px 20px 60px;
+  }
+
+  .party-block { padding: 18px 20px; border-radius: 6px; }
+  .party-block.acheteur { background: var(--gray-light); }
+  .party-block.fournisseur {
+    background: var(--yellow-pale);
+    border: 1.5px solid var(--yellow);
+  }
+
+  .party-tag {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 3.5px;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    margin-bottom: 8px;
+    display: block;
+  }
+
+  .party-block.fournisseur .party-tag { color: var(--yellow-deep); }
+  .party-name { font-size: 15px; font-weight: 700; color: var(--black); margin-bottom: 4px; }
+  .party-details { font-size: 12px; color: var(--gray); line-height: 1.8; }
+  .party-details strong { color: var(--dark); font-weight: 500; }
+
+  /* ── LIVRAISON HIGHLIGHT ── */
+  .delivery-highlight {
+    margin: 0 52px 20px 60px;
+    background: var(--black);
+    border-radius: 6px;
+    padding: 16px 22px;
+    display: flex;
+    align-items: center;
+    gap: 32px;
+  }
+
+  .dh-item { flex: 1; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 24px; }
+  .dh-item:last-child { border-right: none; padding-right: 0; }
+
+  .dh-label {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--yellow);
+    margin-bottom: 4px;
+    display: block;
+  }
+
+  .dh-value { font-size: 14px; font-weight: 700; color: var(--white); }
+  .dh-sub { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 300; }
+
+  /* ── TABLE ── */
+  .table-wrap { margin: 0 52px 22px 60px; }
+  .table-wrap table { width: 100%; border-collapse: collapse; }
+  .table-wrap thead tr { background: var(--black); }
+
+  .table-wrap thead th {
+    padding: 11px 14px;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--white);
+    text-align: left;
+  }
+
+  .table-wrap thead th.r { text-align: right; }
+  .table-wrap thead th:first-child { border-radius: 4px 0 0 0; }
+  .table-wrap thead th:last-child  { border-radius: 0 4px 0 0; }
+
+  .table-wrap tbody tr { border-bottom: 1px solid var(--border); }
+  .table-wrap tbody tr:nth-child(even) { background: var(--gray-light); }
+
+  .table-wrap tbody td {
+    padding: 12px 14px;
+    font-size: 13px;
+    vertical-align: top;
+    color: var(--dark);
+  }
+
+  .table-wrap tbody td.r { text-align: right; font-weight: 500; color: var(--black); }
+
+  .ref-code {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--yellow-deep);
+    font-family: 'Outfit', monospace;
+    letter-spacing: 1px;
+  }
+
+  .td-title { font-weight: 600; color: var(--black); margin-bottom: 2px; }
+  .td-sub { font-size: 11px; color: var(--gray); font-weight: 300; }
+
+  /* ── TOTAUX ── */
+  .bottom-section {
+    margin: 0 52px 22px 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 30px;
+  }
+
+  .notes-block { flex: 1; }
+
+  .notes-block h4 {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--yellow-deep);
+    margin-bottom: 8px;
+  }
+
+  .notes-block p { font-size: 11.5px; color: var(--gray); line-height: 1.8; max-width: 240px; }
+
+  .totals-block { width: 280px; flex-shrink: 0; }
+
+  .total-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .total-line .tl-label { color: var(--gray); }
+  .total-line .tl-value { font-weight: 500; color: var(--dark); }
+
+  .total-final {
+    background: var(--black);
+    border-radius: 6px;
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+  }
+
+  .tf-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.6);
+  }
+
+  .tf-value {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--yellow);
+    letter-spacing: -1px;
+  }
+
+  /* ── CONDITIONS ACHAT ── */
+  .conditions-section {
+    margin: 0 52px 22px 60px;
+    background: var(--gray-light);
+    border-radius: 6px;
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+  }
+
+  .cond-block h5 {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--yellow-deep);
+    margin-bottom: 6px;
+  }
+
+  .cond-block p { font-size: 11.5px; color: var(--gray); line-height: 1.7; }
+  .cond-block strong { color: var(--dark); font-weight: 600; }
+
+  /* ── SIGNATURES ── */
+  .signature-section {
+    margin: 0 52px 34px 60px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .sign-block h5 {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gray);
+    margin-bottom: 10px;
+  }
+
+  .sign-area {
+    border: 1.5px dashed var(--border);
+    border-radius: 6px;
+    height: 72px;
+    display: flex;
+    align-items: flex-end;
+    padding: 8px 14px;
+  }
+
+  .sign-area p { font-size: 10px; color: var(--gray-mid); font-style: italic; font-family: 'Cormorant Garamond', serif; }
+
+  .sign-block.fournisseur .sign-area {
+    border-color: var(--yellow);
+    background: var(--yellow-pale);
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    margin-top: auto;
+    background: var(--black);
+    padding: 14px 52px 14px 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-brand { font-size: 12px; font-weight: 700; color: var(--yellow); }
+  .footer-legal { font-size: 9px; color: rgba(255,255,255,0.3); text-align: center; line-height: 1.6; }
+  .footer-page  { font-size: 9px; color: rgba(255,255,255,0.3); text-align: right; }
+  .footer-page span { color: var(--yellow); font-weight: 700; }
+
+  @media print {
+    body { background: white; }
+    .page { box-shadow: none; margin: 0; width: 100%; }
+    @page { margin: 0; size: A4; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ HEADER ══ -->
+  <header class="header">
+    <div class="header-accent"></div>
+    <div class="header-inner">
+      <div>
+        <div class="brand-logo">VOTRE<span>.</span>BRAND</div>
+        <div class="brand-tagline">Agence créative &amp; conseil stratégique</div>
+      </div>
+      <div class="doc-identity">
+        <span class="doc-label">Bon de commande</span>
+        <div class="doc-number">#BC-2024-156</div>
+        <div class="doc-sub">Émis le 15 novembre 2024</div>
+      </div>
+    </div>
+  </header>
+  <div class="header-bar"></div>
+
+  <!-- ══ MÉTA ══ -->
+  <div class="meta-row">
+    <div class="meta-cell">
+      <span class="meta-label">Date de commande</span>
+      <div class="meta-value">15 novembre 2024</div>
+    </div>
+    <div class="meta-cell">
+      <span class="meta-label">Délai de livraison souhaité</span>
+      <div class="meta-value">10 décembre 2024</div>
+      <div class="meta-sub">25 jours ouvrés</div>
+    </div>
+    <div class="meta-cell">
+      <span class="meta-label">Modalité de paiement</span>
+      <div class="meta-value">30 jours fin de mois</div>
+    </div>
+    <div class="meta-cell">
+      <span class="meta-label">Devis accepté</span>
+      <div class="meta-value">#DEV-2024-042</div>
+    </div>
+  </div>
+
+  <!-- ══ PARTIES ══ -->
+  <div class="parties">
+    <div class="party-block acheteur">
+      <span class="party-tag">Acheteur (Donneur d'ordre)</span>
+      <div class="party-name">ABC Technologies SAS</div>
+      <div class="party-details">
+        45 avenue de l'Innovation, 69003 Lyon<br>
+        <strong>SIRET :</strong> 987 654 321 00034<br>
+        <strong>Contact achat :</strong> Jean Martin — Responsable achats<br>
+        <strong>Tél :</strong> +33 4 56 78 90 12<br>
+        <strong>Email :</strong> j.martin@abc-tech.fr
+      </div>
+    </div>
+    <div class="party-block fournisseur">
+      <span class="party-tag">Fournisseur (Prestataire)</span>
+      <div class="party-name">VotreBrand Studio SAS</div>
+      <div class="party-details">
+        12 rue de la Création, 75008 Paris<br>
+        <strong>SIRET :</strong> 123 456 789 00012<br>
+        <strong>Contact :</strong> Sophie Lemaire — Chargée de compte<br>
+        <strong>Tél :</strong> +33 1 23 45 67 89<br>
+        <strong>Email :</strong> s.lemaire@votrebrand.fr
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ LIVRAISON ══ -->
+  <div class="delivery-highlight">
+    <div class="dh-item">
+      <span class="dh-label">Adresse de livraison</span>
+      <div class="dh-value">45 av. de l'Innovation</div>
+      <div class="dh-sub">69003 Lyon — France</div>
+    </div>
+    <div class="dh-item">
+      <span class="dh-label">Mode de livraison</span>
+      <div class="dh-value">Livraison digitale</div>
+      <div class="dh-sub">Par email &amp; lien de téléchargement</div>
+    </div>
+    <div class="dh-item">
+      <span class="dh-label">Incoterms</span>
+      <div class="dh-value">DAP — Lyon</div>
+      <div class="dh-sub">Rendu au lieu de destination</div>
+    </div>
+    <div class="dh-item">
+      <span class="dh-label">Priorité</span>
+      <div class="dh-value" style="color: var(--yellow);">Urgente</div>
+      <div class="dh-sub">Délai contractuel</div>
+    </div>
+  </div>
+
+  <!-- ══ TABLE ══ -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:90px">Réf. Article</th>
+          <th>Désignation</th>
+          <th class="r" style="width:55px">Qté</th>
+          <th class="r" style="width:55px">Unité</th>
+          <th class="r" style="width:80px">P.U. HT</th>
+          <th class="r" style="width:90px">Total HT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="ref-code">VB-AUD-01</span></td>
+          <td>
+            <div class="td-title">Audit &amp; Stratégie de marque</div>
+            <div class="td-sub">Analyse de l'existant et plateforme de marque.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">Forfait</td>
+          <td class="r">2 500,00 €</td>
+          <td class="r">2 500,00 €</td>
+        </tr>
+        <tr>
+          <td><span class="ref-code">VB-IDV-02</span></td>
+          <td>
+            <div class="td-title">Identité visuelle complète</div>
+            <div class="td-sub">Logo, charte graphique, design system.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">Forfait</td>
+          <td class="r">4 800,00 €</td>
+          <td class="r">4 800,00 €</td>
+        </tr>
+        <tr>
+          <td><span class="ref-code">VB-UX-03</span></td>
+          <td>
+            <div class="td-title">Design UI/UX — Site web 8 pages</div>
+            <div class="td-sub">Maquettes Figma responsive + prototype navigable.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">Forfait</td>
+          <td class="r">6 200,00 €</td>
+          <td class="r">6 200,00 €</td>
+        </tr>
+        <tr>
+          <td><span class="ref-code">VB-DEV-04</span></td>
+          <td>
+            <div class="td-title">Développement &amp; intégration web</div>
+            <div class="td-sub">CMS WordPress sur-mesure, responsive, SEO.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">Forfait</td>
+          <td class="r">5 500,00 €</td>
+          <td class="r">5 500,00 €</td>
+        </tr>
+        <tr>
+          <td><span class="ref-code">VB-FOR-05</span></td>
+          <td>
+            <div class="td-title">Formation &amp; remise des sources</div>
+            <div class="td-sub">Formation CMS 2h + remise fichiers sources.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">Forfait</td>
+          <td class="r">800,00 €</td>
+          <td class="r">800,00 €</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ NOTES + TOTAUX ══ -->
+  <div class="bottom-section">
+    <div class="notes-block">
+      <h4>Instructions particulières</h4>
+      <p>Toute modification de la commande après validation devra faire l'objet d'un avenant écrit signé par les deux parties. Les livraisons partielles sont acceptées sur accord préalable.</p>
+    </div>
+    <div class="totals-block">
+      <div class="total-line">
+        <span class="tl-label">Total HT</span>
+        <span class="tl-value">19 800,00 €</span>
+      </div>
+      <div class="total-line">
+        <span class="tl-label">TVA 20 %</span>
+        <span class="tl-value">3 960,00 €</span>
+      </div>
+      <div class="total-line">
+        <span class="tl-label">Remise (5 %)</span>
+        <span class="tl-value">− 990,00 €</span>
+      </div>
+      <div class="total-final">
+        <span class="tf-label">Total TTC commandé</span>
+        <span class="tf-value">22 770,00 €</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CONDITIONS ══ -->
+  <div class="conditions-section">
+    <div class="cond-block">
+      <h5>Conditions générales</h5>
+      <p>Cette commande est régie par les <strong>CGV</strong> du prestataire annexées au devis de référence, sauf dérogation écrite.</p>
+    </div>
+    <div class="cond-block">
+      <h5>Pénalités de retard</h5>
+      <p>Tout retard de livraison non justifié entraîne des pénalités de <strong>0,5 % / semaine</strong> du montant de la commande.</p>
+    </div>
+    <div class="cond-block">
+      <h5>Transfert de propriété</h5>
+      <p>Le transfert de propriété intervient à la <strong>réception et validation</strong> des livrables par l'acheteur.</p>
+    </div>
+  </div>
+
+  <!-- ══ SIGNATURES ══ -->
+  <div class="signature-section">
+    <div class="sign-block">
+      <h5>Signature acheteur (Bon pour commande)</h5>
+      <div class="sign-area">
+        <p>Signature, cachet et mention « Bon pour commande »</p>
+      </div>
+    </div>
+    <div class="sign-block fournisseur">
+      <h5>Accusé de réception — Fournisseur</h5>
+      <div class="sign-area">
+        <p>Signature et date d'accusé de réception</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ FOOTER ══ -->
+  <footer class="footer">
+    <span class="footer-brand">VOTREBRAND.</span>
+    <div class="footer-legal">
+      ABC Technologies SAS — SIRET 987 654 321 00034 — 45 av. de l'Innovation, 69003 Lyon<br>
+      Document émis par le service achats — achats@abc-tech.fr
+    </div>
+    <div class="footer-page">Page <span>1</span> / 1</div>
+  </footer>
+
+</div>
+</body>
+</html>

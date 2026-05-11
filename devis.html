@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Devis — VOTRE ENTREPRISE</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════
+     DESIGN SYSTEM — PALETTE JAUNE/NOIR
+  ═══════════════════════════════════ */
+  :root {
+    --yellow:        #F5C842;
+    --yellow-deep:   #D4A017;
+    --yellow-light:  #FFF8E1;
+    --yellow-pale:   #FFFBF0;
+    --black:         #0C0C0C;
+    --dark:          #1A1A1A;
+    --gray:          #6B6B6B;
+    --gray-mid:      #ADADAD;
+    --gray-light:    #F4F4F4;
+    --white:         #FFFFFF;
+    --border:        #E6E6E6;
+    --shadow:        rgba(0,0,0,0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Outfit', sans-serif;
+    background: #EDEDED;
+    color: var(--black);
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+
+  /* ── PAGE ── */
+  .page {
+    background: var(--white);
+    width: 210mm;
+    min-height: 297mm;
+    margin: 32px auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ═══════════════════════════════════
+     HEADER
+  ═══════════════════════════════════ */
+  .header {
+    padding: 44px 52px 0 52px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    position: relative;
+  }
+
+  /* Triangle décoratif coin supérieur droit */
+  .header::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 200px; height: 200px;
+    background: var(--yellow);
+    clip-path: polygon(100% 0, 0 0, 100% 100%);
+    z-index: 0;
+  }
+
+  /* Petit carré d'accent */
+  .header::after {
+    content: '';
+    position: absolute;
+    top: 28px; right: 28px;
+    width: 8px; height: 8px;
+    background: var(--black);
+    z-index: 2;
+  }
+
+  .brand { position: relative; z-index: 1; }
+
+  .brand-logo {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -1.5px;
+    color: var(--black);
+    text-transform: uppercase;
+    line-height: 1;
+  }
+
+  .brand-logo span {
+    color: var(--yellow-deep);
+  }
+
+  .brand-tagline {
+    margin-top: 5px;
+    font-size: 9px;
+    font-weight: 400;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--gray);
+  }
+
+  .doc-identity {
+    position: relative;
+    z-index: 1;
+    text-align: right;
+    padding-top: 8px;
+  }
+
+  .doc-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--black);
+    display: block;
+  }
+
+  .doc-number {
+    font-size: 36px;
+    font-weight: 800;
+    color: var(--black);
+    letter-spacing: -2px;
+    line-height: 1;
+    margin-top: 2px;
+  }
+
+  /* ── Barre jaune sous header ── */
+  .header-bar {
+    height: 3px;
+    background: linear-gradient(90deg, var(--yellow) 0%, var(--yellow-deep) 60%, transparent 100%);
+    margin: 28px 52px 0;
+  }
+
+  /* ═══════════════════════════════════
+     SECTION MÉTA (dates, infos)
+  ═══════════════════════════════════ */
+  .meta-row {
+    display: flex;
+    gap: 0;
+    margin: 0 52px;
+    padding: 22px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .meta-cell {
+    flex: 1;
+    padding-right: 24px;
+  }
+
+  .meta-cell:last-child { padding-right: 0; }
+
+  .meta-cell + .meta-cell {
+    border-left: 1px solid var(--border);
+    padding-left: 24px;
+  }
+
+  .meta-label {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--yellow-deep);
+    margin-bottom: 5px;
+    display: block;
+  }
+
+  .meta-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--black);
+    line-height: 1.4;
+  }
+
+  .meta-sub {
+    font-size: 11px;
+    color: var(--gray);
+    margin-top: 2px;
+    font-weight: 300;
+  }
+
+  /* ═══════════════════════════════════
+     PARTIES (émetteur + client)
+  ═══════════════════════════════════ */
+  .parties {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin: 24px 52px;
+  }
+
+  .party-block {
+    padding: 20px 22px;
+    border-radius: 6px;
+    position: relative;
+  }
+
+  .party-block.emetteur {
+    background: var(--gray-light);
+  }
+
+  .party-block.client {
+    background: var(--yellow-pale);
+    border: 1.5px solid var(--yellow);
+  }
+
+  .party-tag {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 3.5px;
+    text-transform: uppercase;
+    color: var(--gray-mid);
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  .party-block.client .party-tag {
+    color: var(--yellow-deep);
+  }
+
+  .party-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--black);
+    margin-bottom: 4px;
+  }
+
+  .party-details {
+    font-size: 12px;
+    color: var(--gray);
+    line-height: 1.8;
+  }
+
+  .party-details strong {
+    color: var(--dark);
+    font-weight: 500;
+  }
+
+  /* ═══════════════════════════════════
+     OBJET DU DEVIS
+  ═══════════════════════════════════ */
+  .objet-row {
+    margin: 0 52px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .objet-badge {
+    background: var(--yellow);
+    color: var(--black);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  .objet-text {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--dark);
+    font-style: italic;
+    font-family: 'Cormorant Garamond', serif;
+  }
+
+  /* ═══════════════════════════════════
+     TABLE PRESTATIONS
+  ═══════════════════════════════════ */
+  .table-wrap {
+    margin: 0 52px 24px;
+  }
+
+  .table-wrap table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .table-wrap thead tr {
+    background: var(--black);
+  }
+
+  .table-wrap thead th {
+    padding: 11px 14px;
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--white);
+    text-align: left;
+  }
+
+  .table-wrap thead th.r { text-align: right; }
+
+  .table-wrap thead th:first-child { border-radius: 4px 0 0 0; }
+  .table-wrap thead th:last-child  { border-radius: 0 4px 0 0; text-align: right; }
+
+  .table-wrap tbody tr {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-wrap tbody tr:nth-child(even) {
+    background: var(--gray-light);
+  }
+
+  .table-wrap tbody tr:hover {
+    background: var(--yellow-pale);
+  }
+
+  .table-wrap tbody td {
+    padding: 13px 14px;
+    font-size: 13px;
+    vertical-align: top;
+    color: var(--dark);
+  }
+
+  .table-wrap tbody td.r {
+    text-align: right;
+    font-weight: 500;
+    color: var(--black);
+  }
+
+  .td-ref {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--yellow-deep);
+    font-family: 'Outfit', monospace;
+    letter-spacing: 1px;
+  }
+
+  .td-title {
+    font-weight: 600;
+    color: var(--black);
+    margin-bottom: 2px;
+  }
+
+  .td-sub {
+    font-size: 11px;
+    color: var(--gray);
+    font-weight: 300;
+    line-height: 1.5;
+  }
+
+  /* ═══════════════════════════════════
+     TOTAUX
+  ═══════════════════════════════════ */
+  .bottom-section {
+    margin: 0 52px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 30px;
+  }
+
+  .notes-block {
+    flex: 1;
+  }
+
+  .notes-block h4 {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--yellow-deep);
+    margin-bottom: 10px;
+  }
+
+  .notes-block p {
+    font-size: 11.5px;
+    color: var(--gray);
+    line-height: 1.8;
+    max-width: 260px;
+  }
+
+  .totals-block {
+    width: 280px;
+    flex-shrink: 0;
+  }
+
+  .total-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .total-line .tl-label { color: var(--gray); font-weight: 400; }
+  .total-line .tl-value { font-weight: 500; color: var(--dark); }
+
+  .total-line.tva .tl-label { font-size: 11px; }
+
+  .total-final {
+    background: var(--black);
+    border-radius: 6px;
+    padding: 16px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+  }
+
+  .total-final .tf-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.7);
+  }
+
+  .total-final .tf-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--yellow);
+    letter-spacing: -1px;
+  }
+
+  /* ═══════════════════════════════════
+     VALIDITÉ + CONDITIONS
+  ═══════════════════════════════════ */
+  .conditions-section {
+    margin: 0 52px 24px;
+    background: var(--gray-light);
+    border-radius: 6px;
+    padding: 18px 22px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+  }
+
+  .cond-block h5 {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--yellow-deep);
+    margin-bottom: 6px;
+  }
+
+  .cond-block p {
+    font-size: 11.5px;
+    color: var(--gray);
+    line-height: 1.7;
+  }
+
+  .cond-block strong {
+    color: var(--dark);
+    font-weight: 600;
+  }
+
+  /* ═══════════════════════════════════
+     SIGNATURE
+  ═══════════════════════════════════ */
+  .signature-section {
+    margin: 0 52px 36px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .sign-block h5 {
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gray);
+    margin-bottom: 12px;
+  }
+
+  .sign-area {
+    border: 1.5px dashed var(--border);
+    border-radius: 6px;
+    height: 75px;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    padding: 8px 14px;
+  }
+
+  .sign-placeholder {
+    font-size: 10px;
+    color: var(--gray-mid);
+    font-style: italic;
+    font-family: 'Cormorant Garamond', serif;
+  }
+
+  .sign-block.client .sign-area {
+    border-color: var(--yellow);
+    background: var(--yellow-pale);
+  }
+
+  /* ═══════════════════════════════════
+     FOOTER
+  ═══════════════════════════════════ */
+  .footer {
+    margin-top: auto;
+    background: var(--black);
+    padding: 16px 52px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer-brand {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--yellow);
+    letter-spacing: 1px;
+  }
+
+  .footer-legal {
+    font-size: 9px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.5px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .footer-page {
+    font-size: 9px;
+    color: rgba(255,255,255,0.3);
+    text-align: right;
+  }
+
+  .footer-page span {
+    color: var(--yellow);
+    font-weight: 700;
+  }
+
+  /* ═══════════════════════════════════
+     PRINT
+  ═══════════════════════════════════ */
+  @media print {
+    body { background: white; }
+    .page {
+      box-shadow: none;
+      margin: 0;
+      width: 100%;
+    }
+    @page { margin: 0; size: A4; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ HEADER ══ -->
+  <header class="header">
+    <div class="brand">
+      <div class="brand-logo">VOTRE<span>.</span>BRAND</div>
+      <div class="brand-tagline">Agence créative &amp; conseil stratégique</div>
+    </div>
+    <div class="doc-identity">
+      <span class="doc-label">Devis</span>
+      <div class="doc-number">#DEV-2024-042</div>
+    </div>
+  </header>
+  <div class="header-bar"></div>
+
+  <!-- ══ MÉTA ══ -->
+  <div class="meta-row">
+    <div class="meta-cell">
+      <span class="meta-label">Date d'émission</span>
+      <div class="meta-value">15 novembre 2024</div>
+    </div>
+    <div class="meta-cell">
+      <span class="meta-label">Valide jusqu'au</span>
+      <div class="meta-value">15 décembre 2024</div>
+      <div class="meta-sub">30 jours à compter de l'émission</div>
+    </div>
+    <div class="meta-cell">
+      <span class="meta-label">Délai de réalisation</span>
+      <div class="meta-value">6 semaines</div>
+      <div class="meta-sub">À partir de la validation</div>
+    </div>
+    <div class="meta-cell">
+      <span class="meta-label">Référence client</span>
+      <div class="meta-value">PROJ-2024-117</div>
+    </div>
+  </div>
+
+  <!-- ══ PARTIES ══ -->
+  <div class="parties">
+    <div class="party-block emetteur">
+      <span class="party-tag">Émetteur</span>
+      <div class="party-name">VotreBrand Studio</div>
+      <div class="party-details">
+        12 rue de la Création, 75008 Paris<br>
+        <strong>SIRET :</strong> 123 456 789 00012<br>
+        <strong>TVA :</strong> FR12 123456789<br>
+        <strong>Email :</strong> contact@votrebrand.fr<br>
+        <strong>Tél :</strong> +33 1 23 45 67 89
+      </div>
+    </div>
+    <div class="party-block client">
+      <span class="party-tag">Client</span>
+      <div class="party-name">Société ABC Technologies</div>
+      <div class="party-details">
+        45 avenue de l'Innovation, 69003 Lyon<br>
+        <strong>SIRET :</strong> 987 654 321 00034<br>
+        <strong>TVA :</strong> FR98 987654321<br>
+        <strong>Contact :</strong> Marie Dupont — Directrice Mktg<br>
+        <strong>Email :</strong> m.dupont@abc-tech.fr
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ OBJET ══ -->
+  <div class="objet-row">
+    <span class="objet-badge">Objet</span>
+    <span class="objet-text">Refonte complète de l'identité visuelle et création du site web corporate</span>
+  </div>
+
+  <!-- ══ TABLE ══ -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:60px">Réf.</th>
+          <th>Prestation / Description</th>
+          <th class="r" style="width:60px">Qté</th>
+          <th class="r" style="width:80px">P.U. HT</th>
+          <th class="r" style="width:90px">Total HT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="td-ref">01</span></td>
+          <td>
+            <div class="td-title">Audit &amp; Stratégie de marque</div>
+            <div class="td-sub">Analyse de l'existant, benchmark concurrentiel, définition du positionnement et de la plateforme de marque.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">2 500,00 €</td>
+          <td class="r">2 500,00 €</td>
+        </tr>
+        <tr>
+          <td><span class="td-ref">02</span></td>
+          <td>
+            <div class="td-title">Création identité visuelle complète</div>
+            <div class="td-sub">Logo principal + déclinaisons, charte graphique, palette de couleurs, typographies, iconographie.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">4 800,00 €</td>
+          <td class="r">4 800,00 €</td>
+        </tr>
+        <tr>
+          <td><span class="td-ref">03</span></td>
+          <td>
+            <div class="td-title">Design UI/UX — Site web corporate</div>
+            <div class="td-sub">Maquettes Figma (desktop + mobile) pour 8 pages, prototype interactif navigable, design system.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">6 200,00 €</td>
+          <td class="r">6 200,00 €</td>
+        </tr>
+        <tr>
+          <td><span class="td-ref">04</span></td>
+          <td>
+            <div class="td-title">Développement web (intégration)</div>
+            <div class="td-sub">Intégration HTML/CSS/JS, CMS WordPress sur-mesure, responsive, optimisation SEO technique.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">5 500,00 €</td>
+          <td class="r">5 500,00 €</td>
+        </tr>
+        <tr>
+          <td><span class="td-ref">05</span></td>
+          <td>
+            <div class="td-title">Formation &amp; livraison des sources</div>
+            <div class="td-sub">Session de formation CMS (2h), remise des fichiers sources (AI, SVG, Figma), guide d'utilisation de la charte.</div>
+          </td>
+          <td class="r">1</td>
+          <td class="r">800,00 €</td>
+          <td class="r">800,00 €</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ══ BOTTOM : NOTES + TOTAUX ══ -->
+  <div class="bottom-section">
+    <div class="notes-block">
+      <h4>Notes &amp; informations</h4>
+      <p>Ce devis est établi sur la base du cahier des charges transmis le 10 novembre 2024. Toute demande complémentaire hors périmètre fera l'objet d'un avenant.</p>
+    </div>
+    <div class="totals-block">
+      <div class="total-line">
+        <span class="tl-label">Sous-total HT</span>
+        <span class="tl-value">19 800,00 €</span>
+      </div>
+      <div class="total-line tva">
+        <span class="tl-label">TVA 20 %</span>
+        <span class="tl-value">3 960,00 €</span>
+      </div>
+      <div class="total-line tva">
+        <span class="tl-label">Remise commerciale (5 %)</span>
+        <span class="tl-value">− 990,00 €</span>
+      </div>
+      <div class="total-final">
+        <span class="tf-label">Total TTC</span>
+        <span class="tf-value">22 770,00 €</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CONDITIONS ══ -->
+  <div class="conditions-section">
+    <div class="cond-block">
+      <h5>Modalités de paiement</h5>
+      <p><strong>40 %</strong> à la commande<br><strong>40 %</strong> à mi-projet<br><strong>20 %</strong> à la livraison finale</p>
+    </div>
+    <div class="cond-block">
+      <h5>Validité</h5>
+      <p>Ce devis est valable <strong>30 jours</strong> à compter de sa date d'émission. Passé ce délai, les tarifs pourront être révisés.</p>
+    </div>
+    <div class="cond-block">
+      <h5>Propriété intellectuelle</h5>
+      <p>Les droits de propriété sont cédés au client après <strong>règlement intégral</strong> de la prestation.</p>
+    </div>
+  </div>
+
+  <!-- ══ SIGNATURES ══ -->
+  <div class="signature-section">
+    <div class="sign-block">
+      <h5>Bon pour accord — Prestataire</h5>
+      <div class="sign-area">
+        <span class="sign-placeholder">Signature et cachet de l'entreprise</span>
+      </div>
+    </div>
+    <div class="sign-block client">
+      <h5>Bon pour accord — Client (mention « Lu et approuvé »)</h5>
+      <div class="sign-area">
+        <span class="sign-placeholder">Signature du client et cachet</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ FOOTER ══ -->
+  <footer class="footer">
+    <span class="footer-brand">VOTREBRAND.</span>
+    <div class="footer-legal">
+      VotreBrand Studio SAS — Capital 10 000 € — SIRET 123 456 789 00012 — NAF 7410Z<br>
+      12 rue de la Création, 75008 Paris — contact@votrebrand.fr — www.votrebrand.fr
+    </div>
+    <div class="footer-page">Page <span>1</span> / 1</div>
+  </footer>
+
+</div>
+</body>
+</html>
