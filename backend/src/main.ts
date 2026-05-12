@@ -7,7 +7,10 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+app.enableCors({
+  origin: "*",
+  credentials: true,
+});
   // Increase JSON body size limit (default 100kb is too small for base64 images)
   app.use(require('express').json({ limit: '20mb' }));
   app.use(require('express').urlencoded({ extended: true, limit: '20mb' }));
