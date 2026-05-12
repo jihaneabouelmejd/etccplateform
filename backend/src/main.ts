@@ -7,10 +7,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-app.enableCors({
-  origin: "*",
-  credentials: true,
-});
+
   // Increase JSON body size limit (default 100kb is too small for base64 images)
   app.use(require('express').json({ limit: '20mb' }));
   app.use(require('express').urlencoded({ extended: true, limit: '20mb' }));
@@ -19,14 +16,9 @@ app.enableCors({
   app.use(helmet({ crossOriginResourcePolicy: false }));
   app.use(cookieParser());
 
-  // ✅ CORS — supporte localhost (dev) + Railway URL (prod) via FRONTEND_URL env var
-  const allowedOrigins = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map(u => u.trim()) : []),
-  ];
+  // ✅ CORS — accepter tous les origines en développement
   app.enableCors({
-    origin: allowedOrigins,
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
