@@ -578,4 +578,56 @@ export default function BLPage() {
               <button onClick={() => setShowScanModal(false)}
                 style={{ width:30, height:30, borderRadius:7, border:'1.5px solid #E8D4B0', background:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <X size={14} color="#8E5915" />
-              
+                            </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding:'20px 22px' }}>
+              {/* Zone upload */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => e.preventDefault()}
+                onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) handleScanFile(f); }}
+                style={{ border:'2px dashed #E8D4B0', borderRadius:12, padding:'24px 16px', textAlign:'center', cursor:'pointer', background:'#FFFBF5', marginBottom:16, transition:'border-color 0.2s' }}
+              >
+                {scanPreview ? (
+                  <img src={scanPreview} alt="preview" style={{ maxHeight:220, maxWidth:'100%', borderRadius:8, objectFit:'contain' }} />
+                ) : (
+                  <>
+                    <Upload size={32} color="#C9922A" style={{ marginBottom:8 }} />
+                    <p style={{ margin:0, fontSize:13, color:'#8E5915', fontWeight:600 }}>Cliquez ou glissez le BL signé ici</p>
+                    <p style={{ margin:'4px 0 0', fontSize:11, color:'#B8976A' }}>JPG, PNG, PDF acceptés</p>
+                  </>
+                )}
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                style={{ display:'none' }}
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleScanFile(f); }}
+              />
+
+              {uploading && (
+                <p style={{ textAlign:'center', fontSize:12, color:'#8E5915', margin:'0 0 12px' }}>⏳ Upload en cours...</p>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding:'14px 22px', borderTop:'1px solid #F5E6D3', display:'flex', justifyContent:'flex-end', gap:10 }}>
+              <button onClick={() => setShowScanModal(false)} style={btnSecondary}>Annuler</button>
+              <button
+                onClick={handleSaveScan}
+                disabled={!scanUrl || savingScan || uploading}
+                style={{ ...btnPrimary, opacity: (!scanUrl || savingScan || uploading) ? 0.6 : 1 }}
+              >
+                {savingScan ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

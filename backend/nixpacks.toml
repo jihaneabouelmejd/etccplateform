@@ -1,0 +1,25 @@
+# ============================================================
+# Railway NixPacks config — ETCC Backend (NestJS)
+# Installe Chromium (Puppeteer PDF) + Tesseract OCR (fra+ara)
+# ============================================================
+
+[phases.setup]
+nixPkgs = [
+  "chromium",
+  "tesseract5",
+  "bash",
+  "openssl",
+  "libuuid",
+]
+
+[phases.install]
+cmds = ["npm ci --legacy-peer-deps"]
+
+[phases.build]
+cmds = [
+  "npx prisma generate",
+  "npm run build",
+]
+
+[start]
+cmd = "npx prisma migrate deploy && node dist/main"

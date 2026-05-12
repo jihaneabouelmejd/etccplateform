@@ -15,7 +15,8 @@ import { execSync } from 'child_process';
 const pdfParse = require('pdf-parse');
 
 // Ensure uploads directory exists
-const uploadsPath = join(process.cwd(), 'uploads');
+// UPLOADS_PATH peut être défini en prod (ex: Railway Volume monté sur /data/uploads)
+const uploadsPath = process.env.UPLOADS_PATH || join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsPath)) fs.mkdirSync(uploadsPath, { recursive: true });
 
 const storage = diskStorage({
