@@ -151,7 +151,7 @@ export default function FacturesPage() {
   };
 
   const openAchatModal = () => {
-    setAchatForm({ fournisseur_id: '', ref_fournisseur: '', total_ht_brut: '', tva_amount: '', total_ttc: '', issue_date: new Date().toISOString().slice(0,10), due_date: '', notes: '' });
+    setAchatForm({ fournisseur_id: '', fournisseur_libre: '', ref_fournisseur: '', total_ht_brut: '', tva_amount: '', total_ttc: '', issue_date: new Date().toISOString().slice(0,10), due_date: '', notes: '' });
     setScanPreview(null); setScanUrl(null); setScanFilename(null); setAchatError(''); setExtractMsg(null); setDetectedFournisseur(null);
     setAchatForm(f => ({ ...f, fournisseur_id: '', fournisseur_libre: '' }));
     fournisseursApi.list({ limit: 200 }).then(r => setFournisseurs(r.data.data || [])).catch(() => {});
