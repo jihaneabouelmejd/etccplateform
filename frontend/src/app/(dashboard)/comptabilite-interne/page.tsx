@@ -323,8 +323,8 @@ export default function ComptabiliteInternePage() {
     try {
       const [statsRes, listRes] = await Promise.all([
         depMonth > 0
-          ? comptaApi.dépensesStats(depMonth, year)
-          : comptaApi.dépensesStats(undefined, year),
+          ? comptaApi.depensesStats(depMonth, year)
+          : comptaApi.depensesStats(undefined, year),
         fetch(`/api/dépenses?year=${year}${depMonth > 0 ? `&month=${depMonth}` : ''}&limit=500`, {
           headers: { Authorization: `Bearer ${localStorage.getItem('access_token')}` }
         }).then(r => r.json()),
