@@ -584,7 +584,7 @@ export default function BCPage() {
                           <p style={{ margin:'2px 0 0', fontSize:11, color:'#3B82F6' }}>{sourceLabel[viewTarget.source] || viewTarget.source}</p>
                         </div>
                       </div>
-                      <a href={viewTarget.imported_file_url.startsWith('http') ? viewTarget.imported_file_url : `http://localhost:4000${viewTarget.imported_file_url}`}
+                      <a href={viewTarget.imported_file_url.startsWith('http') ? viewTarget.imported_file_url : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}${viewTarget.imported_file_url}`}
                         target="_blank" rel="noopener noreferrer"
                         style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, background:'#1D4ED8', color:'white', fontSize:12, fontWeight:700, textDecoration:'none' }}>
                         <Download size={13} /> Télécharger

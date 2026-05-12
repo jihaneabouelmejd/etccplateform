@@ -325,7 +325,7 @@ export default function FacturesPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {dep.receipt_url && (
-                    <a href={dep.receipt_url.startsWith('http') ? dep.receipt_url : `http://localhost:4000${dep.receipt_url}`}
+                    <a href={dep.receipt_url.startsWith('http') ? dep.receipt_url : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}${dep.receipt_url}`}
                       target="_blank" rel="noreferrer"
                       style={{ padding: '6px 12px', borderRadius: 8, border: '1.5px solid #E8D4B0', background: 'white', color: '#8E5915', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
                       👁 Voir

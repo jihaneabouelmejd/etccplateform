@@ -160,7 +160,7 @@ export default function MesFacturesPage() {
                     {st.label}
                   </span>
                   {d.receipt_url && (
-                    <a href={d.receipt_url.startsWith('http') ? d.receipt_url : `http://localhost:4000${d.receipt_url}`}
+                    <a href={d.receipt_url.startsWith('http') ? d.receipt_url : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}${d.receipt_url}`}
                       target="_blank" rel="noreferrer"
                       style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #E8D4B0', background: 'white', color: '#8E5915', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
                       <ExternalLink size={12} /> {t('see')}
