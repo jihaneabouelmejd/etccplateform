@@ -21,7 +21,7 @@ export class BCService {
   /**
    * Créer un BC depuis un devis validé
    */
-  async createFromDevis(devisId: string, createdBy: string) {
+  async createFromDevis(devisId: string, createdBy: string, signatureId?: string) {
     const devis = await this.prisma.devis.findUnique({
       where: { id: devisId },
       include: { lines: true },
@@ -32,6 +32,8 @@ export class BCService {
     }
 
     const number = await this.generateNumber();
+    // Inherit signature from devis if none explicitly chosen
+    const resolvedSigId = signatureId || (devis as any).signature_id || undefined;
 
     return this.prisma.bonCommande.create({
       data: {
@@ -43,6 +45,7 @@ export class BCService {
         created_by: createdBy,
         total_ht: devis.total_ht_net,
         total_ttc: devis.total_ttc,
+        signature_id: resolvedSigId,
         lines: {
           create: devis.lines.map((l, i) => ({
             description: l.description,
@@ -66,6 +69,7 @@ export class BCService {
     source: BCSource;
     imported_file_url?: string;
     ocr_raw_data?: any;
+    signature_id?: string;
     lines: { description: string; quantity: number; unit_price?: number }[];
   }, createdBy: string) {
     const number = await this.generateNumber();
@@ -79,6 +83,7 @@ export class BCService {
         created_by: createdBy,
         imported_file_url: data.imported_file_url,
         ocr_raw_data: data.ocr_raw_data,
+        signature_id: data.signature_id,
         lines: {
           create: data.lines.map((l, i) => ({
             description: l.description,

@@ -5,7 +5,7 @@ import { Plus, Search, ArrowRight, Trash2, Upload, PlusCircle, X, FileImage, Fil
 import { useLanguage } from '@/lib/i18n';
 import { useRouter } from 'next/navigation';
 import PDFButton from '@/components/ui/PDFButton';
-import { bcApi, devisApi, clientsApi } from '@/lib/api';
+import { bcApi, devisApi, clientsApi, signaturesApi } from '@/lib/api';
 import { formatDate, cn, formatCurrency } from '@/lib/utils';
 import api from '@/lib/api';
 
@@ -47,6 +47,10 @@ export default function BCPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
+  // Signatures
+  const [signatures, setSignatures] = useState<any[]>([]);
+  const [bcSignatureId, setBcSignatureId] = useState('');
+
   // Modal "Depuis devis"
   const [showDevisModal, setShowDevisModal] = useState(false);
   const [selectedDevisId, setSelectedDevisId] = useState('');
@@ -85,15 +89,14 @@ export default function BCPage() {
 
   useEffect(() => { fetchData(); }, [search, statusFilter]);
 
-  // Charger les clients au demarrage
+  // Charger les clients et signatures au demarrage
   useEffect(() => {
-    clientsApi.list({ limit: 500 })
-      .then(r => setClients(r.data.data || []))
-      .catch(() => {});
+    clientsApi.list({ limit: 500 }).then(r => setClients(r.data.data || [])).catch(() => {});
+    signaturesApi.list().then(r => setSignatures(r.data || [])).catch(() => {});
   }, []);
 
   const openDevisModal = () => {
-    setSelectedDevisId(''); setCreateError('');
+    setSelectedDevisId(''); setCreateError(''); setBcSignatureId('');
     devisApi.list({ status: 'VALIDATED', limit: 200 })
       .then(r => setValidatedDevis(r.data.data || []))
       .catch(() => {});
@@ -104,7 +107,7 @@ export default function BCPage() {
     if (!selectedDevisId) { setCreateError('Sélectionnez un devis'); return; }
     setCreating(true); setCreateError('');
     try {
-      await bcApi.createFromDevis(selectedDevisId);
+      await bcApi.createFromDevis(selectedDevisId, bcSignatureId || undefined);
       fetchData(); setShowDevisModal(false);
     } catch (e: any) {
       const msg = e?.response?.data?.message;
@@ -119,6 +122,7 @@ export default function BCPage() {
     setImportFile(null);
     setImportFileUrl('');
     setImportMode('manual');
+    setBcSignatureId('');
     setShowImportModal(true);
   };
 
@@ -163,6 +167,7 @@ export default function BCPage() {
           client_id: importClientId,
           source: 'IMPORTED_OCR',
           imported_file_url: importFileUrl,
+          signature_id: bcSignatureId || undefined,
           lines: [{ description: importFile?.name || 'Document importé', quantity: 1 }],
         });
         fetchData(); setShowImportModal(false);
@@ -181,6 +186,7 @@ export default function BCPage() {
       await bcApi.import({
         client_id: importClientId,
         source: 'IMPORTED_MANUAL',
+        signature_id: bcSignatureId || undefined,
         lines: validLines.map(l => ({
           description: l.description.trim(),
           quantity: parseFloat(l.quantity) || 1,
@@ -341,6 +347,27 @@ export default function BCPage() {
                 <p style={{ fontSize:12, color:'#A33C00', marginTop:8 }}>Aucun devis valide disponible.</p>
               )}
             </div>
+
+            {/* Signature */}
+            {signatures.length > 0 && (
+              <div style={{ marginBottom:20 }}>
+                <label style={labelStyle}>Signature ETCC</label>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:6 }}>
+                  <div onClick={() => setBcSignatureId('')}
+                    style={{ border:`2px solid ${!bcSignatureId ? '#EBB800' : '#EDDEC1'}`, borderRadius:8, padding:'6px 14px', cursor:'pointer', fontSize:12, color: !bcSignatureId ? '#A33C00' : '#A33C00', background: !bcSignatureId ? '#FFF8EE' : 'white', fontWeight:600 }}>
+                    Aucune
+                  </div>
+                  {signatures.map((sig: any) => (
+                    <div key={sig.id} onClick={() => setBcSignatureId(sig.id)}
+                      style={{ border:`2px solid ${bcSignatureId === sig.id ? '#EBB800' : '#EDDEC1'}`, borderRadius:8, padding:6, cursor:'pointer', background: bcSignatureId === sig.id ? '#FFF8EE' : 'white', display:'flex', flexDirection:'column', alignItems:'center', gap:4, minWidth:90 }}>
+                      <img src={sig.image_url} alt={sig.name} style={{ height:40, maxWidth:120, objectFit:'contain' }} />
+                      <span style={{ fontSize:10, fontWeight:600, color: bcSignatureId === sig.id ? '#A33C00' : '#A33C00' }}>{sig.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {createError && (
               <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:16, fontSize:12, color:'#D32F2F' }}>
                 {createError}
@@ -490,6 +517,26 @@ export default function BCPage() {
                 ))}
               </div>
             </div>
+            )}
+
+            {/* Signature */}
+            {signatures.length > 0 && (
+              <div style={{ marginBottom:18 }}>
+                <label style={labelStyle}>Signature ETCC</label>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:6 }}>
+                  <div onClick={() => setBcSignatureId('')}
+                    style={{ border:`2px solid ${!bcSignatureId ? '#EBB800' : '#EDDEC1'}`, borderRadius:8, padding:'6px 14px', cursor:'pointer', fontSize:12, color:'#A33C00', background: !bcSignatureId ? '#FFF8EE' : 'white', fontWeight:600 }}>
+                    Aucune
+                  </div>
+                  {signatures.map((sig: any) => (
+                    <div key={sig.id} onClick={() => setBcSignatureId(sig.id)}
+                      style={{ border:`2px solid ${bcSignatureId === sig.id ? '#EBB800' : '#EDDEC1'}`, borderRadius:8, padding:6, cursor:'pointer', background: bcSignatureId === sig.id ? '#FFF8EE' : 'white', display:'flex', flexDirection:'column', alignItems:'center', gap:4, minWidth:90 }}>
+                      <img src={sig.image_url} alt={sig.name} style={{ height:40, maxWidth:120, objectFit:'contain' }} />
+                      <span style={{ fontSize:10, fontWeight:600, color:'#A33C00' }}>{sig.name}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
 
             {importError && (

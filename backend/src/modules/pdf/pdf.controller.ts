@@ -87,6 +87,7 @@ export class PDFController {
         lines: { orderBy: { order: 'asc' } },
         client: true,
         devis: { select: { number: true } },
+        signature: true,
       },
     });
     if (!bc) throw new NotFoundException('Bon de commande non trouvé');
@@ -97,6 +98,7 @@ export class PDFController {
       status: bc.status,
       source: bc.source,
       devis_number: bc.devis?.number || undefined,
+      signature_url: (bc as any).signature?.image_url || undefined,
       client: {
         commercial_name: bc.client.commercial_name,
         ice: bc.client.ice || undefined,

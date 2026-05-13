@@ -270,11 +270,11 @@ export function bcTemplate(data: BCTemplateInput): string {
     </div>
   </div>
   <div class="sblock four">
-    <h5>Accusé de réception — Fournisseur</h5>
-    <div class="sarea">
-      <p>Signature et date d'accusé de réception</p>
-      <div class="sline">Date : _____ / _____ / _______</div>
-    </div>
+    <h5>Accusé de réception — ETCC</h5>
+    <div class="sarea">${data.signature_url
+      ? `<img src="${data.signature_url}" style="max-height:60px;max-width:160px;object-fit:contain;display:block;margin:0 auto;"/>`
+      : `<div style="height:50px;width:160px;border-bottom:1.5px solid #D4A017;margin:0 auto;"></div>`
+    }</div>
   </div>
 </div>
 

@@ -104,6 +104,7 @@ export interface BCPDFData {
   total_ht?: number;
   total_ttc?: number;
   notes?: string;
+  signature_url?: string;
 }
 
 export interface PurchaseInvoicePDFData {

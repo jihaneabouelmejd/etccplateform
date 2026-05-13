@@ -292,10 +292,11 @@ model Signature {
   is_default  Boolean       @default(false)
   created_at  DateTime      @default(now())
   
-  user        User          @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  devis       Devis[]
-  bls         BonLivraison[]
-  invoices    Invoice[]
+  user             User           @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  devis            Devis[]
+  bls              BonLivraison[]
+  invoices         Invoice[]
+  bons_commande    BonCommande[]
   
   @@index([user_id])
   @@map("signatures")
@@ -684,17 +685,19 @@ model BonCommande {
   
   // Status
   status          BCStatus       @default(OPEN)
-  
+
   notes           String?        @db.Text
-  
+  signature_id    String?
+
   created_at      DateTime       @default(now())
   updated_at      DateTime       @updatedAt
-  
+
   // Relations
   devis           Devis?         @relation(fields: [devis_id], references: [id])
   client          Client         @relation(fields: [client_id], references: [id])
   project         Project?       @relation(fields: [project_id], references: [id])
   creator         User           @relation(fields: [created_by], references: [id])
+  signature       Signature?     @relation(fields: [signature_id], references: [id])
   lines           BCLine[]
   bls             BonLivraison[]
   invoices        Invoice[]

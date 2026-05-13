@@ -16,8 +16,12 @@ export class BCController {
 
   @Post('from-devis/:devisId')
   @Roles(Role.ADMIN, Role.GERANT)
-  createFromDevis(@Param('devisId') devisId: string, @CurrentUser('id') userId: string) {
-    return this.bc.createFromDevis(devisId, userId);
+  createFromDevis(
+    @Param('devisId') devisId: string,
+    @CurrentUser('id') userId: string,
+    @Body('signature_id') signatureId?: string,
+  ) {
+    return this.bc.createFromDevis(devisId, userId, signatureId || undefined);
   }
 
   @Post('import')
