@@ -45,7 +45,7 @@ async function main() {
 
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
-    update: {},
+    update: { password_hash: adminHash }, // ← toujours mettre à jour le mot de passe
     create: {
       username: 'admin',
       email: 'admin@etcc.ma',
@@ -56,7 +56,7 @@ async function main() {
       preferred_language: 'FR',
     },
   });
-  console.log(`✅ Admin créé — login: admin / password: ${adminPassword}`);
+  console.log(`✅ Admin créé/mis à jour — login: admin / password: ${adminPassword}`);
 
   // ==================================
   // 3. Gérant
