@@ -6,13 +6,14 @@ import * as bcrypt from 'bcrypt';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 
-async function ensureAdminExists(app: any) {
+async function ensureDefaultUsers(app: any) {
   try {
     const prisma = app.get(PrismaService);
+
+    // Admin
     const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || 'Admin2026!';
     const adminHash = await bcrypt.hash(adminPassword, 10);
-
-    await prisma.user.upsert({
+    const admin = await prisma.user.upsert({
       where: { username: 'admin' },
       update: { password_hash: adminHash },
       create: {
@@ -27,8 +28,82 @@ async function ensureAdminExists(app: any) {
       },
     });
     console.log(`✅ Admin prêt — login: admin / password: ${adminPassword}`);
+
+    // Gérant
+    const gerantHash = await bcrypt.hash('Youssef2026!', 10);
+    await prisma.user.upsert({
+      where: { username: 'youssef' },
+      update: {},
+      create: {
+        username: 'youssef',
+        email: 'youssef@etcc.ma',
+        password_hash: gerantHash,
+        first_name: 'Youssef',
+        last_name: 'Benali',
+        role: 'GERANT',
+        is_active: true,
+        preferred_language: 'FR',
+        created_by: admin.id,
+      },
+    });
+
+    // Comptable
+    const comptableHash = await bcrypt.hash('Fatima2026!', 10);
+    await prisma.user.upsert({
+      where: { username: 'fatima' },
+      update: {},
+      create: {
+        username: 'fatima',
+        email: 'fatima@etcc.ma',
+        password_hash: comptableHash,
+        first_name: 'Fatima',
+        last_name: 'Alaoui',
+        role: 'COMPTABLE',
+        is_active: true,
+        preferred_language: 'FR',
+        created_by: admin.id,
+      },
+    });
+
+    // Employés réels (depuis seed-users.ts)
+    const realUsers = [
+      { username: 'abdelghni', password: 'Etcc2026', first_name: 'Abdelghni', last_name: 'Employe', role: 'EMPLOYE' as const },
+      { username: 'maherab',   password: 'Etcc2026', first_name: 'Maherab',   last_name: 'Employe', role: 'EMPLOYE' as const },
+      { username: 'elgharbi',  password: 'Jihaneapt', first_name: 'El Gharbi', last_name: 'Gerant',  role: 'GERANT'  as const },
+      { username: 'idelfinance', password: 'Etcc2026', first_name: 'Idel',    last_name: 'Finance',  role: 'COMPTABLE' as const },
+      { username: 'karim',     password: 'Karim2026!', first_name: 'Karim',   last_name: 'Amrani',   role: 'EMPLOYE' as const },
+      { username: 'ahmed',     password: 'Karim2026!', first_name: 'Ahmed',   last_name: 'Hilali',   role: 'EMPLOYE' as const },
+      { username: 'rachid',    password: 'Karim2026!', first_name: 'Rachid',  last_name: 'Bouzidi',  role: 'EMPLOYE' as const },
+    ];
+
+    for (const u of realUsers) {
+      const hash = await bcrypt.hash(u.password, 10);
+      await prisma.user.upsert({
+        where: { username: u.username },
+        update: {},
+        create: {
+          username: u.username,
+          password_hash: hash,
+          first_name: u.first_name,
+          last_name: u.last_name,
+          role: u.role,
+          is_active: true,
+          preferred_language: 'FR',
+          created_by: admin.id,
+        },
+      });
+    }
+
+    console.log('✅ Tous les utilisateurs prêts');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`   👑 admin      / ${adminPassword}`);
+    console.log('   ⭐ youssef    / Youssef2026!');
+    console.log('   📊 fatima     / Fatima2026!');
+    console.log('   🏗️  elgharbi   / Jihaneapt');
+    console.log('   💼 idelfinance / Etcc2026');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   } catch (e) {
-    console.error('⚠️  ensureAdminExists error:', e.message);
+    console.error('⚠️  ensureDefaultUsers error:', e.message);
   }
 }
 
@@ -67,8 +142,8 @@ async function bootstrap() {
   await app.listen(port);
   console.log(`Backend running on port ${port}`);
 
-  // Garantir que l'admin existe toujours au démarrage
-  await ensureAdminExists(app);
+  // Garantir que tous les users existent au démarrage
+  await ensureDefaultUsers(app);
 }
 
 bootstrap();
