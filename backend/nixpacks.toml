@@ -1,5 +1,5 @@
 [phases.build]
-cmds = ["npm ci", "npx prisma generate", "npm run build", "npx tsc -p tsconfig.seed.json"]
+cmds = ["npm ci", "npx prisma generate", "npm run build"]
 
 [start]
-cmd = "npx prisma migrate deploy && node dist/prisma/seed.js && node dist/main"
+cmd = "npx prisma migrate deploy && node prisma/seed.js && node dist/main"
