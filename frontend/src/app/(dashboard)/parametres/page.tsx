@@ -36,6 +36,18 @@ const defaultNotifRules = [
 
 const emptyUserForm = { first_name: '', last_name: '', username: '', email: '', password: '', role: 'EMPLOYE' };
 
+// ⚠️ Defined OUTSIDE ParametresPage so React never recreates it on each render.
+// If defined inside, every keystroke unmounts+remounts the input → focus lost.
+const Field = ({ label, value, onChange, type = 'text', placeholder = '' }: {
+  label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string;
+}) => (
+  <div>
+    <label className="block text-xs font-semibold text-honey-caramel uppercase tracking-wide mb-1.5">{label}</label>
+    <input type={type} value={value || ''} onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder} className="input text-sm" />
+  </div>
+);
+
 export default function ParametresPage() {
   const [activeTab, setActiveTab]   = useState('societe');
   const [company, setCompany]       = useState<any>({});
@@ -187,14 +199,6 @@ export default function ParametresPage() {
   const toggleNotif = (key: string) => {
     setNotifRules(prev => prev.map(r => r.key === key ? { ...r, enabled: !r.enabled } : r));
   };
-
-  const Field = ({ label, value, onChange, type = 'text', placeholder = '' }: any) => (
-    <div>
-      <label className="block text-xs font-semibold text-honey-caramel uppercase tracking-wide mb-1.5">{label}</label>
-      <input type={type} value={value || ''} onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder} className="input text-sm" />
-    </div>
-  );
 
   return (
     <div>
