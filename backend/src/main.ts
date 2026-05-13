@@ -29,78 +29,48 @@ async function ensureDefaultUsers(app: any) {
     });
     console.log(`✅ Admin prêt — login: admin / password: ${adminPassword}`);
 
-    // Gérant
-    const gerantHash = await bcrypt.hash('Youssef2026!', 10);
-    await prisma.user.upsert({
-      where: { username: 'youssef' },
-      update: {},
-      create: {
-        username: 'youssef',
-        email: 'youssef@etcc.ma',
-        password_hash: gerantHash,
-        first_name: 'Youssef',
-        last_name: 'Benali',
-        role: 'GERANT',
-        is_active: true,
-        preferred_language: 'FR',
-        created_by: admin.id,
-      },
-    });
-
-    // Comptable
-    const comptableHash = await bcrypt.hash('Fatima2026!', 10);
-    await prisma.user.upsert({
-      where: { username: 'fatima' },
-      update: {},
-      create: {
-        username: 'fatima',
-        email: 'fatima@etcc.ma',
-        password_hash: comptableHash,
-        first_name: 'Fatima',
-        last_name: 'Alaoui',
-        role: 'COMPTABLE',
-        is_active: true,
-        preferred_language: 'FR',
-        created_by: admin.id,
-      },
-    });
-
-    // Employés réels (depuis seed-users.ts)
-    const realUsers = [
-      { username: 'abdelghni', password: 'Etcc2026', first_name: 'Abdelghni', last_name: 'Employe', role: 'EMPLOYE' as const },
-      { username: 'maherab',   password: 'Etcc2026', first_name: 'Maherab',   last_name: 'Employe', role: 'EMPLOYE' as const },
-      { username: 'elgharbi',  password: 'Jihaneapt', first_name: 'El Gharbi', last_name: 'Gerant',  role: 'GERANT'  as const },
-      { username: 'idelfinance', password: 'Etcc2026', first_name: 'Idel',    last_name: 'Finance',  role: 'COMPTABLE' as const },
-      { username: 'karim',     password: 'Karim2026!', first_name: 'Karim',   last_name: 'Amrani',   role: 'EMPLOYE' as const },
-      { username: 'ahmed',     password: 'Karim2026!', first_name: 'Ahmed',   last_name: 'Hilali',   role: 'EMPLOYE' as const },
-      { username: 'rachid',    password: 'Karim2026!', first_name: 'Rachid',  last_name: 'Bouzidi',  role: 'EMPLOYE' as const },
+    // Tous les autres users — update password à chaque démarrage
+    const otherUsers = [
+      { username: 'youssef',     password: 'Youssef2026!', first_name: 'Youssef',    last_name: 'Benali',  role: 'GERANT'    as const },
+      { username: 'fatima',      password: 'Fatima2026!',  first_name: 'Fatima',      last_name: 'Alaoui',  role: 'COMPTABLE' as const },
+      { username: 'elgharbi',    password: 'Jihaneapt',    first_name: 'El Gharbi',   last_name: 'Gerant',  role: 'GERANT'    as const },
+      { username: 'idelfinance', password: 'Etcc2026',     first_name: 'Idel',        last_name: 'Finance', role: 'COMPTABLE' as const },
+      { username: 'abdelghni',   password: 'Etcc2026',     first_name: 'Abdelghni',   last_name: 'Employe', role: 'EMPLOYE'   as const },
+      { username: 'maherab',     password: 'Etcc2026',     first_name: 'Maherab',     last_name: 'Employe', role: 'EMPLOYE'   as const },
+      { username: 'karim',       password: 'Karim2026!',   first_name: 'Karim',       last_name: 'Amrani',  role: 'EMPLOYE'   as const },
+      { username: 'ahmed',       password: 'Karim2026!',   first_name: 'Ahmed',       last_name: 'Hilali',  role: 'EMPLOYE'   as const },
+      { username: 'rachid',      password: 'Karim2026!',   first_name: 'Rachid',      last_name: 'Bouzidi', role: 'EMPLOYE'   as const },
     ];
 
-    for (const u of realUsers) {
-      const hash = await bcrypt.hash(u.password, 10);
-      await prisma.user.upsert({
-        where: { username: u.username },
-        update: {},
-        create: {
-          username: u.username,
-          password_hash: hash,
-          first_name: u.first_name,
-          last_name: u.last_name,
-          role: u.role,
-          is_active: true,
-          preferred_language: 'FR',
-          created_by: admin.id,
-        },
-      });
+    for (const u of otherUsers) {
+      try {
+        const hash = await bcrypt.hash(u.password, 10);
+        await prisma.user.upsert({
+          where: { username: u.username },
+          update: { password_hash: hash },   // ← toujours mettre à jour
+          create: {
+            username: u.username,
+            password_hash: hash,
+            first_name: u.first_name,
+            last_name: u.last_name,
+            role: u.role,
+            is_active: true,
+            preferred_language: 'FR',
+            created_by: admin.id,
+          },
+        });
+        console.log(`✅ ${u.username} (${u.role}) prêt`);
+      } catch (userErr) {
+        console.error(`⚠️  Erreur user ${u.username}:`, userErr.message);
+      }
     }
 
-    console.log('✅ Tous les utilisateurs prêts');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log(`   👑 admin      / ${adminPassword}`);
-    console.log('   ⭐ youssef    / Youssef2026!');
-    console.log('   📊 fatima     / Fatima2026!');
-    console.log('   🏗️  elgharbi   / Jihaneapt');
-    console.log('   💼 idelfinance / Etcc2026');
+    console.log(`   👑 admin       / ${adminPassword}`);
+    console.log('   ⭐ youssef     / Youssef2026!');
+    console.log('   📊 fatima      / Fatima2026!');
+    console.log('   🏗️  elgharbi    / Jihaneapt');
+    console.log('   💼 idelfinance  / Etcc2026');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   } catch (e) {
     console.error('⚠️  ensureDefaultUsers error:', e.message);
