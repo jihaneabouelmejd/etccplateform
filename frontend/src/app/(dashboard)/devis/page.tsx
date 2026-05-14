@@ -577,15 +577,4 @@ export default function DevisPage() {
                 <strong>{deleteTarget.number}</strong> sera définitivement supprimé.
               </p>
             </div>
-            <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setDeleteTarget(null)} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
-              <button onClick={handleDelete} disabled={deleting} style={{ ...btnDanger, flex:1, opacity:deleting?0.7:1 }}>
-                {deleting ? 'Suppression...' : '🗑️ Confirmer'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+            <div sty
