@@ -621,4 +621,14 @@ export default function BLPage() {
               <button
                 onClick={handleSaveScan}
                 disabled={!scanUrl || savingScan || uploading}
-                style={{ ...btnPrimary, opaci
+                style={{ ...btnPrimary, opacity: (!scanUrl || savingScan || uploading) ? 0.6 : 1 }}
+              >
+                {savingScan ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

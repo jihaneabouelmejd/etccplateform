@@ -1,6 +1,7 @@
 import {
   Controller, Post, UploadedFile, UseInterceptors, UseGuards,
   BadRequestException, Get, Param, Res, Query, InternalServerErrorException,
+  Logger, OnModuleInit,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -16,27 +17,31 @@ import { Readable } from 'stream';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const pdfParse = require('pdf-parse');
 
-// ─── Cloudinary setup ────────────────────────────────────────────────────────
+// ─── Cloudinary ───────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-var-requires
-const cloudinary = require('cloudinary').v2;
+const cloudinaryLib = require('cloudinary');
+const cloudinary = cloudinaryLib.v2 || cloudinaryLib;
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure:     true,
-});
+// Trim to avoid Railway whitespace issues
+const CLOUD_NAME   = (process.env.CLOUDINARY_CLOUD_NAME  || '').trim();
+const CLOUD_KEY    = (process.env.CLOUDINARY_API_KEY     || '').trim();
+const CLOUD_SECRET = (process.env.CLOUDINARY_API_SECRET  || '').trim();
+const CLOUDINARY_FOLDER = (process.env.CLOUDINARY_FOLDER || 'etcc').trim();
 
-const CLOUDINARY_FOLDER = process.env.CLOUDINARY_FOLDER || 'etcc';
-const USE_CLOUDINARY = !!(
-  process.env.CLOUDINARY_CLOUD_NAME &&
-  process.env.CLOUDINARY_API_KEY &&
-  process.env.CLOUDINARY_API_SECRET
-);
+const USE_CLOUDINARY = !!(CLOUD_NAME && CLOUD_KEY && CLOUD_SECRET);
 
-// ─── Local fallback (dev / if Cloudinary not configured) ─────────────────────
+if (USE_CLOUDINARY) {
+  cloudinary.config({
+    cloud_name: CLOUD_NAME,
+    api_key:    CLOUD_KEY,
+    api_secret: CLOUD_SECRET,
+    secure:     true,
+  });
+}
+
+// ─── Local fallback (dev / Railway without env vars) ──────────────────────────
 const uploadsPath = process.env.UPLOADS_PATH || join(process.cwd(), 'uploads');
-if (!USE_CLOUDINARY && !fs.existsSync(uploadsPath)) {
+if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
 
@@ -46,7 +51,9 @@ function uploadBufferToCloudinary(
   originalname: string,
 ): Promise<{ url: string; publicId: string }> {
   return new Promise((resolve, reject) => {
-    const resourceType = /\.(pdf)$/i.test(originalname) ? 'raw' : 'image';
+    const isPdf = /\.pdf$/i.test(originalname);
+    const resourceType = isPdf ? 'raw' : 'image';
+
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: CLOUDINARY_FOLDER,
@@ -56,32 +63,36 @@ function uploadBufferToCloudinary(
       },
       (error: any, result: any) => {
         if (error) {
-          console.error('[Cloudinary] Upload error:', error);
-          return reject(error);
+          console.error('[Cloudinary] upload_stream error:', JSON.stringify(error));
+          return reject(new Error(error.message || JSON.stringify(error)));
+        }
+        if (!result || !result.secure_url) {
+          return reject(new Error('Cloudinary returned no URL'));
         }
         resolve({ url: result.secure_url, publicId: result.public_id });
       },
     );
-    Readable.from(buffer).pipe(uploadStream);
+
+    // Pipe buffer into Cloudinary stream
+    const readable = new Readable();
+    readable.push(buffer);
+    readable.push(null);
+    readable.pipe(uploadStream);
   });
 }
 
-// ─── Download a URL to a temp file (for OCR on Cloudinary files) ─────────────
+// ─── Download URL → temp file (for OCR) ──────────────────────────────────────
 async function downloadToTmp(url: string): Promise<string> {
-  // Detect extension from URL
   const urlWithoutQuery = url.split('?')[0];
   let ext = extname(urlWithoutQuery) || '.tmp';
-  // Cloudinary raw resources (PDFs) may not have extension in URL
   if (!ext || ext === '.tmp') {
     ext = url.includes('/raw/') ? '.pdf' : '.jpg';
   }
   const tmpPath = join(os.tmpdir(), `ocr_${crypto.randomBytes(8).toString('hex')}${ext}`);
-
-  // Use node https/http to download
-  const https = url.startsWith('https') ? require('https') : require('http');
+  const httpLib = url.startsWith('https') ? require('https') : require('http');
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(tmpPath);
-    https.get(url, (response: any) => {
+    httpLib.get(url, (response: any) => {
       response.pipe(file);
       file.on('finish', () => { file.close(); resolve(tmpPath); });
     }).on('error', (err: any) => {
@@ -91,18 +102,13 @@ async function downloadToTmp(url: string): Promise<string> {
   });
 }
 
-// ─── OCR: parse invoice text ──────────────────────────────────────────────────
+// ─── OCR helpers ──────────────────────────────────────────────────────────────
 function parseInvoiceText(text: string): Record<string, any> {
   const clean = text.replace(/\r/g, ' ').replace(/[ \t]+/g, ' ');
   const lines = clean.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-  console.log('[OCR] Extracted', lines.length, 'lines');
-  console.log('[OCR] First 10 lines:', lines.slice(0, 10));
-
-  const parseAmount = (s: string): number => {
-    if (!s) return 0;
-    return parseFloat(s.replace(/\s/g, '').replace(',', '.')) || 0;
-  };
+  const parseAmount = (s: string): number =>
+    parseFloat(s.replace(/\s/g, '').replace(',', '.')) || 0;
 
   const AMT = /([\d][\d\s]{0,10}[,.]\d{2})/;
 
@@ -131,14 +137,11 @@ function parseInvoiceText(text: string): Record<string, any> {
   }
 
   if (!total_ttc) {
-    const allAmounts = [...clean.matchAll(new RegExp(AMT.source, 'g'))]
-      .map(m => parseAmount(m[1]))
-      .filter(n => n > 10 && n < 10_000_000)
-      .sort((a, b) => a - b);
-    if (allAmounts.length > 0) total_ttc = allAmounts[allAmounts.length - 1];
+    const all = [...clean.matchAll(new RegExp(AMT.source, 'g'))]
+      .map(m => parseAmount(m[1])).filter(n => n > 10 && n < 10_000_000).sort((a, b) => a - b);
+    if (all.length) total_ttc = all[all.length - 1];
   }
-
-  if (total_ttc && !total_ht) total_ht = Math.round((total_ttc / 1.2) * 100) / 100;
+  if (total_ttc && !total_ht)   total_ht    = Math.round((total_ttc / 1.2) * 100) / 100;
   if (total_ht && total_ttc && !tva_amount) tva_amount = Math.round((total_ttc - total_ht) * 100) / 100;
 
   let issue_date: string | null = null;
@@ -155,10 +158,7 @@ function parseInvoiceText(text: string): Record<string, any> {
   }
   if (!issue_date) {
     const m = clean.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
-    if (m) {
-      let [, d, mo, y] = m;
-      issue_date = `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`;
-    }
+    if (m) { const [, d, mo, y] = m; issue_date = `${y}-${mo.padStart(2,'0')}-${d.padStart(2,'0')}`; }
   }
 
   let ref_fournisseur: string | null = null;
@@ -205,8 +205,7 @@ function parseInvoiceText(text: string): Record<string, any> {
   return result;
 }
 
-// ─── OCR on a file path ───────────────────────────────────────────────────────
-async function runOcrOnFile(filePath: string): Promise<{ success: boolean; source: string; data: any; message?: string }> {
+async function runOcrOnFile(filePath: string) {
   const ext = extname(filePath).toLowerCase();
   const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/i.test(ext);
   const isPdf = ext === '.pdf';
@@ -221,22 +220,13 @@ async function runOcrOnFile(filePath: string): Promise<{ success: boolean; sourc
         return { success: false, source: 'image', data: {}, message: 'Image illisible — veuillez saisir les montants manuellement' };
       }
       const data = parseInvoiceText(text);
-      const hasData = Object.values(data).some(v => v !== null);
-      return {
-        success: hasData,
-        source: 'image-ocr',
-        data,
-        message: hasData ? 'Informations extraites automatiquement depuis la photo' : 'Photo analysee — certains champs non detectes',
-      };
-    } catch (err: any) {
-      console.error('[OCR] Tesseract error:', err.message);
-      return { success: false, source: 'image', data: {}, message: 'Extraction photo echouee — veuillez saisir manuellement' };
+      return { success: Object.values(data).some(v => v !== null), source: 'image-ocr', data };
+    } catch {
+      return { success: false, source: 'image', data: {}, message: 'Extraction photo echouee — saisir manuellement' };
     }
   }
 
-  if (!isPdf) {
-    return { success: false, source: 'unknown', data: {}, message: 'Format non supporte pour l extraction automatique' };
-  }
+  if (!isPdf) return { success: false, source: 'unknown', data: {}, message: 'Format non supporte' };
 
   try {
     const buffer = fs.readFileSync(filePath);
@@ -244,41 +234,89 @@ async function runOcrOnFile(filePath: string): Promise<{ success: boolean; sourc
     const text = parsed.text || '';
     if (!text || text.trim().length < 10) {
       try {
-        const text2 = execSync(
-          `tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3 2>/dev/null`,
-          { timeout: 60000, encoding: 'utf8' },
-        );
+        const text2 = execSync(`tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3 2>/dev/null`, { timeout: 60000, encoding: 'utf8' });
         if (text2 && text2.trim().length > 10) {
           const data2 = parseInvoiceText(text2);
-          const hasData2 = Object.values(data2).some(v => v !== null);
-          return { success: hasData2, source: 'pdf-ocr', data: data2 };
+          return { success: Object.values(data2).some(v => v !== null), source: 'pdf-ocr', data: data2 };
         }
       } catch {}
       return { success: false, source: 'pdf', data: {}, message: 'PDF sans texte extractible — saisir manuellement' };
     }
     const data = parseInvoiceText(text);
-    const hasData = Object.values(data).some(v => v !== null);
-    return { success: hasData, source: 'pdf', data };
+    return { success: Object.values(data).some(v => v !== null), source: 'pdf', data };
   } catch (err: any) {
-    console.error('[OCR] pdf-parse error:', err.message);
-    return { success: false, source: 'pdf', data: {}, message: 'Extraction echouee — verifier que le PDF contient du texte' };
+    return { success: false, source: 'pdf', data: {}, message: err.message };
   }
 }
 
 // ─── Controller ───────────────────────────────────────────────────────────────
 @ApiTags('upload')
 @Controller('upload')
-export class UploadController {
+export class UploadController implements OnModuleInit {
+  private readonly logger = new Logger('UploadController');
+
+  onModuleInit() {
+    // Log Cloudinary configuration state at startup — visible in Railway logs
+    if (USE_CLOUDINARY) {
+      this.logger.log(`✅ Cloudinary ENABLED — cloud: ${CLOUD_NAME}, folder: ${CLOUDINARY_FOLDER}`);
+    } else {
+      this.logger.warn(`⚠️  Cloudinary DISABLED — missing env vars:`);
+      if (!CLOUD_NAME)   this.logger.warn('   → CLOUDINARY_CLOUD_NAME is not set');
+      if (!CLOUD_KEY)    this.logger.warn('   → CLOUDINARY_API_KEY is not set');
+      if (!CLOUD_SECRET) this.logger.warn('   → CLOUDINARY_API_SECRET is not set');
+      this.logger.warn('   Uploads will use LOCAL storage (ephemeral on Railway!)');
+    }
+  }
+
+  // ── GET /upload/status — diagnostic endpoint ────────────────────────────────
+  @Get('status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  getStatus() {
+    return {
+      cloudinary_enabled: USE_CLOUDINARY,
+      cloud_name: USE_CLOUDINARY ? CLOUD_NAME : null,
+      folder: USE_CLOUDINARY ? CLOUDINARY_FOLDER : null,
+      missing_vars: [
+        !CLOUD_NAME   ? 'CLOUDINARY_CLOUD_NAME'  : null,
+        !CLOUD_KEY    ? 'CLOUDINARY_API_KEY'      : null,
+        !CLOUD_SECRET ? 'CLOUDINARY_API_SECRET'   : null,
+      ].filter(Boolean),
+      storage_mode: USE_CLOUDINARY ? 'cloudinary' : 'local (EPHEMERAL)',
+    };
+  }
+
+  // ── GET /upload/ping — test real Cloudinary connection ─────────────────────
+  @Get('ping')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async pingCloudinary() {
+    if (!USE_CLOUDINARY) {
+      return { ok: false, reason: 'Cloudinary not configured — env vars missing', missing: [
+        !CLOUD_NAME ? 'CLOUDINARY_CLOUD_NAME' : null,
+        !CLOUD_KEY  ? 'CLOUDINARY_API_KEY'    : null,
+        !CLOUD_SECRET ? 'CLOUDINARY_API_SECRET' : null,
+      ].filter(Boolean) };
+    }
+    try {
+      // Test by listing resources (lightweight API call)
+      const result = await cloudinary.api.ping();
+      return { ok: true, cloudinary_status: result.status, cloud: CLOUD_NAME, folder: CLOUDINARY_FOLDER };
+    } catch (err: any) {
+      this.logger.error('[Cloudinary] Ping failed:', err.message);
+      return { ok: false, reason: err.message, cloud: CLOUD_NAME };
+    }
+  }
 
   // ── POST /upload ─────────────────────────────────────────────────────────────
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @UseInterceptors(FileInterceptor('file', {
-    storage: memoryStorage(),   // Buffer in RAM — Cloudinary receives it as a stream
+    storage: memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
-      const extOk = /\.(jpeg|jpg|png|gif|webp|svg|pdf)$/i.test(extname(file.originalname));
+      const extOk  = /\.(jpeg|jpg|png|gif|webp|svg|pdf)$/i.test(extname(file.originalname));
       const mimeOk = /image\/|application\/pdf|application\/octet-stream/.test(file.mimetype);
       if (extOk || mimeOk) cb(null, true);
       else cb(new Error('Type de fichier non autorise (PDF ou image requis)'), false);
@@ -286,32 +324,34 @@ export class UploadController {
   }))
   async uploadFile(@UploadedFile() file: any) {
     if (!file) throw new BadRequestException('Aucun fichier recu');
+    if (!file.buffer || file.buffer.length === 0) throw new BadRequestException('Fichier vide');
 
-    // ── Cloudinary path ───────────────────────────────────────────────────────
+    this.logger.log(`[Upload] ${file.originalname} (${file.size} bytes, ${file.mimetype}) — storage: ${USE_CLOUDINARY ? 'cloudinary' : 'local'}`);
+
+    // ── Cloudinary ─────────────────────────────────────────────────────────
     if (USE_CLOUDINARY) {
       try {
-        console.log(`[Upload] → Cloudinary (${file.originalname}, ${file.size} bytes)`);
         const { url, publicId } = await uploadBufferToCloudinary(file.buffer, file.originalname);
-        console.log(`[Upload] ✅ Cloudinary URL: ${url}`);
+        this.logger.log(`[Upload] ✅ Cloudinary OK → ${url}`);
         return {
           url,
-          filename: url,      // filename = full URL so extract endpoint works without changes
+          filename: url,        // filename = full URL for OCR extract endpoint
           publicId,
           originalname: file.originalname,
           size: file.size,
           storage: 'cloudinary',
         };
       } catch (err: any) {
-        console.error('[Upload] Cloudinary failed:', err.message);
+        this.logger.error(`[Upload] ❌ Cloudinary FAILED: ${err.message}`);
         throw new InternalServerErrorException(`Erreur Cloudinary: ${err.message}`);
       }
     }
 
-    // ── Local fallback (dev only) ─────────────────────────────────────────────
+    // ── Local fallback (dev only) ──────────────────────────────────────────
     const uniqueName = `${crypto.randomBytes(16).toString('hex')}${extname(file.originalname)}`;
-    const filePath = join(uploadsPath, uniqueName);
+    const filePath   = join(uploadsPath, uniqueName);
     fs.writeFileSync(filePath, file.buffer);
-    console.log(`[Upload] → Local: ${filePath}`);
+    this.logger.warn(`[Upload] ⚠️  LOCAL storage (ephemeral): ${filePath}`);
     return {
       url: `/api/upload/files/${uniqueName}`,
       filename: uniqueName,
@@ -321,7 +361,7 @@ export class UploadController {
     };
   }
 
-  // ── GET /upload/extract?filename=<url_or_localname> ───────────────────────
+  // ── GET /upload/extract?filename=<url_or_name> — OCR ─────────────────────
   @Get('extract')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -332,21 +372,17 @@ export class UploadController {
     let isTemp = false;
 
     if (filename.startsWith('http://') || filename.startsWith('https://')) {
-      // Cloudinary URL — download to temp file
-      console.log('[OCR] Downloading from Cloudinary:', filename);
+      this.logger.log(`[OCR] Downloading: ${filename}`);
       try {
         filePath = await downloadToTmp(filename);
         isTemp = true;
-        console.log('[OCR] Downloaded to temp:', filePath);
       } catch (err: any) {
-        console.error('[OCR] Download failed:', err.message);
+        this.logger.error(`[OCR] Download failed: ${err.message}`);
         return { success: false, source: 'error', data: {}, message: 'Impossible de télécharger le fichier pour analyse' };
       }
     } else {
-      // Local file (dev / legacy)
       filePath = join(uploadsPath, filename);
       if (!fs.existsSync(filePath)) {
-        console.log('[OCR] File not found at:', filePath);
         return { success: false, source: 'error', data: {}, message: `Fichier non trouve: ${filename}` };
       }
     }
@@ -354,22 +390,16 @@ export class UploadController {
     try {
       return await runOcrOnFile(filePath);
     } finally {
-      if (isTemp) {
-        try { fs.unlinkSync(filePath); } catch {}
-      }
+      if (isTemp) { try { fs.unlinkSync(filePath); } catch {} }
     }
   }
 
-  // ── GET /upload/files/:filename (legacy local serve — redirects if needed) ──
+  // ── GET /upload/files/:filename — legacy local serve ──────────────────────
   @Get('files/:filename')
-  serveFile(
-    @Param('filename') filename: string,
-    @Query('dl') dl: string,
-    @Res() res: Response,
-  ) {
+  serveFile(@Param('filename') filename: string, @Query('dl') dl: string, @Res() res: Response) {
     const filePath = join(uploadsPath, filename);
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: 'Fichier non trouve (utilise Cloudinary pour les nouveaux fichiers)' });
+      return res.status(404).json({ message: 'Fichier non trouve' });
     }
     if (dl === '1') res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.sendFile(filePath);

@@ -250,4 +250,7 @@ export class BLService {
   async saveSignedScan(id: string, signed_scan_url: string) {
     return this.prisma.bonLivraison.update({
       where: { id },
-      data: { client_
+      data: { client_signature_url: signed_scan_url, status: 'SIGNED' },
+    });
+  }
+}

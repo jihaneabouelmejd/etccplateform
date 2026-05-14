@@ -215,4 +215,5 @@ export const assignableUsersApi = {
 
 export const pdfMergeApi = {
   merge: (items: { type: 'devis' | 'bl' | 'invoice'; id: string }[], lang?: string) =>
-    api.post('/p
+    api.post('/pdf/merge', { items, lang: lang || 'FR' }, { responseType: 'blob' }),
+};

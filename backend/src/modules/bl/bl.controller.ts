@@ -53,4 +53,6 @@ export class BLController {
   }
 
   @Delete(':id')
-  @Roles(Role.
+  @Roles(Role.ADMIN, Role.GERANT)
+  remove(@Param('id') id: string) { return this.bl.remove(id); }
+}
