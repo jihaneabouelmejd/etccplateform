@@ -264,4 +264,144 @@ export class UploadController implements OnModuleInit {
       if (!CLOUD_NAME)   this.logger.warn('   → CLOUDINARY_CLOUD_NAME is not set');
       if (!CLOUD_KEY)    this.logger.warn('   → CLOUDINARY_API_KEY is not set');
       if (!CLOUD_SECRET) this.logger.warn('   → CLOUDINARY_API_SECRET is not set');
-      this.logger.warn('   Uploads will use LOCAL storage (ephemeral on Railwa
+      this.logger.warn('   Uploads will use LOCAL storage (ephemeral on Railway!)');
+    }
+  }
+
+  // ── GET /upload/status — diagnostic endpoint ────────────────────────────────
+  @Get('status')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  getStatus() {
+    return {
+      cloudinary_enabled: USE_CLOUDINARY,
+      cloud_name: USE_CLOUDINARY ? CLOUD_NAME : null,
+      folder: USE_CLOUDINARY ? CLOUDINARY_FOLDER : null,
+      missing_vars: [
+        !CLOUD_NAME   ? 'CLOUDINARY_CLOUD_NAME'  : null,
+        !CLOUD_KEY    ? 'CLOUDINARY_API_KEY'      : null,
+        !CLOUD_SECRET ? 'CLOUDINARY_API_SECRET'   : null,
+      ].filter(Boolean),
+      storage_mode: USE_CLOUDINARY ? 'cloudinary' : 'local (EPHEMERAL)',
+    };
+  }
+
+  // ── GET /upload/ping — test real Cloudinary connection ─────────────────────
+  @Get('ping')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async pingCloudinary() {
+    if (!USE_CLOUDINARY) {
+      return { ok: false, reason: 'Cloudinary not configured — env vars missing', missing: [
+        !CLOUD_NAME ? 'CLOUDINARY_CLOUD_NAME' : null,
+        !CLOUD_KEY  ? 'CLOUDINARY_API_KEY'    : null,
+        !CLOUD_SECRET ? 'CLOUDINARY_API_SECRET' : null,
+      ].filter(Boolean) };
+    }
+    try {
+      // Test by listing resources (lightweight API call)
+      const result = await cloudinary.api.ping();
+      return { ok: true, cloudinary_status: result.status, cloud: CLOUD_NAME, folder: CLOUDINARY_FOLDER };
+    } catch (err: any) {
+      this.logger.error('[Cloudinary] Ping failed:', err.message);
+      return { ok: false, reason: err.message, cloud: CLOUD_NAME };
+    }
+  }
+
+  // ── POST /upload ─────────────────────────────────────────────────────────────
+  @Post()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const extOk  = /\.(jpeg|jpg|png|gif|webp|svg|pdf)$/i.test(extname(file.originalname));
+      const mimeOk = /image\/|application\/pdf|application\/octet-stream/.test(file.mimetype);
+      if (extOk || mimeOk) cb(null, true);
+      else cb(new Error('Type de fichier non autorise (PDF ou image requis)'), false);
+    },
+  }))
+  async uploadFile(@UploadedFile() file: any) {
+    if (!file) throw new BadRequestException('Aucun fichier recu');
+    if (!file.buffer || file.buffer.length === 0) throw new BadRequestException('Fichier vide');
+
+    this.logger.log(`[Upload] ${file.originalname} (${file.size} bytes, ${file.mimetype}) — storage: ${USE_CLOUDINARY ? 'cloudinary' : 'local'}`);
+
+    // ── Cloudinary ─────────────────────────────────────────────────────────
+    if (USE_CLOUDINARY) {
+      try {
+        const { url, publicId } = await uploadBufferToCloudinary(file.buffer, file.originalname);
+        this.logger.log(`[Upload] ✅ Cloudinary OK → ${url}`);
+        return {
+          url,
+          filename: url,        // filename = full URL for OCR extract endpoint
+          publicId,
+          originalname: file.originalname,
+          size: file.size,
+          storage: 'cloudinary',
+        };
+      } catch (err: any) {
+        this.logger.error(`[Upload] ❌ Cloudinary FAILED: ${err.message}`);
+        throw new InternalServerErrorException(`Erreur Cloudinary: ${err.message}`);
+      }
+    }
+
+    // ── Local fallback (dev only) ──────────────────────────────────────────
+    const uniqueName = `${crypto.randomBytes(16).toString('hex')}${extname(file.originalname)}`;
+    const filePath   = join(uploadsPath, uniqueName);
+    fs.writeFileSync(filePath, file.buffer);
+    this.logger.warn(`[Upload] ⚠️  LOCAL storage (ephemeral): ${filePath}`);
+    return {
+      url: `/api/upload/files/${uniqueName}`,
+      filename: uniqueName,
+      originalname: file.originalname,
+      size: file.size,
+      storage: 'local',
+    };
+  }
+
+  // ── GET /upload/extract?filename=<url_or_name> — OCR ─────────────────────
+  @Get('extract')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async extractInvoice(@Query('filename') filename: string) {
+    if (!filename) throw new BadRequestException('filename requis');
+
+    let filePath: string;
+    let isTemp = false;
+
+    if (filename.startsWith('http://') || filename.startsWith('https://')) {
+      this.logger.log(`[OCR] Downloading: ${filename}`);
+      try {
+        filePath = await downloadToTmp(filename);
+        isTemp = true;
+      } catch (err: any) {
+        this.logger.error(`[OCR] Download failed: ${err.message}`);
+        return { success: false, source: 'error', data: {}, message: 'Impossible de télécharger le fichier pour analyse' };
+      }
+    } else {
+      filePath = join(uploadsPath, filename);
+      if (!fs.existsSync(filePath)) {
+        return { success: false, source: 'error', data: {}, message: `Fichier non trouve: ${filename}` };
+      }
+    }
+
+    try {
+      return await runOcrOnFile(filePath);
+    } finally {
+      if (isTemp) { try { fs.unlinkSync(filePath); } catch {} }
+    }
+  }
+
+  // ── GET /upload/files/:filename — legacy local serve ──────────────────────
+  @Get('files/:filename')
+  serveFile(@Param('filename') filename: string, @Query('dl') dl: string, @Res() res: Response) {
+    const filePath = join(uploadsPath, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'Fichier non trouve' });
+    }
+    if (dl === '1') res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.sendFile(filePath);
+  }
+}
