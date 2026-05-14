@@ -124,6 +124,34 @@ export class PDFService {
 
   constructor(private companyService: CompanyService) {}
 
+  /**
+   * Télécharge une image depuis son URL et la convertit en data URI base64.
+   * Cela évite que Puppeteer tente de charger des URLs Cloudinary depuis
+   * le container Railway (pas de requêtes réseau externes dans le HTML).
+   */
+  private async imageUrlToBase64(url: string): Promise<string | null> {
+    if (!url) return null;
+    try {
+      // Dynamic import to avoid issues with ESM/CJS
+      const https = url.startsWith('https') ? require('https') : require('http');
+      return await new Promise<string | null>((resolve) => {
+        https.get(url, (res: any) => {
+          if (res.statusCode !== 200) { resolve(null); return; }
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => {
+            const buf = Buffer.concat(chunks);
+            const contentType = res.headers['content-type'] || 'image/png';
+            resolve(`data:${contentType};base64,${buf.toString('base64')}`);
+          });
+          res.on('error', () => resolve(null));
+        }).on('error', () => resolve(null));
+      });
+    } catch {
+      return null;
+    }
+  }
+
   private async generateFromHTML(html: string): Promise<Buffer> {
     let browser: any;
     try {
@@ -208,25 +236,53 @@ export class PDFService {
 
   async generateDevisPDF(data: DevisPDFData, lang: PDFLanguage = 'FR'): Promise<Buffer> {
     const company = await this.companyService.getPdfData();
-    const html = devisTemplate({ ...data, company, lang });
+    const sigBase64 = data.signature_url ? await this.imageUrlToBase64(data.signature_url) : undefined;
+    const logoBase64 = company.logo_url ? await this.imageUrlToBase64(company.logo_url) : undefined;
+    const html = devisTemplate({
+      ...data,
+      signature_url: sigBase64 || data.signature_url,
+      company: { ...company, logo_url: logoBase64 || company.logo_url },
+      lang,
+    });
     return this.generateFromHTML(html);
   }
 
   async generateBLPDF(data: BLPDFData, lang: PDFLanguage = 'FR'): Promise<Buffer> {
     const company = await this.companyService.getPdfData();
-    const html = blTemplate({ ...data, company, lang });
+    const sigBase64 = data.signature_url ? await this.imageUrlToBase64(data.signature_url) : undefined;
+    const logoBase64 = company.logo_url ? await this.imageUrlToBase64(company.logo_url) : undefined;
+    const html = blTemplate({
+      ...data,
+      signature_url: sigBase64 || data.signature_url,
+      company: { ...company, logo_url: logoBase64 || company.logo_url },
+      lang,
+    });
     return this.generateFromHTML(html);
   }
 
   async generateInvoicePDF(data: InvoicePDFData, lang: PDFLanguage = 'FR'): Promise<Buffer> {
     const company = await this.companyService.getPdfData();
-    const html = invoiceTemplate({ ...data, company, lang });
+    const sigBase64 = data.signature_url ? await this.imageUrlToBase64(data.signature_url) : undefined;
+    const logoBase64 = company.logo_url ? await this.imageUrlToBase64(company.logo_url) : undefined;
+    const html = invoiceTemplate({
+      ...data,
+      signature_url: sigBase64 || data.signature_url,
+      company: { ...company, logo_url: logoBase64 || company.logo_url },
+      lang,
+    });
     return this.generateFromHTML(html);
   }
 
   async generateBCPDF(data: BCPDFData, lang: PDFLanguage = 'FR'): Promise<Buffer> {
     const company = await this.companyService.getPdfData();
-    const html = bcTemplate({ ...data, company, lang });
+    const sigBase64 = data.signature_url ? await this.imageUrlToBase64(data.signature_url) : undefined;
+    const logoBase64 = company.logo_url ? await this.imageUrlToBase64(company.logo_url) : undefined;
+    const html = bcTemplate({
+      ...data,
+      signature_url: sigBase64 || data.signature_url,
+      company: { ...company, logo_url: logoBase64 || company.logo_url },
+      lang,
+    });
     return this.generateFromHTML(html);
   }
 
@@ -243,38 +299,4 @@ export class PDFService {
       '.header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:32px; padding-bottom:20px; border-bottom:2px solid #E8D4B0; }',
       '.company { font-size:20px; font-weight:800; color:#1A141A; }',
       '.badge { background:linear-gradient(135deg,#F4B315,#E59312); color:#1A141A; padding:6px 18px; border-radius:20px; font-size:12px; font-weight:700; }',
-      '.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:28px; }',
-      '.info-box { background:white; border:1px solid #E8D4B0; border-radius:10px; padding:16px; }',
-      '.info-box h3 { font-size:10px; font-weight:700; color:#8E5915; text-transform:uppercase; letter-spacing:0.8px; margin-bottom:10px; }',
-      '.totals { background:white; border:1.5px solid #E8D4B0; border-radius:12px; padding:20px; max-width:340px; margin-left:auto; }',
-      '.tr { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #F5E6D3; font-size:13px; }',
-      '.tr.last { border-bottom:none; font-size:16px; font-weight:800; color:#A33C00; margin-top:4px; }',
-      '.notes { background:#FFF8EE; border:1px solid #E8D4B0; border-radius:8px; padding:12px 16px; margin-top:20px; font-size:12px; color:#8E5915; }',
-      '.footer { margin-top:32px; text-align:center; font-size:10px; color:#B8A090; border-top:1px solid #F5E6D3; padding-top:14px; }',
-      '</style></head><body>',
-      '<div class="header">',
-      '<div><div class="company">' + (company.name || 'ETCC') + '<span style="color:#8E5915">.</span></div>',
-      '<div style="font-size:11px;color:#8E5915;margin-top:4px;">' + (company.address || '') + '</div></div>',
-      '<div style="text-align:right"><div class="badge">FACTURE D\'ACHAT</div>',
-      '<div style="font-family:monospace;font-size:18px;font-weight:800;margin-top:8px;">' + data.number + '</div></div>',
-      '</div>',
-      '<div class="info-grid">',
-      '<div class="info-box"><h3>Fournisseur</h3>',
-      '<p style="font-weight:700;font-size:14px;">' + data.fournisseur_name + '</p></div>',
-      '<div class="info-box"><h3>Dates</h3>',
-      '<p>Date : <strong>' + fmtDate(data.issue_date) + '</strong></p>',
-      data.due_date ? '<p>Echeance : <strong>' + fmtDate(data.due_date) + '</strong></p>' : '',
-      '</div></div>',
-      '<div class="totals">',
-      '<div class="tr"><span>Montant HT</span><span>' + fmtAmt(data.total_ht) + '</span></div>',
-      '<div class="tr"><span>TVA 20%</span><span>' + fmtAmt(data.tva_amount) + '</span></div>',
-      '<div class="tr last"><span>Total TTC</span><span>' + fmtAmt(data.total_ttc) + '</span></div>',
-      '</div>',
-      data.notes ? '<div class="notes">' + data.notes + '</div>' : '',
-      '<div class="footer">' + (company.name || 'ETCC') + ' &bull; ICE: ' + (company.ice || 'N/A') + '</div>',
-      '</body></html>',
-    ].join('\n');
-
-    return this.generateFromHTML(html);
-  }
-}
+      '.info-grid 

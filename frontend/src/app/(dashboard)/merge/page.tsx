@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, FileText, Truck, Receipt, ArrowUp, ArrowDown } from 'lucide-react';
-import { devisApi, blApi, invoicesApi, pdfMergeApi } from '@/lib/api';
+import { Plus, Trash2, Download, FileText, Truck, Receipt, ShoppingCart, ArrowUp, ArrowDown } from 'lucide-react';
+import { devisApi, blApi, invoicesApi, bcApi, pdfMergeApi } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
-type DocType = 'devis' | 'bl' | 'invoice';
+type DocType = 'devis' | 'bl' | 'invoice' | 'bc';
 
 interface MergeItem {
   id: string;
@@ -16,15 +16,17 @@ interface MergeItem {
 }
 
 const typeConfig: Record<DocType, { icon: any; color: string; bg: string; label: string }> = {
-  devis:   { icon: FileText, color: 'text-blue-700',  bg: 'bg-blue-50 border-blue-200',  label: 'Devis'   },
-  bl:      { icon: Truck,    color: 'text-green-700', bg: 'bg-green-50 border-green-200', label: 'BL'      },
-  invoice: { icon: Receipt,  color: 'text-purple-700',bg: 'bg-purple-50 border-purple-200',label: 'Facture'},
+  devis:   { icon: FileText,     color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200',   label: 'Devis'   },
+  bl:      { icon: Truck,        color: 'text-green-700',  bg: 'bg-green-50 border-green-200',  label: 'BL'      },
+  invoice: { icon: Receipt,      color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', label: 'Facture' },
+  bc:      { icon: ShoppingCart, color: 'text-honey-dark', bg: 'bg-honey-cream border-honey-beige-soft', label: 'BC' },
 };
 
 export default function MergePage() {
   const [devisList,   setDevisList]   = useState<any[]>([]);
   const [blList,      setBlList]      = useState<any[]>([]);
   const [invoiceList, setInvoiceList] = useState<any[]>([]);
+  const [bcList,      setBcList]      = useState<any[]>([]);
   const [loading,     setLoading]     = useState(true);
 
   const [items,       setItems]       = useState<MergeItem[]>([]);
@@ -38,10 +40,12 @@ export default function MergePage() {
       devisApi.list({ limit: 200 }),
       blApi.list({ limit: 200 }),
       invoicesApi.list({ limit: 200 }),
-    ]).then(([d, b, i]) => {
+      bcApi.list({ limit: 200 }),
+    ]).then(([d, b, i, bc]) => {
       setDevisList(d.data.data || []);
       setBlList(b.data.data || []);
       setInvoiceList(i.data.data || []);
+      setBcList(bc.data.data || []);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -49,6 +53,7 @@ export default function MergePage() {
     if (addType === 'devis')   return devisList.map(d => ({ id: d.id, label: `${d.number} – ${d.client?.commercial_name || ''}` }));
     if (addType === 'bl')      return blList.map(b    => ({ id: b.id, label: `${b.number} – ${b.client?.commercial_name || ''}` }));
     if (addType === 'invoice') return invoiceList.map(i => ({ id: i.id, label: `${i.number} – ${i.client?.commercial_name || ''}` }));
+    if (addType === 'bc')      return bcList.map(b    => ({ id: b.id, label: `${b.number} – ${b.client?.commercial_name || ''}` }));
     return [];
   };
 
@@ -99,7 +104,7 @@ export default function MergePage() {
 
           {/* Type toggle */}
           <div style={{ display:'flex', gap:6, marginBottom:14, background:'#FBF6EE', padding:4, borderRadius:10 }}>
-            {(['devis','bl','invoice'] as DocType[]).map(t => (
+            {(['devis','bl','invoice','bc'] as DocType[]).map(t => (
               <button key={t} type="button" onClick={() => { setAddType(t); setAddId(''); }}
                 style={{ flex:1, padding:'7px 0', borderRadius:7, border:'none', background:addType===t?'white':'transparent', color:addType===t?'#1A141A':'#8E5915', fontSize:12, fontWeight:700, cursor:'pointer', boxShadow:addType===t?'0 1px 4px rgba(0,0,0,0.08)':'none' }}>
                 {typeConfig[t].label}
@@ -198,16 +203,4 @@ export default function MergePage() {
 
           {items.length >= 2 && (
             <div className="mt-4 pt-4 border-t border-honey-beige-soft">
-              <button onClick={handleMerge} disabled={merging}
-                className="w-full btn-primary text-sm flex items-center justify-center gap-2"
-                style={{ opacity:merging?0.7:1, padding:'11px 0' }}>
-                <Download size={15} />
-                {merging ? 'Génération du PDF fusionné...' : `Télécharger le dossier (${items.length} documents)`}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+              <button onClick={handleMerge} 

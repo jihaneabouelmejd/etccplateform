@@ -396,24 +396,20 @@ export class PDFController {
           }, lang);
         }
 
-      } else {
-        throw new BadRequestException('Type de document inconnu');
-      }
-
-      pdfBuffers.push(buf);
-    }
-
-    const { PDFDocument } = await import('pdf-lib');
-    const mergedPdf = await PDFDocument.create();
-    for (const buf of pdfBuffers) {
-      const src = await PDFDocument.load(buf);
-      const pages = await mergedPdf.copyPages(src, src.getPageIndices());
-      pages.forEach((p) => mergedPdf.addPage(p));
-    }
-
-    const merged = Buffer.from(await mergedPdf.save());
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="dossier-${Date.now()}.pdf"`);
-    res.send(merged);
-  }
-}
+      } else if (item.type === 'bc') {
+        const bc = await this.prisma.bonCommande.findUnique({
+          where: { id: item.id },
+          include: {
+            lines: { orderBy: { order: 'asc' } },
+            client: true,
+            devis: { select: { number: true } },
+            signature: true,
+          },
+        });
+        if (!bc) throw new NotFoundException(`BC ${item.id} non trouvé`);
+        buf = await this.pdfService.generateBCPDF({
+          number: bc.number,
+          issue_date: bc.issue_date.toISOString(),
+          expected_delivery: bc.expected_delivery?.toISOString() || undefined,
+          status: bc.status,
+          source: bc.sour
