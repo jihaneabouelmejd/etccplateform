@@ -347,45 +347,42 @@ export default function ParametresPage() {
               ) : (
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   {signatures.map((sig: any) => (
-                    <div key={sig.id} className={cn('border rounded-lg p-4 text-center relative',
-                      sig.is_default ? 'border-honey-gold bg-honey-cream/50' : 'border-honey-beige-soft'
-                    )}>
-                      {/* Bouton supprimer — coin haut gauche */}
-                      <button
-                        onClick={async () => {
-                          if (!confirm(`Supprimer la signature "${sig.name}" ?`)) return;
-                          try {
-                            await signaturesApi.delete(sig.id);
-                            const r = await signaturesApi.list();
-                            setSignatures(r.data || []);
-                          } catch (e: any) {
-                            alert(e?.response?.data?.message || 'Erreur lors de la suppression');
-                          }
-                        }}
-                        className="absolute top-2 left-2 w-6 h-6 flex items-center justify-center rounded-full bg-red-50 border border-red-200 text-red-400 hover:bg-red-100 hover:text-red-600 transition-all"
-                        title="Supprimer cette signature"
-                      >
-                        <Trash2 size={11} />
-                      </button>
-
+                    <div key={sig.id} style={{ border: `2px solid ${sig.is_default ? '#E59312' : '#E8D4B0'}`, borderRadius: 10, padding: 14, textAlign: 'center', position: 'relative', background: sig.is_default ? '#FFF8EE' : 'white' }}>
                       {sig.is_default && (
-                        <span className="absolute top-2 right-2 text-[10px] bg-honey-gold text-honey-dark px-2 py-0.5 rounded-full font-semibold">
+                        <span style={{ position:'absolute', top:8, right:8, fontSize:10, background:'#F4B315', color:'#1A141A', padding:'2px 8px', borderRadius:20, fontWeight:700 }}>
                           Défaut
                         </span>
                       )}
-                      <div className="h-16 bg-white rounded border border-honey-beige-soft flex items-center justify-center mb-3">
-                        <img src={sig.image_url} alt={sig.name} className="max-h-12 max-w-full object-contain" />
+                      <div style={{ height:64, background:'#F9F5EE', borderRadius:8, border:'1px solid #E8D4B0', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10 }}>
+                        <img src={sig.image_url} alt={sig.name} style={{ maxHeight:48, maxWidth:'100%', objectFit:'contain' }} />
                       </div>
-                      <p className="text-xs font-medium text-honey-dark">{sig.name}</p>
-                      <p className="text-[11px] text-honey-caramel mt-0.5">{sig.type}</p>
-                      {!sig.is_default && (
+                      <p style={{ fontSize:12, fontWeight:700, color:'#1A141A', marginBottom:2 }}>{sig.name}</p>
+                      <p style={{ fontSize:11, color:'#8E5915', marginBottom:10 }}>{sig.type}</p>
+                      <div style={{ display:'flex', gap:6, justifyContent:'center' }}>
+                        {!sig.is_default && (
+                          <button
+                            onClick={() => signaturesApi.setDefault(sig.id).then(() => signaturesApi.list().then(r => setSignatures(r.data || [])))}
+                            style={{ fontSize:11, color:'#A33C00', background:'#FFF0DC', border:'1px solid #E8D4B0', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontWeight:600 }}
+                          >
+                            ⭐ Par défaut
+                          </button>
+                        )}
                         <button
-                          onClick={() => signaturesApi.setDefault(sig.id).then(() => signaturesApi.list().then(r => setSignatures(r.data || [])))}
-                          className="text-[11px] text-honey-orange hover:underline mt-2"
+                          onClick={async () => {
+                            if (!confirm(`Supprimer "${sig.name}" ?`)) return;
+                            try {
+                              await signaturesApi.delete(sig.id);
+                              const r = await signaturesApi.list();
+                              setSignatures(r.data || []);
+                            } catch (e: any) {
+                              alert(e?.response?.data?.message || 'Erreur suppression');
+                            }
+                          }}
+                          style={{ fontSize:11, color:'#DC2626', background:'#FFF0F0', border:'1px solid #FECACA', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontWeight:600, display:'flex', alignItems:'center', gap:4 }}
                         >
-                          Définir par défaut
+                          <Trash2 size={11} /> Supprimer
                         </button>
-                      )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -643,4 +640,16 @@ export default function ParametresPage() {
                 <>
                   <p style={{ fontSize:28, margin:'0 0 8px' }}>📤</p>
                   <p style={{ fontSize:13, fontWeight:600, color:'#1A141A', margin:0 }}>Cliquez pour choisir un fichier</p>
-                  <p sty
+                  <p style={{ fontSize:11, color:'#8E5915', margin:'4px 0 0' }}>PNG, JPG — fond transparent recommandé</p>
+                </>
+              )}
+              <input type="file" accept="image/*" ref={sigFileRef} onChange={handleSigFile} style={{ display:'none' }} />
+            </div>
+            {sigError && (
+              <p style={{ margin:'0 0 12px', fontSize:12, color:'#D32F2F', background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:6, padding:'8px 10px' }}>
+                ⚠️ {sigError}
+              </p>
+            )}
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => { setShowSigModal(false); setSigError(''); }} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
+              <button onClick={handleSigUpload} disabled={!sigFile || 
