@@ -347,11 +347,13 @@ export class UploadController implements OnModuleInit {
       }
     }
 
-    // ── Local fallback (dev only) ──────────────────────────────────────────
+    // ── Local fallback (dev only — EPHEMERAL sur Railway!) ────────────────
     const uniqueName = `${crypto.randomBytes(16).toString('hex')}${extname(file.originalname)}`;
     const filePath   = join(uploadsPath, uniqueName);
     fs.writeFileSync(filePath, file.buffer);
     this.logger.warn(`[Upload] ⚠️  LOCAL storage (ephemeral): ${filePath}`);
+    // On retourne un chemin relatif /api/upload/files/... — le frontend Next.js
+    // dispose d'une route GET proxy qui le redirige vers ce backend.
     return {
       url: `/api/upload/files/${uniqueName}`,
       filename: uniqueName,

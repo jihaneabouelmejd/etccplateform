@@ -19,7 +19,6 @@ const inputStyle = { width:'100%', padding:'9px 12px', borderRadius:8, border:'1
 const labelStyle = { display:'block' as const, fontSize:11, fontWeight:700 as const, color:'#8E5915', textTransform:'uppercase' as const, letterSpacing:0.5, marginBottom:6 };
 const btnSecondary = { padding:'9px 18px', borderRadius:8, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:13, fontWeight:600 as const, cursor:'pointer' as const };
 const btnPrimary   = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#F4B315,#E59312)', color:'#1A141A', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
-const btnDanger    = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EF4444,#DC2626)', color:'white', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 
 const roleLabel: Record<string, string> = {
   ADMIN: '👑 Admin', GERANT: '⭐ Gérant', COMPTABLE: '📊 Comptable', EMPLOYE: '👷 Employé',
@@ -36,8 +35,7 @@ const defaultNotifRules = [
 
 const emptyUserForm = { first_name: '', last_name: '', username: '', email: '', password: '', role: 'EMPLOYE' };
 
-// ⚠️ Defined OUTSIDE ParametresPage so React never recreates it on each render.
-// If defined inside, every keystroke unmounts+remounts the input → focus lost.
+// Defined OUTSIDE ParametresPage so React never recreates it on each render.
 const Field = ({ label, value, onChange, type = 'text', placeholder = '' }: {
   label: string; value: any; onChange: (v: string) => void; type?: string; placeholder?: string;
 }) => (
@@ -83,6 +81,15 @@ export default function ParametresPage() {
   const [sigSaving, setSigSaving]       = useState(false);
   const [sigError, setSigError]         = useState('');
   const sigFileRef = useRef<HTMLInputElement>(null);
+
+  // Delete + toast
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
 
   useEffect(() => {
     companyApi.get().then((r) => setCompany(r.data)).catch(() => {});
@@ -175,24 +182,48 @@ export default function ParametresPage() {
     setSigSaving(true);
     setSigError('');
     try {
-      // Step 1: upload the image file → get a proper URL (avoids base64 body-size limit)
       const fd = new FormData();
       fd.append('file', sigFile);
       const uploadRes = await api.post('/upload', fd);
       const imageUrl = uploadRes.data?.url || `/api/upload/files/${uploadRes.data?.filename}`;
       if (!imageUrl) throw new Error('URL de signature non retournée par le serveur');
-
-      // Step 2: save signature record with the URL
       await signaturesApi.create({ name: sigName, image_url: imageUrl, type: 'UPLOADED' });
       const r = await signaturesApi.list();
       setSignatures(r.data || []);
       setShowSigModal(false);
       setSigName(''); setSigPreview(''); setSigFile(null); setSigError('');
+      showToast('Signature ajoutée avec succès');
     } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Erreur lors de l\'ajout de la signature';
+      const msg = err?.response?.data?.message || err?.message || "Erreur lors de l'ajout de la signature";
       setSigError(Array.isArray(msg) ? msg.join(', ') : String(msg));
     } finally {
       setSigSaving(false);
+    }
+  };
+
+  const handleDeleteSig = async (sig: any) => {
+    if (!confirm(`Supprimer la signature "${sig.name}" ?`)) return;
+    setDeletingId(sig.id);
+    try {
+      await signaturesApi.delete(sig.id);
+      setSignatures(prev => prev.filter(s => s.id !== sig.id));
+      showToast(`Signature "${sig.name}" supprimée`);
+    } catch (e: any) {
+      const msg = e?.response?.data?.message || 'Erreur lors de la suppression';
+      showToast(Array.isArray(msg) ? msg.join(', ') : String(msg), 'error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleSetDefault = async (sig: any) => {
+    try {
+      await signaturesApi.setDefault(sig.id);
+      const r = await signaturesApi.list();
+      setSignatures(r.data || []);
+      showToast(`"${sig.name}" définie par défaut`);
+    } catch {
+      showToast('Erreur lors de la mise à jour', 'error');
     }
   };
 
@@ -202,9 +233,26 @@ export default function ParametresPage() {
 
   return (
     <div>
+      {/* TOAST */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 24, right: 24, zIndex: 9999,
+          display: 'flex', alignItems: 'center', gap: 10,
+          background: toast.type === 'error' ? '#FEF2F2' : '#F0FDF4',
+          border: `1px solid ${toast.type === 'error' ? '#FECACA' : '#BBF7D0'}`,
+          color: toast.type === 'error' ? '#DC2626' : '#16A34A',
+          borderRadius: 10, padding: '12px 18px', fontSize: 13, fontWeight: 600,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.12)', minWidth: 260, maxWidth: 380,
+        }}>
+          <span style={{ fontSize: 18 }}>{toast.type === 'error' ? '⚠️' : '✓'}</span>
+          <span style={{ flex: 1 }}>{toast.msg}</span>
+          <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'inherit', opacity: 0.6, padding: 0 }}>\xd7</button>
+        </div>
+      )}
+
       <div className="flex justify-between items-start mb-5">
         <div>
-          <h1 className="text-[22px] font-bold text-honey-dark font-display tracking-tight">Paramètres</h1>
+          <h1 className="text-[22px] font-bold text-honey-dark font-display tracking-tight">Param\xe8tres</h1>
           <p className="text-sm text-honey-caramel mt-0.5">Configuration de la plateforme ETCC</p>
         </div>
       </div>
@@ -228,27 +276,23 @@ export default function ParametresPage() {
         {/* Content */}
         <div>
 
-          {/* ── SOCIÉTÉ ─────────────────────────────────────────────────────── */}
+          {/* SOCIETE */}
           {activeTab === 'societe' && (
             <div className="card">
-
-              {/* Logo */}
               <h3 className="text-sm font-semibold text-honey-dark mb-4 pb-3 border-b border-honey-beige-soft">
                 Logo de la societe
               </h3>
               <div style={{ display:'flex', alignItems:'center', gap:24, marginBottom:28, padding:20, background:'#FFFDF7', border:'1px solid #F5E6D3', borderRadius:12 }}>
-                {/* Preview zone */}
                 <div style={{ width:120, height:80, borderRadius:10, border:'2px dashed #E8D4B0', background:'white', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}>
                   {company.logo_url ? (
                     <img src={company.logo_url} alt="Logo ETCC" style={{ maxWidth:'100%', maxHeight:'100%', objectFit:'contain' }} />
                   ) : (
                     <div style={{ textAlign:'center' }}>
-                      <p style={{ fontSize:26, margin:'0 0 4px' }}>🏗️</p>
+                      <p style={{ fontSize:26, margin:'0 0 4px' }}>&#x1f3d7;&#xfe0f;</p>
                       <p style={{ fontSize:10, color:'#B8977A', margin:0 }}>Aucun logo</p>
                     </div>
                   )}
                 </div>
-                {/* Actions */}
                 <div style={{ flex:1 }}>
                   <p style={{ margin:'0 0 4px', fontSize:13, fontWeight:700, color:'#1A141A' }}>Logo ETCC</p>
                   <p style={{ margin:'0 0 14px', fontSize:12, color:'#8E5915' }}>
@@ -275,13 +319,13 @@ export default function ParametresPage() {
                       onChange={handleLogoUpload} style={{ display:'none' }} />
                   </div>
                   {logoError && (
-                    <p style={{ margin:'8px 0 0', fontSize:12, color:'#D32F2F' }}>⚠️ {logoError}</p>
+                    <p style={{ margin:'8px 0 0', fontSize:12, color:'#D32F2F' }}>&#x26a0;&#xfe0f; {logoError}</p>
                   )}
                 </div>
               </div>
 
               <h3 className="text-sm font-semibold text-honey-dark mb-4 pb-3 border-b border-honey-beige-soft">
-                Informations légales de la société
+                Informations l\xe9gales de la soci\xe9t\xe9
               </h3>
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <Field label="Nom commercial *" value={company.commercial_name}
@@ -300,14 +344,14 @@ export default function ParametresPage() {
                   onChange={(v: string) => setCompany({ ...company, address_line: v })} />
                 <Field label="Ville" value={company.city}
                   onChange={(v: string) => setCompany({ ...company, city: v })} />
-                <Field label="Téléphone" value={company.phone}
+                <Field label="T\xe9l\xe9phone" value={company.phone}
                   onChange={(v: string) => setCompany({ ...company, phone: v })} />
                 <Field label="Email" type="email" value={company.email}
                   onChange={(v: string) => setCompany({ ...company, email: v })} />
               </div>
 
               <h3 className="text-sm font-semibold text-honey-dark mb-4 pb-3 border-b border-honey-beige-soft mt-6">
-                Coordonnées bancaires (affichées sur les factures)
+                Coordonn\xe9es bancaires (affich\xe9es sur les factures)
               </h3>
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <Field label="Banque" value={company.bank_name}
@@ -322,17 +366,17 @@ export default function ParametresPage() {
 
               <div className="flex justify-end">
                 <button onClick={saveCompany} disabled={saving} className="btn-primary">
-                  {saved ? '✓ Sauvegardé!' : saving ? 'Sauvegarde...' : 'Sauvegarder'}
+                  {saved ? '✓ Sauvegard\xe9!' : saving ? 'Sauvegarde...' : 'Sauvegarder'}
                 </button>
               </div>
             </div>
           )}
 
-          {/* ── SIGNATURES ──────────────────────────────────────────────────── */}
+          {/* SIGNATURES */}
           {activeTab === 'signatures' && (
             <div className="card">
               <div className="flex justify-between items-center mb-4 pb-3 border-b border-honey-beige-soft">
-                <h3 className="text-sm font-semibold text-honey-dark">Bibliothèque de signatures</h3>
+                <h3 className="text-sm font-semibold text-honey-dark">Biblioth\xe8que de signatures</h3>
                 <button onClick={() => { setShowSigModal(true); setSigName(''); setSigPreview(''); setSigFile(null); setSigError(''); }}
                   className="btn-primary text-xs">
                   <Plus size={12} /> Ajouter
@@ -341,42 +385,76 @@ export default function ParametresPage() {
               {signatures.length === 0 ? (
                 <div className="py-12 text-center text-honey-caramel">
                   <Pen size={32} className="mx-auto mb-3 opacity-30" />
-                  <p>Aucune signature enregistrée</p>
-                  <p className="text-xs mt-1">Ajoutez une signature PNG, dessinée ou photo de cachet</p>
+                  <p>Aucune signature enregistr\xe9e</p>
+                  <p className="text-xs mt-1">Ajoutez une signature PNG, dessin\xe9e ou photo de cachet</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-3 gap-4 mb-4">
-                  {signatures.map((sig: any) => (
-                    <div key={sig.id} className={cn('border rounded-lg p-4 text-center relative',
-                      sig.is_default ? 'border-honey-gold bg-honey-cream/50' : 'border-honey-beige-soft'
-                    )}>
-                      {sig.is_default && (
-                        <span className="absolute top-2 right-2 text-[10px] bg-honey-gold text-honey-dark px-2 py-0.5 rounded-full font-semibold">
-                          Défaut
-                        </span>
-                      )}
-                      <div className="h-16 bg-white rounded border border-honey-beige-soft flex items-center justify-center mb-3">
-                        <img src={sig.image_url} alt={sig.name} className="max-h-12 max-w-full object-contain" />
+                  {signatures.map((sig: any) => {
+                    const isDeleting = deletingId === sig.id;
+                    return (
+                      <div key={sig.id} style={{
+                        border: `2px solid ${sig.is_default ? '#E59312' : '#E8D4B0'}`,
+                        borderRadius: 10, padding: 14, textAlign: 'center',
+                        position: 'relative', background: sig.is_default ? '#FFF8EE' : 'white',
+                        opacity: isDeleting ? 0.5 : 1, transition: 'opacity 0.2s',
+                      }}>
+                        {sig.is_default && (
+                          <span style={{ position:'absolute', top:8, right:8, fontSize:10, background:'#F4B315', color:'#1A141A', padding:'2px 8px', borderRadius:20, fontWeight:700 }}>
+                            D\xe9faut
+                          </span>
+                        )}
+                        <div style={{ height:72, background:'#F9F5EE', borderRadius:8, border:'1px solid #E8D4B0', display:'flex', alignItems:'center', justifyContent:'center', marginBottom:10, overflow:'hidden' }}>
+                          <img
+                            src={sig.image_url}
+                            alt={sig.name}
+                            style={{ maxHeight:56, maxWidth:'100%', objectFit:'contain' }}
+                            onError={(e) => {
+                              const t = e.currentTarget;
+                              t.onerror = null;
+                              t.style.display = 'none';
+                              const p = t.parentElement;
+                              if (p && !p.querySelector('.sig-fallback')) {
+                                const fb = document.createElement('div');
+                                fb.className = 'sig-fallback';
+                                fb.style.cssText = 'text-align:center';
+                                fb.innerHTML = '<div style="font-size:26px">✍️</div><div style="font-size:10px;color:#B8977A;margin-top:2px">Aper\xe7u indisponible</div>';
+                                p.appendChild(fb);
+                              }
+                            }}
+                          />
+                        </div>
+                        <p style={{ fontSize:12, fontWeight:700, color:'#1A141A', marginBottom:2 }}>{sig.name}</p>
+                        <p style={{ fontSize:11, color:'#8E5915', marginBottom:10 }}>{sig.type === 'UPLOADED' ? 'Image import\xe9e' : sig.type}</p>
+                        <div style={{ display:'flex', gap:6, justifyContent:'center', flexWrap:'wrap' }}>
+                          {!sig.is_default && (
+                            <button
+                              onClick={() => handleSetDefault(sig)}
+                              disabled={isDeleting}
+                              style={{ fontSize:11, color:'#A33C00', background:'#FFF0DC', border:'1px solid #E8D4B0', borderRadius:6, padding:'5px 10px', cursor:'pointer', fontWeight:600 }}
+                            >
+                              ⭐ Par d\xe9faut
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteSig(sig)}
+                            disabled={isDeleting}
+                            style={{ fontSize:11, color:'white', background: isDeleting ? '#FCA5A5' : '#EF4444', border:'none', borderRadius:6, padding:'5px 10px', cursor: isDeleting ? 'not-allowed' : 'pointer', fontWeight:700, display:'flex', alignItems:'center', gap:4 }}
+                          >
+                            <Trash2 size={11} />
+                            {isDeleting ? '...' : 'Supprimer'}
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-xs font-medium text-honey-dark">{sig.name}</p>
-                      <p className="text-[11px] text-honey-caramel mt-0.5">{sig.type}</p>
-                      {!sig.is_default && (
-                        <button
-                          onClick={() => signaturesApi.setDefault(sig.id)}
-                          className="text-[11px] text-honey-orange hover:underline mt-2"
-                        >
-                          Définir par défaut
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-honey-beige-soft">
                 {[
-                  { icon: '📤', label: 'Importer image', sub: 'PNG, JPG', onClick: () => { setShowSigModal(true); setSigName(''); setSigPreview(''); setSigFile(null); setSigError(''); } },
+                  { icon: '\U0001f4e4', label: 'Importer image', sub: 'PNG, JPG', onClick: () => { setShowSigModal(true); setSigName(''); setSigPreview(''); setSigFile(null); setSigError(''); } },
                   { icon: '✍️', label: 'Dessiner', sub: 'Souris / Tablette', onClick: () => {} },
-                  { icon: '📷', label: 'Photo cachet', sub: 'Depuis caméra', onClick: () => {} },
+                  { icon: '\U0001f4f7', label: 'Photo cachet', sub: 'Depuis cam\xe9ra', onClick: () => {} },
                 ].map((opt) => (
                   <button key={opt.label} onClick={opt.onClick}
                     className="border-2 border-dashed border-honey-beige rounded-lg p-4 text-center hover:border-honey-gold hover:bg-honey-cream/50 transition-all">
@@ -389,7 +467,7 @@ export default function ParametresPage() {
             </div>
           )}
 
-          {/* ── UTILISATEURS ────────────────────────────────────────────────── */}
+          {/* UTILISATEURS */}
           {activeTab === 'utilisateurs' && (
             <div className="card">
               <div className="flex justify-between items-center mb-4 pb-3 border-b border-honey-beige-soft">
@@ -404,7 +482,7 @@ export default function ParametresPage() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-honey-cream">
-                    {['Utilisateur', 'Rôle', 'Statut', 'Dernière connexion', 'Actions'].map((h) => (
+                    {['Utilisateur', 'R\xf4le', 'Statut', 'Derni\xe8re connexion', 'Actions'].map((h) => (
                       <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-honey-caramel border-b border-honey-beige-soft">{h}</th>
                     ))}
                   </tr>
@@ -437,7 +515,7 @@ export default function ParametresPage() {
                           <button
                             onClick={() => { setResetTarget(u); setNewPassword(''); setResetError(''); }}
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-honey-cream border border-honey-beige-soft text-honey-caramel hover:text-honey-dark hover:border-honey-gold text-xs font-medium transition-all">
-                            <KeyRound size={12} /> Réinitialiser mdp
+                            <KeyRound size={12} /> R\xe9initialiser mdp
                           </button>
                         )}
                       </td>
@@ -448,18 +526,18 @@ export default function ParametresPage() {
             </div>
           )}
 
-          {/* ── NUMÉROTATION ────────────────────────────────────────────────── */}
+          {/* NUMEROTATION */}
           {activeTab === 'numerotation' && (
             <div className="card">
               <h3 className="text-sm font-semibold text-honey-dark mb-4 pb-3 border-b border-honey-beige-soft">
-                Format de numérotation des documents
+                Format de num\xe9rotation des documents
               </h3>
               <div className="space-y-4">
                 {[
                   { label: 'Devis',           prefix: 'DEV',   example: 'DEV-2026-0089' },
                   { label: 'Bons de commande',prefix: 'BC',    example: 'BC-2026-0067' },
                   { label: 'Bons de livraison',prefix: 'BL',   example: 'BL-2026-0055' },
-                  { label: 'Factures émises', prefix: 'FAC',   example: 'FAC-2026-0043' },
+                  { label: 'Factures \xe9mises', prefix: 'FAC',   example: 'FAC-2026-0043' },
                   { label: 'Factures achat',  prefix: 'FAC-A', example: 'FAC-A-2026-0012' },
                 ].map((doc) => (
                   <div key={doc.prefix} className="flex items-center gap-4 p-4 bg-honey-cream rounded-lg border border-honey-beige-soft">
@@ -474,16 +552,16 @@ export default function ParametresPage() {
                 ))}
               </div>
               <div className="mt-4 p-4 bg-amber-50 border border-amber-100 rounded-lg text-xs text-amber-700">
-                ℹ Les numéros sont générés automatiquement et remis à zéro chaque 1er janvier.
+                &#x2139; Les num\xe9ros sont g\xe9n\xe9r\xe9s automatiquement et remis \xe0 z\xe9ro chaque 1er janvier.
               </div>
             </div>
           )}
 
-          {/* ── NOTIFICATIONS ───────────────────────────────────────────────── */}
+          {/* NOTIFICATIONS */}
           {activeTab === 'notifications' && (
             <div className="card">
               <h3 className="text-sm font-semibold text-honey-dark mb-4 pb-3 border-b border-honey-beige-soft">
-                Règles de notifications
+                R\xe8gles de notifications
               </h3>
               <div className="space-y-3">
                 {notifRules.map((rule) => (
@@ -503,26 +581,26 @@ export default function ParametresPage() {
                 ))}
               </div>
               <div className="flex justify-end mt-5 pt-4 border-t border-honey-beige-soft">
-                <button className="btn-primary text-sm">Sauvegarder les préférences</button>
+                <button className="btn-primary text-sm">Sauvegarder les pr\xe9f\xe9rences</button>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* ── MODAL Créer un utilisateur ──────────────────────────────────────── */}
+      {/* MODAL Creer un utilisateur */}
       {showCreateUser && (
         <div style={{ position:'fixed', inset:0, zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div onClick={() => setShowCreateUser(false)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
           <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:500, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', maxHeight:'90vh', overflowY:'auto' }}>
             <div style={{ padding:'18px 24px', borderBottom:'1px solid #F5E6D3', display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'white', zIndex:1 }}>
-              <h2 style={{ margin:0, fontSize:16, fontWeight:700, color:'#1A141A' }}>👤 Nouvel utilisateur</h2>
-              <button onClick={() => setShowCreateUser(false)} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'#8E5915' }}>×</button>
+              <h2 style={{ margin:0, fontSize:16, fontWeight:700, color:'#1A141A' }}>&#x1f464; Nouvel utilisateur</h2>
+              <button onClick={() => setShowCreateUser(false)} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'#8E5915' }}>&times;</button>
             </div>
             <form onSubmit={handleCreateUser} style={{ padding:24 }}>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
                 <div>
-                  <label style={labelStyle}>Prénom *</label>
+                  <label style={labelStyle}>Pr\xe9nom *</label>
                   <input required value={userForm.first_name} onChange={e => setUserForm({...userForm, first_name:e.target.value})}
                     placeholder="Karim" style={inputStyle} />
                 </div>
@@ -542,12 +620,12 @@ export default function ParametresPage() {
                     placeholder="k.alami@etcc.ma" style={inputStyle} />
                 </div>
                 <div>
-                  <label style={labelStyle}>Rôle *</label>
+                  <label style={labelStyle}>R\xf4le *</label>
                   <select required value={userForm.role} onChange={e => setUserForm({...userForm, role:e.target.value})} style={inputStyle}>
-                    <option value="EMPLOYE">👷 Employé</option>
-                    <option value="COMPTABLE">📊 Comptable</option>
-                    <option value="GERANT">⭐ Gérant</option>
-                    <option value="ADMIN">👑 Admin</option>
+                    <option value="EMPLOYE">&#x1f477; Employ\xe9</option>
+                    <option value="COMPTABLE">&#x1f4ca; Comptable</option>
+                    <option value="GERANT">&#x2b50; G\xe9rant</option>
+                    <option value="ADMIN">&#x1f451; Admin</option>
                   </select>
                 </div>
                 <div>
@@ -558,13 +636,13 @@ export default function ParametresPage() {
               </div>
               {userError && (
                 <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:16, fontSize:12, color:'#D32F2F' }}>
-                  ⚠️ {userError}
+                  &#x26a0;&#xfe0f; {userError}
                 </div>
               )}
               <div style={{ display:'flex', justifyContent:'flex-end', gap:10, paddingTop:16, borderTop:'1px solid #F5E6D3' }}>
                 <button type="button" onClick={() => setShowCreateUser(false)} style={btnSecondary}>Annuler</button>
                 <button type="submit" disabled={userSaving} style={{ ...btnPrimary, opacity:userSaving?0.7:1 }}>
-                  {userSaving ? 'Création...' : '+ Créer l\'utilisateur'}
+                  {userSaving ? 'Cr\xe9ation...' : "+ Cr\xe9er l'utilisateur"}
                 </button>
               </div>
             </form>
@@ -572,46 +650,46 @@ export default function ParametresPage() {
         </div>
       )}
 
-      {/* ── MODAL Réinitialiser mot de passe ────────────────────────────────── */}
+      {/* MODAL Reinitialiser mot de passe */}
       {resetTarget && (
         <div style={{ position:'fixed', inset:0, zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div onClick={() => setResetTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
           <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:420, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', padding:28 }}>
-            <h3 style={{ margin:'0 0 6px', fontSize:16, fontWeight:700, color:'#1A141A' }}>🔑 Réinitialiser le mot de passe</h3>
+            <h3 style={{ margin:'0 0 6px', fontSize:16, fontWeight:700, color:'#1A141A' }}>&#x1f511; R\xe9initialiser le mot de passe</h3>
             <p style={{ fontSize:13, color:'#8E5915', marginBottom:20 }}>
               Compte : <strong>{resetTarget.first_name} {resetTarget.last_name}</strong> (@{resetTarget.username})
             </p>
             <div style={{ marginBottom:20 }}>
               <label style={labelStyle}>Nouveau mot de passe *</label>
               <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
-                placeholder="Minimum 8 caractères" style={inputStyle} />
+                placeholder="Minimum 8 caract\xe8res" style={inputStyle} />
             </div>
             {resetError && (
               <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:16, fontSize:12, color:'#D32F2F' }}>
-                ⚠️ {resetError}
+                &#x26a0;&#xfe0f; {resetError}
               </div>
             )}
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={() => setResetTarget(null)} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
               <button onClick={handleResetPassword} disabled={!newPassword || resetSaving}
                 style={{ ...btnPrimary, flex:1, opacity:(!newPassword || resetSaving)?0.5:1 }}>
-                {resetSaving ? 'Mise à jour...' : '🔑 Confirmer'}
+                {resetSaving ? 'Mise \xe0 jour...' : '&#x1f511; Confirmer'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── MODAL Upload signature ───────────────────────────────────────────── */}
+      {/* MODAL Upload signature */}
       {showSigModal && (
         <div style={{ position:'fixed', inset:0, zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div onClick={() => setShowSigModal(false)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
           <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:440, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', padding:28 }}>
-            <h3 style={{ margin:'0 0 20px', fontSize:16, fontWeight:700, color:'#1A141A' }}>✍️ Ajouter une signature</h3>
+            <h3 style={{ margin:'0 0 20px', fontSize:16, fontWeight:700, color:'#1A141A' }}>&#x270d;&#xfe0f; Ajouter une signature</h3>
             <div style={{ marginBottom:16 }}>
               <label style={labelStyle}>Nom de la signature *</label>
               <input value={sigName} onChange={e => setSigName(e.target.value)}
-                placeholder="Ex: Cachet société" style={inputStyle} />
+                placeholder="Ex: Cachet soci\xe9t\xe9" style={inputStyle} />
             </div>
             <div
               onClick={() => sigFileRef.current?.click()}
@@ -623,23 +701,23 @@ export default function ParametresPage() {
                 <img src={sigPreview} alt="preview" style={{ maxHeight:80, maxWidth:'100%', objectFit:'contain', margin:'0 auto' }} />
               ) : (
                 <>
-                  <p style={{ fontSize:28, margin:'0 0 8px' }}>📤</p>
+                  <p style={{ fontSize:28, margin:'0 0 8px' }}>&#x1f4e4;</p>
                   <p style={{ fontSize:13, fontWeight:600, color:'#1A141A', margin:0 }}>Cliquez pour choisir un fichier</p>
-                  <p style={{ fontSize:11, color:'#8E5915', margin:'4px 0 0' }}>PNG, JPG — fond transparent recommandé</p>
+                  <p style={{ fontSize:11, color:'#8E5915', margin:'4px 0 0' }}>PNG, JPG &mdash; fond transparent recommand\xe9</p>
                 </>
               )}
               <input type="file" accept="image/*" ref={sigFileRef} onChange={handleSigFile} style={{ display:'none' }} />
             </div>
             {sigError && (
               <p style={{ margin:'0 0 12px', fontSize:12, color:'#D32F2F', background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:6, padding:'8px 10px' }}>
-                ⚠️ {sigError}
+                &#x26a0;&#xfe0f; {sigError}
               </p>
             )}
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={() => { setShowSigModal(false); setSigError(''); }} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
               <button onClick={handleSigUpload} disabled={!sigFile || !sigName || sigSaving}
                 style={{ ...btnPrimary, flex:1, opacity:(!sigFile || !sigName || sigSaving)?0.5:1 }}>
-                {sigSaving ? 'Téléversement...' : '✓ Ajouter'}
+                {sigSaving ? 'T\xe9l\xe9versement...' : '✓ Ajouter'}
               </button>
             </div>
           </div>

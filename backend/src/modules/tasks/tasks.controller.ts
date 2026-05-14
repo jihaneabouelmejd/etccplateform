@@ -1,9 +1,16 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { TaskStatus } from '@prisma/client';
 import { TasksService } from './tasks.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+
+/** Roles autorisés à voir toutes les tâches / gérer les assignations */
+const ADMIN_ROLES = ['ADMIN', 'GERANT'];
+
+function isAdmin(role: string) {
+  return ADMIN_ROLES.includes(role);
+}
 
 @ApiTags('tasks')
 @Controller('tasks')
@@ -13,8 +20,17 @@ export class TasksController {
   constructor(private readonly tasks: TasksService) {}
 
   @Post()
-  create(@Body() data: any, @CurrentUser('id') userId: string) {
-    return this.tasks.create(data, userId);
+  create(
+    @Body() data: any,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    // Non-admins ne peuvent créer que pour eux-mêmes
+    const payload = { ...data };
+    if (!isAdmin(role)) {
+      payload.assignee_ids = [userId];
+    }
+    return this.tasks.create(payload, userId);
   }
 
   @Get()
@@ -22,30 +38,85 @@ export class TasksController {
     @Query('project_id') projectId?: string,
     @Query('status') status?: TaskStatus,
     @Query('my_tasks') myTasks?: string,
+    @Query('filter_user_id') filterUserId?: string,
     @CurrentUser('id') userId?: string,
+    @CurrentUser('role') role?: string,
   ) {
+    let effectiveUserId: string | undefined;
+
+    if (!isAdmin(role!)) {
+      // Non-admin : toujours filtré par leur propre userId (sécurité backend)
+      effectiveUserId = userId;
+    } else {
+      // Admin/Gérant : contrôle total
+      if (myTasks === 'true') {
+        effectiveUserId = userId;
+      } else if (filterUserId) {
+        effectiveUserId = filterUserId;
+      }
+      // Sinon undefined → toutes les tâches
+    }
+
     return this.tasks.findAll({
       project_id: projectId,
       status,
-      user_id: myTasks === 'true' ? userId : undefined,
+      user_id: effectiveUserId,
     });
   }
 
   @Get('stats')
-  getStats(@CurrentUser('id') userId: string, @Query('all') all?: string) {
-    return this.tasks.getStats(all === 'true' ? undefined : userId);
+  getStats(
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+    @Query('all') all?: string,
+    @Query('filter_user_id') filterUserId?: string,
+  ) {
+    if (!isAdmin(role)) {
+      // Non-admin : stats de ses propres tâches uniquement
+      return this.tasks.getStats(userId);
+    }
+    // Admin : all=true → toutes, sinon filtre par user ou soi-même
+    if (all === 'true') return this.tasks.getStats(undefined);
+    return this.tasks.getStats(filterUserId || userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) { return this.tasks.findOne(id); }
+  async findOne(@Param('id') id: string, @CurrentUser('id') userId: string, @CurrentUser('role') role: string) {
+    const task = await this.tasks.findOne(id);
+    if (!isAdmin(role)) {
+      const assigned = task.assignments?.some((a: any) => a.user?.id === userId || a.user_id === userId);
+      if (!assigned) throw new ForbiddenException('Accès refusé à cette tâche');
+    }
+    return task;
+  }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body() body: { status: TaskStatus; progress?: number }) {
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() body: { status: TaskStatus; progress?: number },
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    if (!isAdmin(role)) {
+      const task = await this.tasks.findOne(id);
+      const assigned = task.assignments?.some((a: any) => a.user?.id === userId || a.user_id === userId);
+      if (!assigned) throw new ForbiddenException('Non autorisé');
+    }
     return this.tasks.updateStatus(id, body.status, body.progress);
   }
 
   @Patch(':id/progress')
-  updateProgress(@Param('id') id: string, @Body('progress') progress: number) {
+  async updateProgress(
+    @Param('id') id: string,
+    @Body('progress') progress: number,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    if (!isAdmin(role)) {
+      const task = await this.tasks.findOne(id);
+      const assigned = task.assignments?.some((a: any) => a.user?.id === userId || a.user_id === userId);
+      if (!assigned) throw new ForbiddenException('Non autorisé');
+    }
     return this.tasks.updateProgress(id, progress);
   }
 
@@ -53,13 +124,30 @@ export class TasksController {
   addComment(@Param('id') id: string, @Body() body: any, @CurrentUser('id') userId: string) {
     return this.tasks.addComment(id, userId, body.content, body.photo_url);
   }
+
   @Patch(':id')
-  update(@Param('id') id: string, @Body() data: any) {
+  async update(
+    @Param('id') id: string,
+    @Body() data: any,
+    @CurrentUser('id') userId: string,
+    @CurrentUser('role') role: string,
+  ) {
+    if (!isAdmin(role)) {
+      const task = await this.tasks.findOne(id);
+      const assigned = task.assignments?.some((a: any) => a.user?.id === userId || a.user_id === userId);
+      if (!assigned) throw new ForbiddenException('Non autorisé');
+      // Non-admin ne peut pas changer les assignations
+      delete data.assignee_ids;
+    }
     return this.tasks.update(id, data);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
+  async remove(
+    @Param('id') id: string,
+    @CurrentUser('role') role: string,
+  ) {
+    if (!isAdmin(role)) throw new ForbiddenException('Seul un admin ou gérant peut supprimer une tâche');
     return this.tasks.remove(id);
   }
 }

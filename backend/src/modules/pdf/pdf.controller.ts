@@ -396,6 +396,44 @@ export class PDFController {
           }, lang);
         }
 
+      } else if (item.type === 'bc') {
+        const bc = await this.prisma.bonCommande.findUnique({
+          where: { id: item.id },
+          include: {
+            lines: { orderBy: { order: 'asc' } },
+            client: true,
+            devis: { select: { number: true } },
+            signature: true,
+          },
+        });
+        if (!bc) throw new NotFoundException(`BC ${item.id} non trouvé`);
+        buf = await this.pdfService.generateBCPDF({
+          number: bc.number,
+          issue_date: bc.issue_date.toISOString(),
+          expected_delivery: bc.expected_delivery?.toISOString() || undefined,
+          status: bc.status,
+          source: bc.source,
+          devis_number: bc.devis?.number || undefined,
+          signature_url: (bc as any).signature?.image_url || undefined,
+          client: {
+            commercial_name: bc.client.commercial_name,
+            ice: bc.client.ice || undefined,
+            rc: bc.client.rc || undefined,
+            address: bc.client.address || undefined,
+            city: bc.client.city || undefined,
+            phone: bc.client.phone || undefined,
+            email: bc.client.email || undefined,
+          },
+          lines: (bc.lines as any[]).map((l) => ({
+            description: l.description,
+            quantity: Number(l.quantity),
+            unit_price: l.unit_price ? Number(l.unit_price) : undefined,
+          })),
+          total_ht: bc.total_ht ? Number(bc.total_ht) : undefined,
+          total_ttc: bc.total_ttc ? Number(bc.total_ttc) : undefined,
+          notes: bc.notes || undefined,
+        }, lang);
+
       } else {
         throw new BadRequestException('Type de document inconnu');
       }
