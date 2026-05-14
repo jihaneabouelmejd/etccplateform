@@ -118,11 +118,13 @@ export class DevisService {
     search?: string;
     page?: number;
     limit?: number;
+    created_by?: string;
   }) {
     const page = params?.page || 1;
     const limit = params?.limit || 50;
     const where: any = {};
 
+    if (params?.created_by) where.created_by = params.created_by;
     if (params?.statuses && params.statuses.length > 0) {
       where.status = { in: params.statuses };
     } else if (params?.status) {

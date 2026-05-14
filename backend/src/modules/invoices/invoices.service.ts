@@ -215,11 +215,13 @@ export class InvoicesService {
     year?: number;
     search?: string;
     page?: number;
+    created_by?: string;
   }) {
     const page = params?.page || 1;
     const limit = 50;
     const where: any = {};
 
+    if (params?.created_by) where.created_by = params.created_by;
     if (params?.direction) where.direction = params.direction;
     if (params?.status) where.status = params.status;
     if (params?.client_id) where.client_id = params.client_id;

@@ -31,9 +31,16 @@ export class BCController {
   }
 
   @Get()
-  @Roles(Role.ADMIN, Role.GERANT)
-  findAll(@Query('status') status?: BCStatus, @Query('search') search?: string, @Query('page') page?: number) {
-    return this.bc.findAll({ status, search, page });
+  @Roles(Role.ADMIN, Role.GERANT, Role.EMPLOYE)
+  findAll(
+    @Query('status') status?: BCStatus,
+    @Query('search') search?: string,
+    @Query('page') page?: number,
+    @CurrentUser('id') userId?: string,
+    @CurrentUser('role') role?: string,
+  ) {
+    const createdBy = (role === Role.ADMIN || role === Role.GERANT) ? undefined : userId;
+    return this.bc.findAll({ status, search, page, created_by: createdBy });
   }
 
   @Get(':id')

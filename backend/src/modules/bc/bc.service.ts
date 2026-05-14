@@ -98,10 +98,11 @@ export class BCService {
     });
   }
 
-  async findAll(params?: { status?: BCStatus; client_id?: string; search?: string; page?: number }) {
+  async findAll(params?: { status?: BCStatus; client_id?: string; search?: string; page?: number; created_by?: string }) {
     const page = params?.page || 1;
     const limit = 50;
     const where: any = {};
+    if (params?.created_by) where.created_by = params.created_by;
     if (params?.status) where.status = params.status;
     if (params?.client_id) where.client_id = params.client_id;
     if (params?.search) where.number = { contains: params.search, mode: 'insensitive' };

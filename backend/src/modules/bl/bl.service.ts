@@ -195,10 +195,11 @@ export class BLService {
     });
   }
 
-  async findAll(params?: { status?: BLStatus; search?: string; page?: number }) {
+  async findAll(params?: { status?: BLStatus; search?: string; page?: number; created_by?: string }) {
     const page = params?.page || 1;
     const limit = 50;
     const where: any = {};
+    if (params?.created_by) where.created_by = params.created_by;
     if (params?.status) where.status = params.status;
     if (params?.search) where.number = { contains: params.search, mode: 'insensitive' };
 

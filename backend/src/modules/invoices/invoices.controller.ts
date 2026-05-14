@@ -27,7 +27,7 @@ export class InvoicesController {
   }
 
   @Get()
-  @Roles(Role.ADMIN, Role.GERANT, Role.COMPTABLE)
+  @Roles(Role.ADMIN, Role.GERANT, Role.COMPTABLE, Role.EMPLOYE)
   findAll(
     @Query('direction') direction?: InvoiceDirection,
     @Query('status') status?: InvoiceStatus,
@@ -35,8 +35,11 @@ export class InvoicesController {
     @Query('year') year?: number,
     @Query('search') search?: string,
     @Query('page') page?: number,
+    @CurrentUser('id') userId?: string,
+    @CurrentUser('role') role?: string,
   ) {
-    return this.invoices.findAll({ direction, status, month, year, search, page });
+    const createdBy = (role === Role.ADMIN || role === Role.GERANT || role === Role.COMPTABLE) ? undefined : userId;
+    return this.invoices.findAll({ direction, status, month, year, search, page, created_by: createdBy });
   }
 
   @Get('stats')

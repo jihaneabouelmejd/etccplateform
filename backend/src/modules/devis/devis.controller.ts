@@ -21,16 +21,19 @@ export class DevisController {
   }
 
   @Get()
-  @Roles(Role.ADMIN, Role.GERANT)
+  @Roles(Role.ADMIN, Role.GERANT, Role.EMPLOYE)
   findAll(
     @Query('status') status?: DevisStatus,
     @Query('statuses') statuses?: string,
     @Query('client_id') clientId?: string,
     @Query('search') search?: string,
     @Query('page') page?: number,
+    @CurrentUser('id') userId?: string,
+    @CurrentUser('role') role?: string,
   ) {
     const statusesArr = statuses ? (statuses.split(',') as DevisStatus[]) : undefined;
-    return this.devis.findAll({ status, statuses: statusesArr, client_id: clientId, search, page });
+    const createdBy = (role === Role.ADMIN || role === Role.GERANT) ? undefined : userId;
+    return this.devis.findAll({ status, statuses: statusesArr, client_id: clientId, search, page, created_by: createdBy });
   }
 
   @Get('stats')
