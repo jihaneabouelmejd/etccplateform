@@ -40,7 +40,7 @@ export class BLService {
   /**
    * Creer un BL directement depuis un devis valide (sans BC)
    */
-  async createFromDevis(devisId: string, createdBy: string) {
+  async createFromDevis(devisId: string, createdBy: string, signatureIdOverride?: string) {
     const devis = await this.prisma.devis.findUnique({
       where: { id: devisId },
       include: {
@@ -65,8 +65,8 @@ export class BLService {
         devis_id: devisId,
         client_id: devis.client_id,
         project_id: devis.project_id ?? undefined,
-        // Hériter la signature du devis pour le BL
-        signature_id: (devis as any).signature_id ?? undefined,
+        // Use override if provided, otherwise inherit from devis
+        signature_id: signatureIdOverride ?? (devis as any).signature_id ?? undefined,
         lines,
       },
       createdBy,

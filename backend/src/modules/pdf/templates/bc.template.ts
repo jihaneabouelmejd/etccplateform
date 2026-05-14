@@ -106,7 +106,8 @@ body{
 .cond strong{color:#1A1A1A;font-weight:600;}
 
 /* SIGNATURES */
-.sigs{margin:0 48px 30px;display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.sigs{margin:0 48px 30px;display:flex;}
+.sblock{max-width:260px;}
 .sblock h5{font-size:8px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#6B6B6B;margin-bottom:9px;}
 .sarea{border:1.5px dashed #E6E6E6;border-radius:5px;height:100px;display:flex;flex-direction:column;justify-content:space-between;padding:10px 14px;}
 .sarea p{font-size:10px;color:#ADADAD;font-style:italic;}
@@ -262,15 +263,8 @@ export function bcTemplate(data: BCTemplateInput): string {
 </div>
 
 <div class="sigs">
-  <div class="sblock">
-    <h5>Signature acheteur — Bon pour commande</h5>
-    <div class="sarea">
-      <p>Signature, cachet et mention « Bon pour commande »</p>
-      <div class="sline">Date : _____ / _____ / _______</div>
-    </div>
-  </div>
   <div class="sblock four">
-    <h5>Accusé de réception — ETCC</h5>
+    <h5>Signature ETCC</h5>
     <div class="sarea">${data.signature_url
       ? `<img src="${data.signature_url}" style="max-height:60px;max-width:160px;object-fit:contain;display:block;margin:0 auto;"/>`
       : `<div style="height:50px;width:160px;border-bottom:1.5px solid #D4A017;margin:0 auto;"></div>`

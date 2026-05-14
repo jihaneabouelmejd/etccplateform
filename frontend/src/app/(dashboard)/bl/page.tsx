@@ -154,8 +154,8 @@ export default function BLPage() {
     try {
       if (blSource === 'devis') {
         if (!selectedDevisId) { setSaveError('Sélectionnez un devis validé'); setSaving(false); return; }
-        // createFromDevis inherits signature + lines automatically
-        await blApi.createFromDevis(selectedDevisId);
+        // createFromDevis inherits signature + lines from devis; pass override if selected
+        await blApi.createFromDevis(selectedDevisId, blForm.signature_id || undefined);
       } else {
         if (!blForm.bc_id) { setSaveError('Sélectionnez un BC'); setSaving(false); return; }
         if (blLines.every(l => !l.desc)) { setSaveError('Ajoutez au moins une ligne'); setSaving(false); return; }
@@ -517,13 +517,14 @@ export default function BLPage() {
                 </div>
               </div>}
 
-              {blSource === 'bc' && signatures.length > 0 && (
+              {signatures.length > 0 && (
                 <div style={{ marginBottom:16 }}>
                   <label style={labelStyle}>Signature / Cachet</label>
+                  {blSource === 'devis' && <p style={{ fontSize:11, color:'#8E5915', marginBottom:8 }}>Si non sélectionnée, la signature du devis sera utilisée.</p>}
                   <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
                     <div onClick={() => setBlForm({...blForm, signature_id:''})}
                       style={{ border:`2px solid ${!blForm.signature_id ? '#E59312' : '#E8D4B0'}`, borderRadius:8, padding:'6px 14px', cursor:'pointer', fontSize:12, color: !blForm.signature_id ? '#A33C00' : '#8E5915', background: !blForm.signature_id ? '#FFF8EE' : 'white', fontWeight:600 }}>
-                      Aucune
+                      {blSource === 'devis' ? 'Auto (devis)' : 'Aucune'}
                     </div>
                     {signatures.map((sig: any) => (
                       <div key={sig.id} onClick={() => setBlForm({...blForm, signature_id: sig.id})}

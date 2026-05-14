@@ -91,13 +91,13 @@ body{
 .rv{font-size:18px;font-weight:900;color:#0C0C0C;}
 
 /* SIGNATURES */
-.sigs{margin:auto 48px 32px;display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+.sigs{margin:auto 48px 32px;display:flex;}
+.sblock{max-width:280px;}
 .sblock h5{font-size:8px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#6B6B6B;margin-bottom:10px;}
 .sarea{border:1.5px dashed #E6E6E6;border-radius:5px;height:140px;display:flex;flex-direction:column;justify-content:space-between;padding:14px 16px;}
 .sarea .sp{font-size:10px;color:#ADADAD;font-style:italic;}
 .sarea .sline{border-top:1px solid #E6E6E6;font-size:8.5px;color:#ADADAD;padding-top:6px;}
 .sarea img{max-height:90px;max-width:190px;object-fit:contain;display:block;}
-.sblock.dest .sarea{border-color:#F5C842;background:#FFFBF0;border-width:2px;}
 
 /* FOOTER */
 .footer{margin-top:auto;background:#F5C842;padding:14px 48px;display:flex;justify-content:space-between;align-items:center;}
@@ -220,13 +220,6 @@ export function blTemplate(data: BLTemplateInput): string {
     <div class="sarea">
       ${signBlock ? signBlock : '<span class="sp">Signature et cachet de l\'expéditeur</span>'}
       <div class="sline">Date d'expédition : _____ / _____ / _______</div>
-    </div>
-  </div>
-  <div class="sblock dest">
-    <h5>Signature réceptionneur — Bon pour réception</h5>
-    <div class="sarea">
-      <span class="sp">Signature du client — Mention « Reçu sans réserve »</span>
-      <div class="sline">Date de réception : _____ / _____ / _______</div>
     </div>
   </div>
 </div>

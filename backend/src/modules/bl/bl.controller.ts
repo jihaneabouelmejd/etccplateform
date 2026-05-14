@@ -22,8 +22,12 @@ export class BLController {
 
   @Post('from-devis/:devisId')
   @Roles(Role.ADMIN, Role.GERANT)
-  createFromDevis(@Param('devisId') devisId: string, @CurrentUser('id') userId: string) {
-    return this.bl.createFromDevis(devisId, userId);
+  createFromDevis(
+    @Param('devisId') devisId: string,
+    @CurrentUser('id') userId: string,
+    @Body('signature_id') signatureId?: string,
+  ) {
+    return this.bl.createFromDevis(devisId, userId, signatureId || undefined);
   }
 
   @Get()

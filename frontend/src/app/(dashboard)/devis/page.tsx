@@ -460,6 +460,12 @@ export default function DevisPage() {
                     <label style={labelStyle}>Objet</label>
                     <input value={form.object} onChange={e => setForm({...form, object:e.target.value})} placeholder="Objet du devis..." style={inputStyle} />
                   </div>
+                  <div className="col-span-2">
+                    <label style={labelStyle}>Conditions de paiement</label>
+                    <textarea value={form.payment_terms} onChange={e => setForm({...form, payment_terms:e.target.value})}
+                      placeholder="Ex : 30% à la commande, 70% à la livraison..." rows={2}
+                      style={{ ...inputStyle, resize:'none' as const }} />
+                  </div>
                 </div>
 
                 {/* Lignes */}
