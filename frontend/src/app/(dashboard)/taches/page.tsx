@@ -26,7 +26,8 @@ const btnPrimary   = { padding:'9px 20px', borderRadius:8, border:'none', backgr
 const btnDanger    = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EF4444,#DC2626)', color:'white', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 
 function getStoredUser() { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } }
-function canDelete() { const r = getStoredUser().role; return r === 'ADMIN' || r === 'GERANT'; }
+function isAdminRole(role: string) { return role === 'ADMIN' || role === 'GERANT'; }
+function canDelete(role: string) { return isAdminRole(role); }
 
 const emptyForm = {
   title: '', project_id: '', assignee_ids: [] as string[],
@@ -61,11 +62,16 @@ export default function TachesPage() {
     { id: 'DONE',        label: t('task.done'),        color: 'border-t-green-400' },
   ];
 
+  const storedUser = getStoredUser();
+  const currentRole: string = storedUser.role || '';
+  const admin = isAdminRole(currentRole);
+
   const [view, setView]           = useState<'kanban' | 'list'>('kanban');
   const [kanban, setKanban]       = useState<Record<string, any[]>>({ TODO:[], IN_PROGRESS:[], BLOCKED:[], DONE:[] });
   const [allTasks, setAllTasks]   = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
   const [myTasks, setMyTasks]     = useState(false);
+  const [filterUserId, setFilterUserId] = useState(''); // admin: filtrer par utilisateur
 
   const [showForm, setShowForm]           = useState(false);
   const [editTarget, setEditTarget]       = useState<any | null>(null);
@@ -75,14 +81,17 @@ export default function TachesPage() {
 
   const [projects, setProjects]       = useState<any[]>([]);
   const [users, setUsers]             = useState<any[]>([]);
-  const canDel                        = canDelete();
+  const canDel                        = canDelete(currentRole);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const storedUser = getStoredUser();
       const params: any = {};
-      if (myTasks && storedUser.id) params.my_tasks = 'true';
+      // Admin : contrôle via toggles ; Non-admin : le backend force le filtre de toute façon
+      if (admin) {
+        if (myTasks) params.my_tasks = 'true';
+        else if (filterUserId) params.filter_user_id = filterUserId;
+      }
       const res = await tasksApi.list(params);
       const { data, kanban: kb } = res.data;
       setAllTasks((data || []).map(mapTask));
@@ -94,7 +103,7 @@ export default function TachesPage() {
       });
     } catch { /* silently fail */ }
     setLoading(false);
-  }, [myTasks]);
+  }, [myTasks, filterUserId, admin]);
 
   useEffect(() => {
     load();
@@ -211,14 +220,34 @@ export default function TachesPage() {
           <p className="text-sm text-honey-caramel mt-0.5">{t('task.kanban')} & {t('task.progress').toLowerCase()}</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
-          {/* Mes tâches toggle */}
-          <button
-            onClick={() => setMyTasks(v => !v)}
-            className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
-              myTasks ? 'bg-honey-gold border-honey-gold text-honey-dark' : 'bg-white border-honey-beige-soft text-honey-caramel hover:border-honey-gold'
-            )}>
-            👤 {t('dash.my_tasks')}
-          </button>
+          {/* Admin : filtre par utilisateur */}
+          {admin && (
+            <select
+              value={filterUserId}
+              onChange={e => { setFilterUserId(e.target.value); setMyTasks(false); }}
+              style={{ padding:'6px 10px', borderRadius:8, border:'1.5px solid #EDDEC1', fontSize:12, color:'#A33C00', background:'white', cursor:'pointer' }}>
+              <option value="">👥 Tous les utilisateurs</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.role})</option>
+              ))}
+            </select>
+          )}
+          {/* Mes tâches toggle — admin seulement */}
+          {admin && (
+            <button
+              onClick={() => { setMyTasks(v => !v); setFilterUserId(''); }}
+              className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
+                myTasks ? 'bg-honey-gold border-honey-gold text-honey-dark' : 'bg-white border-honey-beige-soft text-honey-caramel hover:border-honey-gold'
+              )}>
+              👤 {t('dash.my_tasks')}
+            </button>
+          )}
+          {/* Non-admin : badge informatif */}
+          {!admin && (
+            <span className="px-3 py-1.5 rounded-lg text-xs font-semibold border bg-honey-gold border-honey-gold text-honey-dark">
+              👤 Mes tâches
+            </span>
+          )}
           <button onClick={load} className="p-1.5 rounded-lg border border-honey-beige-soft text-honey-caramel hover:text-honey-dark hover:border-honey-gold transition-all">
             <RefreshCw size={14} />
           </button>
@@ -398,8 +427,8 @@ export default function TachesPage() {
                   </select>
                 </div>
 
-                {/* Assigné à — multi-select */}
-                <div style={{ gridColumn:'1/-1' }}>
+                {/* Assigné à — multi-select (admin seulement) */}
+                {admin && <div style={{ gridColumn:'1/-1' }}>
                   <label style={labelStyle}>Assigné à</label>
                   <div style={{ border:'1.5px solid #EDDEC1', borderRadius:8, padding:'8px 10px', background:'white', maxHeight:180, overflowY:'auto' }}>
                     {users.length === 0 && (
@@ -437,7 +466,7 @@ export default function TachesPage() {
                       {form.assignee_ids.length} personne(s) assignée(s)
                     </p>
                   )}
-                </div>
+                </div>}
 
                 {/* Priorité */}
                 <div>
@@ -496,24 +525,4 @@ export default function TachesPage() {
         </div>
       )}
 
-      {/* ── POPUP Confirmation suppression ─────────────────────────────────── */}
-      {deleteTarget && (
-        <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div onClick={() => setDeleteTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }} />
-          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:400, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', padding:28 }}>
-            <h3 style={{ margin:'0 0 8px', fontSize:17, fontWeight:700, color:'#1A141A' }}>🗑 Supprimer la tâche</h3>
-            <p style={{ fontSize:13, color:'#A33C00', marginBottom:6 }}>Vous êtes sur le point de supprimer :</p>
-            <p style={{ fontSize:14, fontWeight:600, color:'#1A141A', marginBottom:20, background:'#FBF6EE', padding:'10px 14px', borderRadius:8, border:'1px solid #EDDEC1' }}>
-              {deleteTarget.title}
-            </p>
-            <p style={{ fontSize:12, color:'#999', marginBottom:20 }}>Cette action est irréversible.</p>
-            <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setDeleteTarget(null)} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
-              <button onClick={confirmDelete} style={{ ...btnDanger, flex:1 }}>🗑 Supprimer</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+      {/* ── POPUP Confirmation suppression ──────────────────────────�
