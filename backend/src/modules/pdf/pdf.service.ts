@@ -124,6 +124,34 @@ export class PDFService {
 
   constructor(private companyService: CompanyService) {}
 
+  /**
+   * Télécharge une image depuis son URL et la convertit en data URI base64.
+   * Cela évite que Puppeteer tente de charger des URLs Cloudinary depuis
+   * le container Railway (pas de requêtes réseau externes dans le HTML).
+   */
+  private async imageUrlToBase64(url: string): Promise<string | null> {
+    if (!url) return null;
+    try {
+      // Dynamic import to avoid issues with ESM/CJS
+      const https = url.startsWith('https') ? require('https') : require('http');
+      return await new Promise<string | null>((resolve) => {
+        https.get(url, (res: any) => {
+          if (res.statusCode !== 200) { resolve(null); return; }
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => {
+            const buf = Buffer.concat(chunks);
+            const contentType = res.headers['content-type'] || 'image/png';
+            resolve(`data:${contentType};base64,${buf.toString('base64')}`);
+          });
+          res.on('error', () => resolve(null));
+        }).on('error', () => resolve(null));
+      });
+    } catch {
+      return null;
+    }
+  }
+
   private async generateFromHTML(html: string): Promise<Buffer> {
     let browser: any;
     try {
@@ -208,25 +236,53 @@ export class PDFService {
 
   async generateDevisPDF(data: DevisPDFData, lang: PDFLanguage = 'FR'): Promise<Buffer> {
     const company = await this.companyService.getPdfData();
-    const html = devisTemplate({ ...data, company, lang });
+    const sigBase64 = data.signature_url ? await this.imageUrlToBase64(data.signature_url) : undefined;
+    const logoBase64 = company.logo_url ? await this.imageUrlToBase64(company.logo_url) : undefined;
+    const html = devisTemplate({
+      ...data,
+      signature_url: sigBase64 || undefined,
+      company: { ...company, logo_url: logoBase64 || company.logo_url },
+      lang,
+    });
     return this.generateFromHTML(html);
   }
 
   async generateBLPDF(data: BLPDFData, lang: PDFLanguage = 'FR'): Promise<Buffer> {
     const company = await this.companyService.getPdfData();
-    const html = blTemplate({ ...data, company, lang });
+    const sigBase64 = data.signature_url ? await this.imageUrlToBase64(data.signature_url) : undefined;
+    const logoBase64 = company.logo_url ? await this.imageUrlToBase64(company.logo_url) : undefined;
+    const html = blTemplate({
+      ...data,
+      signature_url: sigBase64 || undefined,
+      company: { ...company, logo_url: logoBase64 || company.logo_url },
+      lang,
+    });
     return this.generateFromHTML(html);
   }
 
   async generateInvoicePDF(data: InvoicePDFData, lang: PDFLanguage = 'FR'): Promise<Buffer> {
     const company = await this.companyService.getPdfData();
-    const html = invoiceTemplate({ ...data, company, lang });
+    const sigBase64 = data.signature_url ? await this.imageUrlToBase64(data.signature_url) : undefined;
+    const logoBase64 = company.logo_url ? await this.imageUrlToBase64(company.logo_url) : undefined;
+    const html = invoiceTemplate({
+      ...data,
+      signature_url: sigBase64 || undefined,
+      company: { ...company, logo_url: logoBase64 || company.logo_url },
+      lang,
+    });
     return this.generateFromHTML(html);
   }
 
   async generateBCPDF(data: BCPDFData, lang: PDFLanguage = 'FR'): Promise<Buffer> {
     const company = await this.companyService.getPdfData();
-    const html = bcTemplate({ ...data, company, lang });
+    const sigBase64 = data.signature_url ? await this.imageUrlToBase64(data.signature_url) : undefined;
+    const logoBase64 = company.logo_url ? await this.imageUrlToBase64(company.logo_url) : undefined;
+    const html = bcTemplate({
+      ...data,
+      signature_url: sigBase64 || undefined,
+      company: { ...company, logo_url: logoBase64 || company.logo_url },
+      lang,
+    });
     return this.generateFromHTML(html);
   }
 
