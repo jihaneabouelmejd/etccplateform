@@ -652,4 +652,14 @@ export default function ParametresPage() {
             )}
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={() => { setShowSigModal(false); setSigError(''); }} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
-              <button onClick={handleSigUpload} disabled={!sigFile || 
+              <button onClick={handleSigUpload} disabled={!sigFile || !sigName || sigSaving}
+                style={{ ...btnPrimary, flex:1, opacity:(!sigFile || !sigName || sigSaving)?0.5:1 }}>
+                {sigSaving ? 'Téléversement...' : '✓ Ajouter'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
