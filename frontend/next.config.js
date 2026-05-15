@@ -15,4 +15,11 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        sourc
+        source: '/api/:path*',
+        destination: `${backendUrl}/api/:path*`,
+      },
+    ];
+  },
+};
+
+module.exports = nextConfig;

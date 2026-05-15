@@ -79,4 +79,10 @@ export class DepensesController {
   }
 
   @Delete(':id')
-  @UseGuards
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN, Role.GERANT)
+  remove(@Param('id') id: string) {
+    return this.depenses.delete(id);
+  }
+
+}

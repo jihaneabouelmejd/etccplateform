@@ -407,4 +407,12 @@ export class UploadController implements OnModuleInit {
 
   // ── GET /upload/files/:filename — legacy local serve ──────────────────────
   @Get('files/:filename')
-  serveFile(@
+  serveFile(@Param('filename') filename: string, @Query('dl') dl: string, @Res() res: Response) {
+    const filePath = join(uploadsPath, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'Fichier non trouve' });
+    }
+    if (dl === '1') res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    return res.sendFile(filePath);
+  }
+}
