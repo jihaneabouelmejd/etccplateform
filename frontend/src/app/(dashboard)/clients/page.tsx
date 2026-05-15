@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Star, Eye, Phone, Mail, Pencil, Trash2 } from 'lucide-react';
 import { clientsApi } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/lib/i18n';
 
@@ -14,15 +15,9 @@ const btnDanger = { padding:'9px 20px', borderRadius:8, border:'none', backgroun
 
 const emptyForm = { commercial_name: '', legal_name: '', ice: '', contact_person: '', phone: '', email: '' };
 
-function canDelete() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; } catch { return false; }
-}
-function canManage() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; } catch { return false; }
-}
-
 export default function ClientsPage() {
   const { t, dir } = useLanguage();
+  const { user } = useAuth();
   const [clients, setClients] = useState<any[]>([]);
   const [topClients, setTopClients] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -34,8 +29,8 @@ export default function ClientsPage() {
   const [deleting, setDeleting] = useState(false);
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState(emptyForm);
-  const canDel = canDelete();
-  const canMng = canManage();
+  const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
+  const canMng = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   const fetchData = () => {
     setLoading(true);

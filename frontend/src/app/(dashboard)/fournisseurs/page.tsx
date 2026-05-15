@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, CreditCard, Pencil, Trash2 } from 'lucide-react';
 import { fournisseursApi } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 
 const inputStyle = { width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' as const };
@@ -13,14 +14,8 @@ const btnDanger = { padding:'9px 20px', borderRadius:8, border:'none', backgroun
 
 const emptyForm = { name: '', category: '', ice: '', rib: '', contact_person: '', phone: '', email: '', city: '' };
 
-function canDelete() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; } catch { return false; }
-}
-function canManage() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; } catch { return false; }
-}
-
 export default function FournisseursPage() {
+  const { user } = useAuth();
   const [fournisseurs, setFournisseurs] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [search, setSearch] = useState('');
@@ -33,8 +28,8 @@ export default function FournisseursPage() {
   const [deleting, setDeleting] = useState(false);
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState(emptyForm);
-  const canDel = canDelete();
-  const canMng = canManage();
+  const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
+  const canMng = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   const fetchData = () => {
     setLoading(true);

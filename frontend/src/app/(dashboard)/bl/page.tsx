@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Trash2, ArrowRight, Camera, Upload, X } from 'lucide-react';
 import { blApi, bcApi, devisApi, invoicesApi, uploadApi, signaturesApi } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { formatDate, cn } from '@/lib/utils';
 import PDFButton from '@/components/ui/PDFButton';
 import { useLanguage } from '@/lib/i18n';
@@ -23,12 +24,9 @@ const btnGreen     = { padding:'5px 10px', borderRadius:6, border:'none', backgr
 
 interface BLLine { desc: string; qty: number; }
 
-function canDelete() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; } catch { return false; }
-}
-
 export default function BLPage() {
   const { t, dir } = useLanguage();
+  const { user } = useAuth();
 
   const statusLabel: Record<string, string> = {
     PREPARING: t('bl.preparing'), DELIVERED: t('bl.delivered'),
@@ -50,7 +48,7 @@ export default function BLPage() {
   const [deleting, setDeleting]   = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState('');
   const [creatingInvoice, setCreatingInvoice] = useState('');
-  const canDel = canDelete();
+  const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   // Modal nouveau BL
   const [showForm, setShowForm]   = useState(false);

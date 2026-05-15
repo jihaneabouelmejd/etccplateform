@@ -55,7 +55,7 @@ export class BCService {
             order: i,
           })),
         },
-      },
+      } as any,
       include: { lines: true, client: { select: { commercial_name: true } } },
     });
   }
@@ -93,7 +93,7 @@ export class BCService {
             order: i,
           })),
         },
-      },
+      } as any,
       include: { lines: true },
     });
   }

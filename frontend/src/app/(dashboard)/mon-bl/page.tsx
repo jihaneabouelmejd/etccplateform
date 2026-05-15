@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Upload, CheckCircle, ExternalLink, FileText } from 'lucide-react';
+import { Upload, CheckCircle, Eye, FileText } from 'lucide-react';
 import { uploadApi, depensesApi } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
+import FileViewerModal from '@/components/ui/FileViewerModal';
 
 export default function MonBLPage() {
   const { t, dir } = useLanguage();
@@ -12,6 +13,7 @@ export default function MonBLPage() {
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess]     = useState('');
   const [dragging, setDragging]   = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const statusCfg: Record<string, { label: string; bg: string; color: string }> = {
@@ -107,6 +109,15 @@ export default function MonBLPage() {
       <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={e => onFile(e.target.files?.[0] || null)} />
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
+      {/* FileViewer modal */}
+      {previewUrl && (
+        <FileViewerModal
+          url={previewUrl}
+          title="BL importé"
+          onClose={() => setPreviewUrl(null)}
+        />
+      )}
+
       {/* Liste */}
       <p style={{ fontSize: 11, fontWeight: 700, color: '#8E5915', textTransform: 'uppercase', letterSpacing: 1, margin: '0 0 12px' }}>
         {t('monbl.count')} ({imports.length})
@@ -140,11 +151,10 @@ export default function MonBLPage() {
                     {st.label}
                   </span>
                   {d.receipt_url && (
-                    <a href={d.receipt_url.startsWith('http') ? d.receipt_url : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}${d.receipt_url}`}
-                      target="_blank" rel="noreferrer"
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #E8D4B0', background: 'white', color: '#8E5915', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
-                      <ExternalLink size={12} /> {t('see')}
-                    </a>
+                    <button onClick={() => setPreviewUrl(d.receipt_url)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 8, border: '1.5px solid #E8D4B0', background: 'white', color: '#8E5915', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                      <Eye size={12} /> {t('see')}
+                    </button>
                   )}
                 </div>
               </div>

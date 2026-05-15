@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, LayoutGrid, List, Pencil, Trash2, RefreshCw, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { projectsApi, tasksApi, assignableUsersApi } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 
 const priorityConfig: Record<string, string> = {
@@ -25,9 +26,7 @@ const btnSecondary = { padding:'9px 18px', borderRadius:8, border:'1.5px solid #
 const btnPrimary   = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EBB800,#755C00)', color:'#1A141A', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 const btnDanger    = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EF4444,#DC2626)', color:'white', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 
-function getStoredUser() { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } }
 function isAdminRole(role: string) { return role === 'ADMIN' || role === 'GERANT'; }
-function canDelete(role: string) { return isAdminRole(role); }
 
 const emptyForm = {
   title: '', project_id: '', assignee_ids: [] as string[],
@@ -54,6 +53,7 @@ function mapTask(t: any) {
 
 export default function TachesPage() {
   const { t, dir } = useLanguage();
+  const { user } = useAuth();
 
   const columns = [
     { id: 'TODO',        label: t('task.todo'),        color: 'border-t-gray-300' },
@@ -62,8 +62,7 @@ export default function TachesPage() {
     { id: 'DONE',        label: t('task.done'),        color: 'border-t-green-400' },
   ];
 
-  const storedUser = getStoredUser();
-  const currentRole: string = storedUser.role || '';
+  const currentRole: string = user?.role || '';
   const admin = isAdminRole(currentRole);
 
   const [view, setView]           = useState<'kanban' | 'list'>('kanban');
@@ -81,7 +80,7 @@ export default function TachesPage() {
 
   const [projects, setProjects]       = useState<any[]>([]);
   const [users, setUsers]             = useState<any[]>([]);
-  const canDel                        = canDelete(currentRole);
+  const canDel                        = isAdminRole(currentRole);
 
   const load = useCallback(async () => {
     setLoading(true);

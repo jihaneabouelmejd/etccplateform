@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Search, AlertTriangle, ArrowDown, ArrowUp, Pencil, Trash2 } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
 import api from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 
 const stockStatus = (qty: number, min: number) =>
@@ -19,11 +20,8 @@ const btnDanger = { padding:'9px 20px', borderRadius:8, border:'none', backgroun
 
 const emptyForm = { name: '', sku: '', category: '', unit: 'unité', quantity: '0', min_threshold: '0', unit_price: '0' };
 
-function canManage() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; } catch { return false; }
-}
-
 export default function StockPage() {
+  const { user } = useAuth();
   const [tab, setTab] = useState('produits');
   const [products, setProducts] = useState<any[]>([]);
   const [movements, setMovements] = useState<any[]>([]);
@@ -39,7 +37,7 @@ export default function StockPage() {
   const [deleting, setDeleting] = useState(false);
   const [formError, setFormError] = useState('');
   const [form, setForm] = useState(emptyForm);
-  const canMng = canManage();
+  const canMng = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   const fetchData = () => {
     api.get('/stock/products/stats').then((r) => setStats(r.data)).catch(() => {});

@@ -103,3 +103,270 @@
   ::-webkit-scrollbar-thumb { background: var(--honey-beige); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--honey-caramel); }
 }
+
+/* ══════════════════════════════════════════════
+   ETCC — MOBILE RESPONSIVE SYSTEM
+   Breakpoints: mobile < 768px | tablet 768-1023px
+   ══════════════════════════════════════════════ */
+
+/* ── Sidebar & Layout ── */
+.etcc-sidebar {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.etcc-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 8, 10, 0.55);
+  backdrop-filter: blur(3px);
+  z-index: 999;
+  cursor: pointer;
+}
+.etcc-hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1.5px solid #EDDEC1;
+  background: white;
+  cursor: pointer;
+  color: #755C00;
+  flex-shrink: 0;
+}
+.etcc-topbar {
+  display: none;
+}
+
+/* ── Tables — scrollable horizontalement ── */
+.etcc-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 10px;
+}
+.etcc-table-wrap table {
+  min-width: 640px;
+}
+
+/* ── Page container responsive ── */
+.etcc-page {
+  max-width: 1400px;
+}
+
+/* ── Form grid ── */
+.etcc-form-grid {
+  display: grid;
+  gap: 16px;
+}
+.etcc-form-grid-2 { grid-template-columns: 1fr 1fr; }
+.etcc-form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+/* ── KPI grid ── */
+.etcc-kpi-grid {
+  display: grid;
+  gap: 12px;
+}
+.etcc-kpi-grid-6 { grid-template-columns: repeat(6, 1fr); }
+.etcc-kpi-grid-4 { grid-template-columns: repeat(4, 1fr); }
+.etcc-kpi-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.etcc-kpi-grid-2 { grid-template-columns: repeat(2, 1fr); }
+
+/* ── Spinners (global) ── */
+@keyframes etcc-spin { to { transform: rotate(360deg); } }
+.etcc-spinner {
+  animation: etcc-spin 0.8s linear infinite;
+}
+
+/* ════════════════════════════════
+   TABLET  768px – 1023px
+   ════════════════════════════════ */
+@media (max-width: 1023px) {
+  .etcc-kpi-grid-6 { grid-template-columns: repeat(3, 1fr); }
+  .etcc-form-grid-3 { grid-template-columns: 1fr 1fr; }
+}
+
+/* ════════════════════════════════
+   MOBILE  < 768px
+   ════════════════════════════════ */
+@media (max-width: 767px) {
+
+  /* ── Sidebar masquée, slide-in depuis la gauche ── */
+  .etcc-sidebar {
+    transform: translateX(-100%) !important;
+    z-index: 1000 !important;
+    box-shadow: 4px 0 40px rgba(0,0,0,0.18) !important;
+  }
+  .etcc-sidebar.open {
+    transform: translateX(0) !important;
+  }
+  [dir="rtl"] .etcc-sidebar {
+    transform: translateX(100%) !important;
+  }
+  [dir="rtl"] .etcc-sidebar.open {
+    transform: translateX(0) !important;
+  }
+
+  /* ── Overlay visible quand sidebar ouverte ── */
+  .etcc-overlay { display: block; }
+
+  /* ── Hamburger visible ── */
+  .etcc-hamburger { display: flex !important; }
+
+  /* ── Topbar mobile (contient hamburger + titre) ── */
+  .etcc-topbar {
+    display: flex !important;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: white;
+    border-bottom: 1px solid #EDDEC1;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  /* ── Contenu principal — plus de margin-left ── */
+  .etcc-content {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 12px 14px !important;
+    min-height: 100vh;
+  }
+
+  /* ── Titres de page ── */
+  .etcc-content h1 {
+    font-size: 18px !important;
+  }
+
+  /* ── Inputs & selects — taille 16px pour éviter zoom iOS ── */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* ── Grids — classes etcc-* ── */
+  .etcc-kpi-grid-6,
+  .etcc-kpi-grid-4,
+  .etcc-kpi-grid-3 { grid-template-columns: 1fr 1fr !important; }
+  .etcc-kpi-grid-2 { grid-template-columns: 1fr 1fr !important; }
+  .etcc-form-grid-2,
+  .etcc-form-grid-3 { grid-template-columns: 1fr !important; }
+
+  /* ── Grids — attribut style (CSS attribute selectors)
+         Couvre TOUTES les pages sans toucher le code ── */
+  [style*="repeat(6,1fr)"],
+  [style*="repeat(6, 1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+  [style*="repeat(5,1fr)"],
+  [style*="repeat(5, 1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+  [style*="repeat(4,1fr)"],
+  [style*="repeat(4, 1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+  [style*="repeat(3,1fr)"],
+  [style*="repeat(3, 1fr)"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Grids 2 colonnes → 1 colonne */
+  [style*="1fr 1fr"] { grid-template-columns: 1fr !important; }
+  [style*="2fr 1fr"] { grid-template-columns: 1fr !important; }
+  [style*="1fr 2fr"] { grid-template-columns: 1fr !important; }
+  [style*="3fr 2fr"] { grid-template-columns: 1fr !important; }
+  [style*="2fr 3fr"] { grid-template-columns: 1fr !important; }
+
+  /* Éviter le débordement horizontal global */
+  html, body { overflow-x: hidden; }
+
+  /* ── Tables ── */
+  .etcc-table-wrap table { min-width: 560px; }
+
+  /* Cibler automatiquement les tables sans wrapper ── */
+  div:has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  div:has(> table) > table { min-width: 560px; }
+
+  /* ── Modals ── */
+  .etcc-modal {
+    width: 96vw !important;
+    max-width: 96vw !important;
+    max-height: 92vh !important;
+    margin: 0 !important;
+    border-radius: 16px !important;
+  }
+
+  /* ── FileViewerModal ── */
+  .etcc-file-modal {
+    width: 98vw !important;
+    max-width: 98vw !important;
+    height: 88vh !important;
+    max-height: 88vh !important;
+    margin: 0 6px !important;
+    border-radius: 12px !important;
+  }
+
+  /* ── Flex rows → colonnes ── */
+  .etcc-flex-wrap {
+    flex-wrap: wrap;
+    gap: 8px !important;
+  }
+
+  /* ── Boutons header → compacts ── */
+  .etcc-header-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ── Cards list items ── */
+  .etcc-card-row {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    padding: 12px 14px !important;
+  }
+
+  /* ── Search bar ── */
+  .etcc-search-bar {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* ── Sections padding réduites ── */
+  .etcc-section {
+    padding: 14px 14px !important;
+    border-radius: 12px !important;
+  }
+
+  /* ── Boutons d'action inline → plus petits ── */
+  button[style*="padding: '6px 10px'"],
+  button[style*="padding:6px 10px"] {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+
+  /* ── Login page ── */
+  .etcc-login-card {
+    width: 96vw !important;
+    padding: 24px 20px !important;
+  }
+
+  /* ── Pagination ── */
+  .etcc-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+}
+
+/* ════════════════════════════════
+   Très petit écran < 380px
+   ════════════════════════════════ */
+@media (max-width: 379px) {
+  .etcc-kpi-grid-6,
+  .etcc-kpi-grid-4,
+  .etcc-kpi-grid-3,
+  .etcc-kpi-grid-2 { grid-template-columns: 1fr; }
+  .etcc-content { padding: 10px 10px !important; }
+}

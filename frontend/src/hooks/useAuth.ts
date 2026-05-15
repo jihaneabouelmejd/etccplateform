@@ -44,6 +44,7 @@ export const useAuth = create<AuthState>((set) => ({
 
     const data = await res.json();
     localStorage.setItem('access_token', data.access_token);
+    localStorage.setItem('user', JSON.stringify(data.user));
     set({ user: data.user, isAuthenticated: true, isLoading: false });
   },
 
@@ -57,6 +58,7 @@ export const useAuth = create<AuthState>((set) => ({
       });
     } catch {}
     localStorage.removeItem('access_token');
+    localStorage.removeItem('user');
     set({ user: null, isAuthenticated: false, isLoading: false });
   },
 
@@ -73,9 +75,11 @@ export const useAuth = create<AuthState>((set) => ({
       });
       if (!res.ok) throw new Error('Not authenticated');
       const data = await res.json();
+      localStorage.setItem('user', JSON.stringify(data));
       set({ user: data, isAuthenticated: true, isLoading: false });
     } catch {
       localStorage.removeItem('access_token');
+      localStorage.removeItem('user');
       set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },

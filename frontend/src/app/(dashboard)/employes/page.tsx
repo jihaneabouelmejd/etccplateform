@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Plus, Search, Pencil, Trash2, KeyRound } from 'lucide-react';
 import { usersApi } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
@@ -21,13 +22,8 @@ const btnDanger = { padding:'9px 20px', borderRadius:8, border:'none', backgroun
 
 const emptyCreateForm = { first_name: '', last_name: '', username: '', password: '', role: 'EMPLOYE', phone: '', email: '' };
 
-function getRole() {
-  try { return JSON.parse(localStorage.getItem('user') || '{}').role || ''; } catch { return ''; }
-}
-function canDelete() { const r = getRole(); return r === 'ADMIN'; }
-function canManage() { const r = getRole(); return r === 'ADMIN' || r === 'GERANT'; }
-
 export default function EmployesPage() {
+  const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('EMPLOYE');
@@ -55,8 +51,8 @@ export default function EmployesPage() {
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const canDel = canDelete();
-  const canMng = canManage();
+  const canDel = user?.role === 'ADMIN'; // Seul Admin peut supprimer un employé
+  const canMng = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   const fetchUsers = () => {
     setLoading(true);

@@ -3,7 +3,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Check, AlertCircle, Trash2, Banknote, Camera, X, Upload, Eye, ImageOff, Sparkles, FileText, ChevronDown } from 'lucide-react';
 import { invoicesApi, blApi, fournisseursApi, uploadApi, signaturesApi } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
+import FileViewerModal from '@/components/ui/FileViewerModal';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 import PDFButton from '@/components/ui/PDFButton';
 
@@ -20,12 +22,9 @@ const btnPri = { padding:'9px 20px', borderRadius:8, border:'none', background:'
 const btnDng = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EF4444,#DC2626)', color:'white', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 const TVA_RATE = 0.20;
 
-function canDelete() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; } catch { return false; }
-}
-
 export default function FacturesPage() {
   const { t, dir } = useLanguage();
+  const { user } = useAuth();
   const statusLabel: Record<string, string> = {
     DRAFT: t('status.draft'), SENT: t('status.sent'), PARTIAL: t('status.partial'),
     PAID: t('status.paid'), OVERDUE: t('status.overdue'), CANCELLED: t('status.cancelled'),
@@ -41,7 +40,7 @@ export default function FacturesPage() {
   const [payTarget, setPayTarget] = useState<any>(null);
   const [payForm, setPayForm] = useState({ amount: '', type: 'VIREMENT', reference: '' });
   const [paying, setPaying] = useState(false);
-  const canDel = canDelete();
+  const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
   const now = new Date();
 
   const [showEmiseModal, setShowEmiseModal] = useState(false);
@@ -79,6 +78,7 @@ export default function FacturesPage() {
   // Factures d'achat en attente (uploads employés)
   const [pendingFacs, setPendingFacs]       = useState<any[]>([]);
   const [rejectingFac, setRejectingFac]     = useState('');
+  const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
 
   const fetchData = () => {
     setLoading(true);
@@ -94,15 +94,14 @@ export default function FacturesPage() {
   useEffect(() => { fetchData(); }, [tab, search, statusFilter]);
 
   useEffect(() => {
-    if (canDel) {
-      import('@/lib/api').then(({ depensesApi }) => {
-        depensesApi.list({}).then((r: any) => {
-          const all: any[] = r.data?.data || r.data || [];
-          setPendingFacs(all.filter((d: any) => d.description?.startsWith('[FAC-ACHAT]') && d.status === 'PENDING'));
-        }).catch(() => {});
-      });
-    }
-  }, []);
+    if (!canDel) return;
+    import('@/lib/api').then(({ depensesApi }) => {
+      depensesApi.list({}).then((r: any) => {
+        const all: any[] = r.data?.data || r.data || [];
+        setPendingFacs(all.filter((d: any) => d.description?.startsWith('[FAC-ACHAT]') && d.status === 'PENDING'));
+      }).catch(() => {});
+    });
+  }, [canDel]);
 
   const handleApproveFac = async (dep: any) => {
     const { depensesApi } = await import('@/lib/api');
@@ -325,11 +324,10 @@ export default function FacturesPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {dep.receipt_url && (
-                    <a href={dep.receipt_url.startsWith('http') ? dep.receipt_url : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}${dep.receipt_url}`}
-                      target="_blank" rel="noreferrer"
-                      style={{ padding: '6px 12px', borderRadius: 8, border: '1.5px solid #E8D4B0', background: 'white', color: '#8E5915', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
+                    <button onClick={() => setPendingPreviewUrl(dep.receipt_url)}
+                      style={{ padding: '6px 12px', borderRadius: 8, border: '1.5px solid #E8D4B0', background: 'white', color: '#8E5915', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                       👁 Voir
-                    </a>
+                    </button>
                   )}
                   <button onClick={() => handleApproveFac(dep)}
                     style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#22C55E,#16A34A)', color: 'white', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
@@ -709,52 +707,22 @@ export default function FacturesPage() {
         </div>
       )}
 
-      {/* MODAL Voir Scan */}
+      {/* MODAL Voir Scan — PDF preview dans iframe, image dans modal */}
       {viewScanTarget && (
-        <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div onClick={() => setViewScanTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.7)', backdropFilter:'blur(6px)' }} />
-          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:680, margin:'0 16px', boxShadow:'0 24px 70px rgba(0,0,0,0.35)', overflow:'hidden', maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
-            <div style={{ padding:'16px 20px', borderBottom:'1px solid #F5E6D3', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <div style={{ width:34, height:34, borderRadius:9, background:'linear-gradient(135deg,#F4B315,#E59312)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <Camera size={16} color="#1A141A" />
-                </div>
-                <div>
-                  <p style={{ margin:0, fontSize:14, fontWeight:700 }}>Scan — {viewScanTarget.number}</p>
-                  <p style={{ margin:0, fontSize:11, color:'#8E5915' }}>{viewScanTarget.fournisseur?.name} &bull; {formatDate(viewScanTarget.issue_date)}</p>
-                </div>
-              </div>
-              <button onClick={() => setViewScanTarget(null)} style={{ width:30, height:30, borderRadius:7, border:'1.5px solid #E8D4B0', background:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <X size={14} color="#8E5915" />
-              </button>
-            </div>
-            <div style={{ flex:1, overflowY:'auto', padding:20, background:'#FFFDF5' }}>
-              {viewScanTarget.scanned_file_url?.match(/\.pdf$/i) ? (
-                <div style={{ textAlign:'center', padding:'40px 20px' }}>
-                  <p style={{ fontSize:14, color:'#8E5915', marginBottom:16 }}>Fichier PDF</p>
-                  <a href={viewScanTarget.scanned_file_url} target="_blank" rel="noreferrer" style={{ ...btnPri, textDecoration:'none', display:'inline-flex', alignItems:'center', gap:8 }}>
-                    <Eye size={14} /> Ouvrir le PDF
-                  </a>
-                </div>
-              ) : (
-                <img src={viewScanTarget.scanned_file_url} alt="Facture" style={{ width:'100%', borderRadius:10, border:'1px solid #F5E6D3', objectFit:'contain' }} />
-              )}
-            </div>
-            <div style={{ padding:'14px 20px', borderTop:'1px solid #F5E6D3', display:'flex', gap:10, justifyContent:'space-between', alignItems:'center' }}>
-              <button onClick={handleDeleteScan} disabled={deletingScan}
-                style={{ padding:'8px 16px', borderRadius:8, border:'1.5px solid #FCA5A5', background:'#FFF5F5', color:'#DC2626', fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6, opacity:deletingScan?0.6:1 }}>
-                <ImageOff size={13} /> {deletingScan ? 'Suppression...' : 'Supprimer le scan'}
-              </button>
-              <div style={{ display:'flex', gap:8 }}>
-                <a href={viewScanTarget.scanned_file_url} target="_blank" rel="noreferrer"
-                  style={{ ...btnSec, textDecoration:'none', display:'flex', alignItems:'center', gap:6, fontSize:12 }}>
-                  <Eye size={13} /> Ouvrir
-                </a>
-                <button onClick={() => setViewScanTarget(null)} style={{ ...btnPri, fontSize:12 }}>Fermer</button>
-              </div>
-            </div>
+        <>
+          <FileViewerModal
+            url={viewScanTarget.scanned_file_url}
+            title={`Scan — ${viewScanTarget.number}`}
+            onClose={() => setViewScanTarget(null)}
+          />
+          {/* Bouton supprimer scan (hors modal pour éviter z-index conflit) */}
+          <div style={{ position:'fixed', bottom:32, left:'50%', transform:'translateX(-50%)', zIndex:3100 }}>
+            <button onClick={handleDeleteScan} disabled={deletingScan}
+              style={{ padding:'9px 18px', borderRadius:8, border:'1.5px solid #FCA5A5', background:'white', color:'#DC2626', fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6, boxShadow:'0 4px 16px rgba(0,0,0,0.2)', opacity:deletingScan?0.6:1 }}>
+              <ImageOff size={13} /> {deletingScan ? 'Suppression...' : 'Supprimer le scan'}
+            </button>
           </div>
-        </div>
+        </>
       )}
 
       {/* MODAL Importer Facture Achat */}
@@ -962,6 +930,15 @@ export default function FacturesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* FileViewer pour factures employés en attente */}
+      {pendingPreviewUrl && (
+        <FileViewerModal
+          url={pendingPreviewUrl}
+          title="Facture d'achat"
+          onClose={() => setPendingPreviewUrl(null)}
+        />
       )}
 
     </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { projectsApi, clientsApi, devisApi } from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 
 /* --- types --- */
@@ -48,14 +49,9 @@ const labelStyle = { display:'block' as const, fontSize:11, fontWeight:700 as co
 
 const emptyForm = { name:'', city:'', budget:'', client_id:'', start_date:'', end_date:'', description:'', status:'ACTIVE', progress:'0' };
 
-/* --- helpers --- */
-function canDelete() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; }
-  catch { return false; }
-}
-
 /* ============================================================ */
 export default function ChantiersPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'chantiers' | 'prestations'>('chantiers');
 
   /* chantiers state */
@@ -76,7 +72,7 @@ export default function ChantiersPage() {
   const [deleting, setDeleting] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const canDel = canDelete();
+  const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   /* prestations state */
   const [prestations, setPrestations] = useState<Prestation[]>([]);

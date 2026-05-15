@@ -6,6 +6,7 @@ import api from '@/lib/api';
 import { dettesApi } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useLanguage } from '@/lib/i18n';
+import FileViewerModal from '@/components/ui/FileViewerModal';
 const detteStatutCfg: Record<string, { bg: string; color: string; border: string; label: string }> = {
   EN_COURS: { bg:'#FFFBEB', color:'#D97706', border:'#FDE68A', label:'En cours' },
   PARTIELLE:{ bg:'#FFF7ED', color:'#EA580C', border:'#FDBA74', label:'Partielle' },
@@ -685,22 +686,12 @@ export default function DepensesPage() {
         </div>
       )}
 
-      {viewScan && (
-        <div style={{ position:'fixed', inset:0, zIndex:3000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div onClick={() => setViewScan(null)} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.85)' }}/>
-          <div style={{ position:'relative', zIndex:10, maxWidth:'90vw', maxHeight:'90vh' }}>
-            <button onClick={() => setViewScan(null)} style={{ position:'absolute', top:-14, right:-14, width:32, height:32, borderRadius:'50%', background:'#EF4444', border:'none', color:'white', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>×</button>
-            {viewScan?.toLowerCase().includes('.pdf') ? (
-              <div style={{ background:'white', borderRadius:12, padding:32, textAlign:'center' }}>
-                <FileText size={48} style={{ color:'#E59312', margin:'0 auto 12px' }}/>
-                <a href={viewScan} target="_blank" rel="noreferrer" style={{ display:'inline-block', marginTop:12, padding:'8px 20px', background:'linear-gradient(135deg,#F4B315,#E59312)', borderRadius:8, color:'#1A141A', fontWeight:700, fontSize:13, textDecoration:'none' }}>Ouvrir le PDF</a>
-              </div>
-            ) : (
-              <img src={viewScan} alt="scan" style={{ maxWidth:'90vw', maxHeight:'85vh', borderRadius:10, display:'block', objectFit:'contain' }}/>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Viewer PDF/Image — preview inline */}
+      <FileViewerModal
+        url={viewScan}
+        title="Justificatif"
+        onClose={() => setViewScan(null)}
+      />
 
       {/* Form depense */}
       {showForm && (

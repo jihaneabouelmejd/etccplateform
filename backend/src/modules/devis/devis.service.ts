@@ -230,11 +230,8 @@ export class DevisService {
   }
 
   async remove(id: string) {
-    const devis = await this.findOne(id);
-    if (devis.status !== 'DRAFT') {
-      throw new BadRequestException('Seuls les devis en brouillon peuvent être supprimés');
-    }
-    // Supprimer les lignes puis le devis
+    await this.findOne(id); // Vérifier que le devis existe
+    // Admin/Gérant peuvent supprimer un devis quel que soit son statut
     await this.prisma.devisLine.deleteMany({ where: { devis_id: id } });
     return this.prisma.devis.delete({ where: { id } });
   }

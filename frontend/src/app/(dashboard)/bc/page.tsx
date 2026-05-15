@@ -3,11 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Search, ArrowRight, Trash2, Upload, PlusCircle, X, FileImage, File, Eye, Download } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
+import FileViewerModal from '@/components/ui/FileViewerModal';
 import { useRouter } from 'next/navigation';
 import PDFButton from '@/components/ui/PDFButton';
 import { bcApi, devisApi, clientsApi, signaturesApi } from '@/lib/api';
 import { formatDate, cn, formatCurrency } from '@/lib/utils';
 import api from '@/lib/api';
+import { useAuth } from '@/hooks/useAuth';
 
 const statusLabel: Record<string, string> = {
   OPEN: 'Ouvert', PARTIALLY_DELIVERED: 'Partiel',
@@ -27,10 +29,6 @@ const btnDanger    = { padding:'9px 20px', borderRadius:8, border:'none', backgr
 const inputStyle   = { width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #EDDEC1', fontSize:13, outline:'none', boxSizing:'border-box' as const };
 const labelStyle   = { display:'block' as const, fontSize:11, fontWeight:700 as const, color:'#A33C00', textTransform:'uppercase' as const, letterSpacing:0.5, marginBottom:6 };
 
-function canDelete() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; } catch { return false; }
-}
-
 interface ImportLine {
   description: string;
   quantity: string;
@@ -41,6 +39,9 @@ const emptyLine = (): ImportLine => ({ description: '', quantity: '1', unit_pric
 
 export default function BCPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
+
   const [bcs, setBcs] = useState<any[]>([]);
   const [validatedDevis, setValidatedDevis] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
@@ -74,11 +75,11 @@ export default function BCPage() {
   const [cancelTarget, setCancelTarget] = useState<any>(null);
   const [cancelling, setCancelling] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
-  const canDel = canDelete();
 
   // View modal
   const [viewTarget, setViewTarget] = useState<any>(null);
   const [viewLoading, setViewLoading] = useState(false);
+  const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
 
   const fetchData = () => {
     setLoading(true);
@@ -631,11 +632,13 @@ export default function BCPage() {
                           <p style={{ margin:'2px 0 0', fontSize:11, color:'#3B82F6' }}>{sourceLabel[viewTarget.source] || viewTarget.source}</p>
                         </div>
                       </div>
-                      <a href={viewTarget.imported_file_url.startsWith('http') ? viewTarget.imported_file_url : `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"}${viewTarget.imported_file_url}`}
-                        target="_blank" rel="noopener noreferrer"
-                        style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, background:'#1D4ED8', color:'white', fontSize:12, fontWeight:700, textDecoration:'none' }}>
-                        <Download size={13} /> Télécharger
-                      </a>
+                      <div style={{ display:'flex', gap:8 }}>
+                        <button
+                          onClick={() => setPreviewFileUrl(viewTarget.imported_file_url)}
+                          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1.5px solid #3B82F6', background:'white', color:'#1D4ED8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                          <Eye size={13} /> Voir
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -672,11 +675,19 @@ export default function BCPage() {
               <button onClick={() => setCancelTarget(null)} style={{ ...btnSecondary, flex:1 }}>Retour</button>
               <button onClick={handleCancel} disabled={cancelling} style={{ ...btnDanger, flex:1, opacity:cancelling ? 0.7 : 1 }}>
                 {cancelling ? 'Annulation...' : 'Confirmer annulation'}
+
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* FileViewer — PDF preview dans iframe, image dans modal */}
+      <FileViewerModal
+        url={previewFileUrl}
+        title="Fichier BC importé"
+        onClose={() => setPreviewFileUrl(null)}
+      />
     </div>
   );
 }

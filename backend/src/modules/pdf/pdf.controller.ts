@@ -88,8 +88,8 @@ export class PDFController {
         client: true,
         devis: { select: { number: true } },
         signature: true,
-      },
-    });
+      } as any,
+    }) as any;
     if (!bc) throw new NotFoundException('Bon de commande non trouvé');
     const pdfBuffer = await this.pdfService.generateBCPDF({
       number: bc.number,
@@ -98,7 +98,7 @@ export class PDFController {
       status: bc.status,
       source: bc.source,
       devis_number: bc.devis?.number || undefined,
-      signature_url: (bc as any).signature?.image_url || undefined,
+      signature_url: bc.signature?.image_url || undefined,
       client: {
         commercial_name: bc.client.commercial_name,
         ice: bc.client.ice || undefined,
@@ -404,27 +404,28 @@ export class PDFController {
             client: true,
             devis: { select: { number: true } },
             signature: true,
-          },
-        });
+          } as any,
+        }) as any;
         if (!bc) throw new NotFoundException(`BC ${item.id} non trouvé`);
+        const bcData = bc;
         buf = await this.pdfService.generateBCPDF({
-          number: bc.number,
-          issue_date: bc.issue_date.toISOString(),
-          expected_delivery: bc.expected_delivery?.toISOString() || undefined,
-          status: bc.status,
-          source: bc.source,
-          devis_number: bc.devis?.number || undefined,
-          signature_url: (bc as any).signature?.image_url || undefined,
+          number: bcData.number,
+          issue_date: bcData.issue_date.toISOString(),
+          expected_delivery: bcData.expected_delivery?.toISOString() || undefined,
+          status: bcData.status,
+          source: bcData.source,
+          devis_number: bcData.devis?.number || undefined,
+          signature_url: bcData.signature?.image_url || undefined,
           client: {
-            commercial_name: bc.client.commercial_name,
-            ice: bc.client.ice || undefined,
-            rc: bc.client.rc || undefined,
-            address: bc.client.address || undefined,
-            city: bc.client.city || undefined,
-            phone: bc.client.phone || undefined,
-            email: bc.client.email || undefined,
+            commercial_name: bcData.client.commercial_name,
+            ice: bcData.client.ice || undefined,
+            rc: bcData.client.rc || undefined,
+            address: bcData.client.address || undefined,
+            city: bcData.client.city || undefined,
+            phone: bcData.client.phone || undefined,
+            email: bcData.client.email || undefined,
           },
-          lines: (bc.lines as any[]).map((l) => ({
+          lines: (bcData.lines as any[]).map((l) => ({
             description: l.description,
             quantity: Number(l.quantity),
             unit_price: l.unit_price ? Number(l.unit_price) : undefined,

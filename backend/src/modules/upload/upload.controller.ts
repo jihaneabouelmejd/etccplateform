@@ -54,12 +54,16 @@ function uploadBufferToCloudinary(
     const isPdf = /\.pdf$/i.test(originalname);
     const resourceType = isPdf ? 'raw' : 'image';
 
+    // Sanitize original filename for use as public_id
+    const baseName = originalname.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 60);
+
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: CLOUDINARY_FOLDER,
         resource_type: resourceType,
-        use_filename: false,
-        unique_filename: true,
+        public_id: baseName,
+        use_filename: true,
+        unique_filename: true, // ajoute suffix unique si doublon
       },
       (error: any, result: any) => {
         if (error) {

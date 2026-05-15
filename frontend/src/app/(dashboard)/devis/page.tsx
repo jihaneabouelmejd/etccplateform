@@ -6,6 +6,7 @@ import { useLanguage } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import { devisApi, clientsApi, projectsApi, blApi, signaturesApi } from '@/lib/api';
 import PDFButton from '@/components/ui/PDFButton';
+import { useAuth } from '@/hooks/useAuth';
 
 const blStatusCfg: Record<string, { label: string; cls: string }> = {
   DRAFT:     { label: 'Brouillon',  cls: 'bg-gray-50 text-gray-600 border-gray-200' },
@@ -30,11 +31,8 @@ const btnDanger = { padding:'9px 20px', borderRadius:8, border:'none', backgroun
 
 interface Line { desc: string; qty: number; pu: number; }
 
-function canDelete() {
-  try { const u = JSON.parse(localStorage.getItem('user') || '{}'); return u.role === 'ADMIN' || u.role === 'GERANT'; } catch { return false; }
-}
-
 export default function DevisPage() {
+  const { user } = useAuth();
   const [devisList, setDevisList] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [clients, setClients] = useState<any[]>([]);
@@ -43,7 +41,7 @@ export default function DevisPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editTarget, setEditTarget] = useState<any>(null); // null = create, object = edit
+  const [editTarget, setEditTarget] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
@@ -53,7 +51,9 @@ export default function DevisPage() {
   const [creatingBL, setCreatingBL] = useState<string | null>(null);
   const [blsByDevis, setBlsByDevis] = useState<Record<string, any[]>>({});
   const [expandedDevis, setExpandedDevis] = useState<Set<string>>(new Set());
-  const canDel = canDelete();
+
+  // canDel: réactif depuis Zustand (user mis à jour dans layout dès le montage)
+  const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   // Form state
   const [form, setForm] = useState({ client_id: '', project_id: '', object: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '' });
@@ -371,8 +371,8 @@ export default function DevisPage() {
                         </button>
                         {/* PDF */}
                         <PDFButton docType="devis" docId={d.id} docNumber={d.number} variant="inline" />
-                        {/* Delete (DRAFT only) */}
-                        {canDel && d.status === 'DRAFT' && (
+                        {/* Delete (Admin/Gérant — tous les statuts) */}
+                        {canDel && (
                           <button onClick={() => setDeleteTarget(d)} title="Supprimer"
                             className="w-6 h-6 rounded border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-all">
                             <Trash2 size={11} />
@@ -574,7 +574,13 @@ export default function DevisPage() {
               <div style={{ width:56, height:56, borderRadius:'50%', background:'#FFF0F0', border:'2px solid #FECACA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, margin:'0 auto 14px' }}>🗑️</div>
               <h3 style={{ margin:'0 0 8px', fontSize:17, fontWeight:700, color:'#1A141A' }}>Supprimer ce devis ?</h3>
               <p style={{ margin:0, fontSize:13, color:'#A33C00' }}>
-                <strong>{deleteTarget.number}</strong> sera définitivement supprimé.
+                <strong>{deleteTarget.number}</strong>
+                {deleteTarget.status === 'VALIDATED' && (
+                  <span style={{ display:'block', marginTop:6, color:'#DC2626', fontWeight:600 }}>
+                    ⚠️ Ce devis est validé — la suppression est irréversible.
+                  </span>
+                )}
+                {deleteTarget.status !== 'VALIDATED' && ' sera définitivement supprimé.'}
               </p>
             </div>
             <div style={{ display:'flex', gap:10 }}>
