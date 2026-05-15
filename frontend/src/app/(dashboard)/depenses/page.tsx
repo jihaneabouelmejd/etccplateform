@@ -93,6 +93,8 @@ export default function DepensesPage() {
   useEffect(() => {
     const mgr = isManager();
     setCanApp(mgr); setIsMgr(mgr);
+    // Dettes tab is admin/gérant only — redirect employee away if needed
+    if (!mgr && tab === 'dettes') setTab('depenses');
   }, []);
 
   useEffect(() => {
@@ -109,13 +111,22 @@ export default function DepensesPage() {
   const load = () => {
     setLoading(true);
     const endpoint = isMgr ? '/depenses' : '/depenses/my';
-    Promise.all([
-      api.get(endpoint, { params:{ status: statusFilter || undefined } }),
-      api.get('/depenses/stats'),
-    ]).then(([listRes, statsRes]) => {
-      setDepenses(listRes.data.data || []);
-      setStats(statsRes.data);
-    }).finally(() => setLoading(false));
+    const params: any = {};
+    if (statusFilter) params.status = statusFilter;
+
+    const listReq = api.get(endpoint, { params });
+    // Stats endpoint is admin/gérant/comptable only — skip for employees
+    const statsReq = isMgr
+      ? api.get('/depenses/stats').catch(() => ({ data: null }))
+      : Promise.resolve({ data: null });
+
+    Promise.all([listReq, statsReq])
+      .then(([listRes, statsRes]) => {
+        setDepenses(listRes.data?.data || listRes.data || []);
+        if (statsRes.data) setStats(statsRes.data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   };
 
   const handleReceiptUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,8 +194,10 @@ export default function DepensesPage() {
   const loadMO = async () => {
     setLoadingMo(true);
     try {
-      const res = await api.get('/depenses', { params:{ category:'MAIN_OEUVRE', limit:500 } });
-      setMoList(res.data.data || []);
+      // Admin/Gérant: voir tout le monde  |  Employé: voir uniquement ses propres entrées
+      const endpoint = isMgr ? '/depenses' : '/depenses/my';
+      const res = await api.get(endpoint, { params:{ category:'MAIN_OEUVRE', limit:500 } });
+      setMoList(res.data?.data || res.data || []);
     } catch(e) { console.error(e); }
     finally { setLoadingMo(false); }
   };
@@ -294,10 +307,10 @@ export default function DepensesPage() {
       {/* ── Tabs ── */}
       <div style={{ display:'flex', gap:4, marginBottom:20, borderBottom:'2px solid #F5E6D3', paddingBottom:0 }}>
         {([
-          { id:'depenses',    label:'Dépenses' },
-          { id:'main_oeuvre', label:"Main d'Œuvre" },
-          { id:'dettes',      label:'Dettes' },
-        ] as const).map(t => (
+          { id:'depenses',    label:'Dépenses',    mgr: false },
+          { id:'main_oeuvre', label:"Main d'Œuvre", mgr: false },
+          { id:'dettes',      label:'Dettes',       mgr: true },  // Admin/Gérant uniquement
+        ] as const).filter(t => !t.mgr || isMgr).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ padding:'9px 20px', borderRadius:'8px 8px 0 0', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.15s',
               background: tab===t.id ? 'linear-gradient(135deg,#F4B315,#E59312)' : 'white',
@@ -867,18 +880,33 @@ export default function DepensesPage() {
           <div onClick={() => setRejectTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }}/>
           <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:420, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', padding:28 }}>
             <h3 style={{ margin:'0 0 6px', fontSize:16, fontWeight:700, color:'#1A141A' }}>Refuser la depense</h3>
-            <p style={{ fontSize:13, color:'#8E5915', marginBottom:18 }}><strong>{rejectTarget.description}</strong></p>
-            <div style={{ marginBottom:20 }}>
-              <label style={labelStyle}>Motif du refus</label>
-              <textarea value={rejectReason} onChange={e=>setRejectReason(e.target.value)} placeholder="Expliquer le motif..." rows={3} style={{...inputStyle,resize:'none'}}/>
-            </div>
+            <p style={{ fontSize:13, color:'#8E5915', marginBottom:14 }}>
+              Raison du refus (optionnel) :
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={e => setRejectReason(e.target.value)}
+              placeholder="Ex: montant incorrect, justificatif manquant..."
+              rows={3}
+              style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', resize:'none', boxSizing:'border-box', marginBottom:16 }}
+            />
             <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => setRejectTarget(null)} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
-              <button onClick={handleReject} style={{ ...btnDanger, flex:1 }}>Confirmer le refus</button>
+              <button onClick={() => { setRejectTarget(null); setRejectReason(''); }} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
+              <button onClick={handleReject} style={{ ...btnDanger, flex:1 }}>Refuser</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* FileViewer modal */}
+      {viewScan && (
+        <FileViewerModal
+          url={viewScan}
+          title="Justificatif"
+          onClose={() => setViewScan(null)}
+        />
+      )}
+
     </div>
   );
 }

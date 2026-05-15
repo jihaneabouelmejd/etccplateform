@@ -54,14 +54,19 @@ function uploadBufferToCloudinary(
     const isPdf = /\.pdf$/i.test(originalname);
     const resourceType = isPdf ? 'raw' : 'image';
 
-    // Sanitize original filename for use as public_id
-    const baseName = originalname.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 60);
+    // Sanitize original filename — conserver l'extension pour que l'URL soit détectable
+    const extMatch = originalname.match(/\.[^/.]+$/);
+    const ext      = extMatch ? extMatch[0].toLowerCase() : '';
+    const baseName = originalname.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 55);
+    // Pour les PDFs (raw): inclure .pdf dans le public_id → URL se termine en .pdf
+    // Pour les images: Cloudinary gère le format séparément, on garde le baseName
+    const publicId = isPdf ? `${baseName}${ext}` : baseName;
 
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder: CLOUDINARY_FOLDER,
         resource_type: resourceType,
-        public_id: baseName,
+        public_id: publicId,
         use_filename: true,
         unique_filename: true, // ajoute suffix unique si doublon
       },
@@ -402,12 +407,4 @@ export class UploadController implements OnModuleInit {
 
   // ── GET /upload/files/:filename — legacy local serve ──────────────────────
   @Get('files/:filename')
-  serveFile(@Param('filename') filename: string, @Query('dl') dl: string, @Res() res: Response) {
-    const filePath = join(uploadsPath, filename);
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: 'Fichier non trouve' });
-    }
-    if (dl === '1') res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    return res.sendFile(filePath);
-  }
-}
+  serveFile(@

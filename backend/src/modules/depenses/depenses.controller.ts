@@ -41,8 +41,13 @@ export class DepensesController {
   }
 
   @Get('my')
-  findMine(@CurrentUser('id') userId: string, @Query('page') page?: number) {
-    return this.depenses.findAll({ submitted_by: userId, page });
+  findMine(
+    @CurrentUser('id') userId: string,
+    @Query('page') page?: number,
+    @Query('category') category?: ExpenseCategory,
+    @Query('status') status?: ExpenseStatus,
+  ) {
+    return this.depenses.findAll({ submitted_by: userId, page, category, status });
   }
 
   @Get(':id')
@@ -74,10 +79,4 @@ export class DepensesController {
   }
 
   @Delete(':id')
-  @UseGuards(RolesGuard)
-  @Roles(Role.ADMIN, Role.GERANT)
-  remove(@Param('id') id: string) {
-    return this.depenses.delete(id);
-  }
-
-}
+  @UseGuards

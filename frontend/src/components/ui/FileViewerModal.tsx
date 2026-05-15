@@ -10,18 +10,22 @@ interface FileViewerModalProps {
 }
 
 function isPdf(url: string) {
-  return /\.pdf(\?.*)?$/i.test(url);
+  // Extension .pdf dans l'URL
+  if (/\.pdf(\?.*)?$/i.test(url)) return true;
+  // Cloudinary raw uploads (PDFs stockés en resource_type: raw)
+  if (/\/raw\/upload\//i.test(url)) return true;
+  return false;
 }
 
 function isImage(url: string) {
+  // Ne pas classifier comme image si c'est un upload raw Cloudinary
+  if (/\/raw\/upload\//i.test(url)) return false;
   return /\.(jpe?g|png|gif|webp|bmp|svg)(\?.*)?$/i.test(url);
 }
 
 function resolveUrl(url: string): string {
   if (!url) return url;
-  // URL Cloudinary ou externe → garder tel quel
   if (url.startsWith('http')) return url;
-  // URL relative (/api/upload/files/...) → passer par le proxy Next.js (port 3000)
   return url.startsWith('/') ? url : `/${url}`;
 }
 
@@ -38,6 +42,27 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
   const handleDownload = async () => {
     setDownloading(true);
     try {
+      // Cloudinary URL: utiliser fl_attachment pour forcer le telechargement
+      if (fullUrl.includes('cloudinary.com')) {
+        const urlPath = fullUrl.split('?')[0];
+        const urlExt = urlPath.split('.').pop()?.toLowerCase() || '';
+        const ext = ['pdf','jpg','jpeg','png','gif','webp','svg'].includes(urlExt)
+          ? urlExt
+          : isPdf(fullUrl) ? 'pdf' : 'jpg';
+        const downloadUrl = fullUrl.includes('/raw/upload/')
+          ? fullUrl.replace('/raw/upload/', '/raw/upload/fl_attachment/')
+          : fullUrl.replace('/upload/', '/upload/fl_attachment/');
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `${title}.${ext}`;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+
+      // URL locale ou relative: fetch + blob
       const res = await fetch(fullUrl);
       const contentType = res.headers.get('content-type') || '';
       const blob = await res.blob();
@@ -45,12 +70,11 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
       const a = document.createElement('a');
       a.href = blobUrl;
 
-      // Détecter l'extension : d'abord depuis l'URL, sinon depuis Content-Type
       const urlPath = url.split('?')[0];
       const urlExt = urlPath.split('.').pop() || '';
       let ext = '';
       if (urlExt && urlExt.length <= 4 && /^[a-zA-Z0-9]+$/.test(urlExt)) {
-        ext = urlExt.toLowerCase(); // ex: pdf, jpg, png
+        ext = urlExt.toLowerCase();
       } else if (contentType.includes('pdf')) {
         ext = 'pdf';
       } else if (contentType.includes('jpeg') || contentType.includes('jpg')) {
@@ -87,7 +111,7 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
         style={{ position: 'absolute', inset: 0, background: 'rgba(10,8,10,0.75)', backdropFilter: 'blur(6px)' }}
       />
 
-      {/* Modal — classe etcc-file-modal pour override mobile via CSS */}
+      {/* Modal */}
       <div className="etcc-file-modal" style={{
         position: 'relative', zIndex: 10, background: 'white', borderRadius: 16,
         width: fileIsPdf ? '92vw' : 'auto',
@@ -124,7 +148,6 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* Download */}
             <button
               onClick={handleDownload}
               disabled={downloading}
@@ -140,10 +163,9 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
                 ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
                 : <Download size={12} />
               }
-              Télécharger
+              Telecharger
             </button>
 
-            {/* Close */}
             <button
               onClick={onClose}
               style={{
@@ -184,7 +206,7 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
           ) : (
             <div style={{ textAlign: 'center', padding: 40 }}>
               <p style={{ fontSize: 14, color: '#8E5915', marginBottom: 16 }}>
-                {imgError ? 'Impossible d\'afficher l\'image' : 'Format non prévisualisable'}
+                {imgError ? "Impossible d'afficher l'image" : 'Format non preVisualisable'}
               </p>
               <button
                 onClick={handleDownload}
@@ -195,7 +217,7 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
                   display: 'inline-flex', alignItems: 'center', gap: 8,
                 }}
               >
-                <Download size={14} /> Télécharger le fichier
+                <Download size={14} /> Telecharger le fichier
               </button>
             </div>
           )}
