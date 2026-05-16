@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Download, FileText, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { X, Download, FileText, Image as ImageIcon, Loader2, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
 
 interface FileViewerModalProps {
@@ -10,15 +10,12 @@ interface FileViewerModalProps {
 }
 
 function isPdf(url: string) {
-  // Extension .pdf dans l'URL
   if (/\.pdf(\?.*)?$/i.test(url)) return true;
-  // Cloudinary raw uploads (PDFs stockés en resource_type: raw)
   if (/\/raw\/upload\//i.test(url)) return true;
   return false;
 }
 
 function isImage(url: string) {
-  // Ne pas classifier comme image si c'est un upload raw Cloudinary
   if (/\/raw\/upload\//i.test(url)) return false;
   return /\.(jpe?g|png|gif|webp|bmp|svg)(\?.*)?$/i.test(url);
 }
@@ -27,6 +24,10 @@ function resolveUrl(url: string): string {
   if (!url) return url;
   if (url.startsWith('http')) return url;
   return url.startsWith('/') ? url : `/${url}`;
+}
+
+function isCloudinary(url: string) {
+  return url.includes('cloudinary.com');
 }
 
 export default function FileViewerModal({ url, title = 'Document', onClose }: FileViewerModalProps) {
@@ -38,15 +39,22 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
   const fullUrl = resolveUrl(url);
   const fileIsPdf = isPdf(url);
   const fileIsImage = isImage(url);
+  const fileIsCloudinary = isCloudinary(fullUrl);
+
+  // Pour les PDFs Cloudinary → Google Docs viewer (contourne les restrictions iframe)
+  // Pour les PDFs locaux → iframe direct (même origine, pas de restriction)
+  const pdfViewerUrl = fileIsPdf && fileIsCloudinary
+    ? `https://docs.google.com/viewer?url=${encodeURIComponent(fullUrl)}&embedded=true`
+    : fullUrl;
 
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      // Cloudinary URL: utiliser fl_attachment pour forcer le telechargement
-      if (fullUrl.includes('cloudinary.com')) {
+      if (fileIsCloudinary) {
+        // Cloudinary: insérer fl_attachment dans l'URL pour forcer le téléchargement
         const urlPath = fullUrl.split('?')[0];
         const urlExt = urlPath.split('.').pop()?.toLowerCase() || '';
-        const ext = ['pdf','jpg','jpeg','png','gif','webp','svg'].includes(urlExt)
+        const ext = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(urlExt)
           ? urlExt
           : isPdf(fullUrl) ? 'pdf' : 'jpg';
         const downloadUrl = fullUrl.includes('/raw/upload/')
@@ -103,6 +111,10 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
     }
   };
 
+  const handleOpenNewTab = () => {
+    window.open(fullUrl, '_blank');
+  };
+
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       {/* Backdrop */}
@@ -148,6 +160,22 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Bouton Ouvrir dans nouvel onglet — toujours fiable pour les PDFs */}
+            {fileIsPdf && (
+              <button
+                onClick={handleOpenNewTab}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 8,
+                  border: '1.5px solid #E8D4B0', background: 'white',
+                  color: '#8E5915', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}
+              >
+                <ExternalLink size={12} />
+                Ouvrir
+              </button>
+            )}
+
             <button
               onClick={handleDownload}
               disabled={downloading}
@@ -188,9 +216,10 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
         }}>
           {fileIsPdf ? (
             <iframe
-              src={fullUrl}
+              src={pdfViewerUrl}
               style={{ width: '100%', height: '100%', border: 'none' }}
               title={title}
+              allowFullScreen
             />
           ) : fileIsImage && !imgError ? (
             <img
@@ -208,17 +237,30 @@ export default function FileViewerModal({ url, title = 'Document', onClose }: Fi
               <p style={{ fontSize: 14, color: '#8E5915', marginBottom: 16 }}>
                 {imgError ? "Impossible d'afficher l'image" : 'Format non preVisualisable'}
               </p>
-              <button
-                onClick={handleDownload}
-                style={{
-                  padding: '10px 20px', borderRadius: 8, border: 'none',
-                  background: 'linear-gradient(135deg,#EBB800,#755C00)',
-                  color: '#1A141A', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  display: 'inline-flex', alignItems: 'center', gap: 8,
-                }}
-              >
-                <Download size={14} /> Telecharger le fichier
-              </button>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button
+                  onClick={handleOpenNewTab}
+                  style={{
+                    padding: '10px 20px', borderRadius: 8,
+                    border: '1.5px solid #E8D4B0', background: 'white',
+                    color: '#8E5915', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                  }}
+                >
+                  <ExternalLink size={14} /> Ouvrir dans un onglet
+                </button>
+                <button
+                  onClick={handleDownload}
+                  style={{
+                    padding: '10px 20px', borderRadius: 8, border: 'none',
+                    background: 'linear-gradient(135deg,#EBB800,#755C00)',
+                    color: '#1A141A', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', gap: 8,
+                  }}
+                >
+                  <Download size={14} /> Telecharger le fichier
+                </button>
+              </div>
             </div>
           )}
         </div>
