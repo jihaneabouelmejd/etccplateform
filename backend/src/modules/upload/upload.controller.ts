@@ -1,7 +1,7 @@
 import {
   Controller, Post, UploadedFile, UseInterceptors, UseGuards,
   BadRequestException, Get, Param, Res, Query, InternalServerErrorException,
-  Logger, OnModuleInit,
+  Logger, OnModuleInit, Headers, Redirect,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -416,107 +416,93 @@ export class UploadController implements OnModuleInit {
     return res.sendFile(filePath);
   }
 
-  // ── GET /upload/proxy — proxy Cloudinary files (contourne auth 401) ────────
+  // ── GET /upload/proxy — stream Cloudinary files via backend (contourne 401) ──
+  // Pas de JwtAuthGuard : l'iframe ne peut pas envoyer de token.
+  // Sécurité : uniquement Cloudinary URLs acceptées.
   @Get('proxy')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   async proxyFile(
     @Query('url') encodedUrl: string,
     @Query('dl') dl: string,
     @Res() res: Response,
   ) {
-    if (!encodedUrl) return res.status(400).json({ message: 'url requis' });
+    if (!encodedUrl) return (res as any).status(400).json({ message: 'url requis' });
 
     let targetUrl: string;
-    try {
-      targetUrl = decodeURIComponent(encodedUrl);
-    } catch {
-      targetUrl = encodedUrl;
+    try { targetUrl = decodeURIComponent(encodedUrl); } catch { targetUrl = encodedUrl; }
+
+    // Sécurité : uniquement Cloudinary
+    if (!targetUrl.includes('cloudinary.com')) {
+      return (res as any).status(403).json({ message: 'URL non autorisee' });
     }
 
-    // Sécurité : uniquement Cloudinary ou uploads locaux
-    const isCloudinary = targetUrl.includes('cloudinary.com');
-    const isLocal = targetUrl.startsWith('/') || targetUrl.startsWith('http://localhost');
-    if (!isCloudinary && !isLocal) {
-      return res.status(403).json({ message: 'URL non autorisee' });
-    }
+    // Extraire publicId depuis l'URL Cloudinary
+    // Format: https://res.cloudinary.com/{cloud}/{resource_type}/upload/v{ver}/{folder}/{file}
+    const urlObj = new URL(targetUrl);
+    const pathname = urlObj.pathname; // ex: /raw/upload/v123/etcc/file.pdf
+    const resourceType = pathname.startsWith('/raw/') ? 'raw' : 'image';
+    const uploadIdx = pathname.indexOf('/upload/');
+    const publicIdRaw = uploadIdx >= 0 ? pathname.slice(uploadIdx + 8) : '';
+    // Supprimer le préfixe de version (v1234567/)
+    const publicId = publicIdRaw.replace(/^v\d+\//, '');
+
+    const urlPath = targetUrl.split('?')[0];
+    const ext = urlPath.split('.').pop()?.toLowerCase() || '';
+    const filename = urlPath.split('/').pop() || 'fichier';
+    const isPdfFile = ext === 'pdf' || resourceType === 'raw';
+    const contentType = isPdfFile ? 'application/pdf'
+      : ['jpg','jpeg'].includes(ext) ? 'image/jpeg'
+      : ext === 'png' ? 'image/png'
+      : 'application/octet-stream';
 
     try {
-      // Pour Cloudinary : utiliser l'API SDK pour un accès authentifié
-      if (isCloudinary && USE_CLOUDINARY) {
-        // Extraire le public_id depuis l'URL
-        const urlPath = targetUrl.split('?')[0];
-        const ext = urlPath.split('.').pop()?.toLowerCase() || '';
-        const filename = urlPath.split('/').pop() || 'fichier';
-        const isPdfFile = ext === 'pdf' || targetUrl.includes('/raw/upload/');
-        const contentType = isPdfFile ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+      let fetchUrl = targetUrl;
 
-        if (dl === '1') {
-          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        } else {
-          res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-        }
-        res.setHeader('Content-Type', contentType);
-        res.setHeader('Access-Control-Allow-Origin', '*');
-
-        // Fetch direct depuis Cloudinary (URLs raw sont signées automatiquement via SDK)
-        const httpLib = targetUrl.startsWith('https') ? require('https') : require('http');
-        return new Promise<void>((resolve) => {
-          httpLib.get(targetUrl, (response: any) => {
-            if (response.statusCode === 401 || response.statusCode === 403) {
-              // Essayer avec signed URL via SDK
-              const urlObj = new URL(targetUrl);
-              const pathParts = urlObj.pathname.split('/upload/');
-              if (pathParts.length === 2) {
-                const publicIdWithExt = pathParts[1].replace(/^v\d+\//, '');
-                const resourceType = targetUrl.includes('/raw/upload/') ? 'raw' : 'image';
-                try {
-                  const signedUrl = cloudinary.url(publicIdWithExt, {
-                    resource_type: resourceType,
-                    type: 'upload',
-                    sign_url: true,
-                    secure: true,
-                  });
-                  httpLib.get(signedUrl, (signedResp: any) => {
-                    signedResp.pipe(res);
-                    signedResp.on('end', resolve);
-                  }).on('error', () => { res.status(500).end(); resolve(); });
-                } catch {
-                  res.status(500).json({ message: 'Impossible de generer URL signee' });
-                  resolve();
-                }
-              } else {
-                res.status(401).json({ message: 'Acces refuse par Cloudinary' });
-                resolve();
-              }
-            } else {
-              response.pipe(res);
-              response.on('end', resolve);
-            }
-          }).on('error', (err: any) => {
-            res.status(500).json({ message: 'Erreur fetch: ' + err.message });
-            resolve();
+      // Si Cloudinary configuré : générer une URL signée pour contourner l'auth
+      if (USE_CLOUDINARY && publicId) {
+        try {
+          fetchUrl = cloudinary.url(publicId, {
+            resource_type: resourceType,
+            type: 'upload',
+            sign_url: true,
+            secure: true,
           });
-        });
+          this.logger.log(`[Proxy] Signed URL: ${fetchUrl.substring(0, 80)}...`);
+        } catch (e: any) {
+          this.logger.warn(`[Proxy] Sign URL failed: ${e.message}, using original`);
+        }
       }
 
-      // Fallback: fetch direct
-      const httpLib = targetUrl.startsWith('https') ? require('https') : require('http');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('X-Frame-Options', 'ALLOWALL');
+      if (dl === '1') {
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      } else {
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      }
+
+      const httpLib = fetchUrl.startsWith('https') ? require('https') : require('http');
       return new Promise<void>((resolve) => {
-        httpLib.get(targetUrl, (response: any) => {
-          const contentType = response.headers['content-type'] || 'application/octet-stream';
-          const filename = targetUrl.split('/').pop() || 'fichier';
-          res.setHeader('Content-Type', contentType);
-          if (dl === '1') res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        httpLib.get(fetchUrl, (response: any) => {
+          if (response.statusCode >= 400) {
+            this.logger.error(`[Proxy] Cloudinary returned ${response.statusCode} for ${fetchUrl.substring(0,60)}`);
+            (res as any).status(response.statusCode).json({ message: `Cloudinary error: ${response.statusCode}` });
+            resolve();
+            return;
+          }
+          // Utiliser le Content-Type réel si disponible
+          const realCt = response.headers['content-type'];
+          if (realCt) res.setHeader('Content-Type', realCt);
           response.pipe(res);
           response.on('end', resolve);
         }).on('error', (err: any) => {
-          res.status(500).json({ message: err.message });
+          this.logger.error(`[Proxy] Fetch error: ${err.message}`);
+          (res as any).status(500).json({ message: 'Erreur fetch: ' + err.message });
           resolve();
         });
       });
     } catch (err: any) {
-      return res.status(500).json({ message: 'Erreur proxy: ' + err.message });
+      return (res as any).status(500).json({ message: 'Erreur proxy: ' + err.message });
     }
   }
 }
