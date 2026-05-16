@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, ArrowRight, Camera, Upload, X } from 'lucide-react';
-import { blApi, bcApi, devisApi, invoicesApi, uploadApi, signaturesApi } from '@/lib/api';
+import { Plus, Search, Trash2, ArrowRight, Camera, Upload, X, Eye } from 'lucide-react';
+import FileViewerModal from '@/components/ui/FileViewerModal';
+import { blApi, bcApi, devisApi, invoicesApi, uploadApi, signaturesApi, depensesApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { formatDate, cn } from '@/lib/utils';
 import PDFButton from '@/components/ui/PDFButton';
@@ -78,6 +79,7 @@ export default function BLPage() {
   const [assignTarget, setAssignTarget] = useState<any>(null);
   const [assignBlId, setAssignBlId]     = useState('');
   const [assigning, setAssigning]       = useState(false);
+  const [viewPendingUrl, setViewPendingUrl] = useState<string | null>(null);
 
   const fetchData = () => {
     setLoading(true);
@@ -98,12 +100,10 @@ export default function BLPage() {
   }, []);
 
   const fetchPendingBls = () => {
-    import('@/lib/api').then(({ depensesApi }) => {
-      depensesApi.list({}).then((r: any) => {
-        const all: any[] = r.data?.data || r.data || [];
-        setPendingBls(all.filter((d: any) => d.description?.startsWith('[BL-IMPORT]') && d.status === 'PENDING'));
-      }).catch(() => {});
-    });
+    depensesApi.list({}).then((r: any) => {
+      const all: any[] = r.data?.data || r.data || [];
+      setPendingBls(all.filter((d: any) => d.description?.startsWith('[BL-IMPORT]') && d.status === 'PENDING'));
+    }).catch(() => {});
   };
 
   const handleAssign = async () => {
@@ -111,9 +111,8 @@ export default function BLPage() {
     setAssigning(true);
     try {
       await blApi.saveSignedScan(assignBlId, assignTarget.receipt_url);
-      // Marquer la dépense comme approuvée
-      const { depensesApi } = await import('@/lib/api');
-      await depensesApi.update(assignTarget.id, { status: 'APPROVED' });
+      // Approuver la dépense via le bon endpoint
+      await depensesApi.approve(assignTarget.id);
       setAssignTarget(null); setAssignBlId('');
       fetchPendingBls(); fetchData();
     } catch (e: any) {
@@ -123,8 +122,11 @@ export default function BLPage() {
 
   const handleRejectBl = async (dep: any) => {
     if (!confirm('Refuser ce BL importé ?')) return;
-    const { depensesApi } = await import('@/lib/api');
-    await depensesApi.update(dep.id, { status: 'REJECTED' }).catch(() => {});
+    try {
+      await depensesApi.reject(dep.id);
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Erreur lors du refus.');
+    }
     fetchPendingBls();
   };
 
@@ -262,11 +264,10 @@ export default function BLPage() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {dep.receipt_url && (
-                    <a href={dep.receipt_url.startsWith('http') ? dep.receipt_url : `http://localhost:4000${dep.receipt_url}`}
-                      target="_blank" rel="noreferrer"
-                      style={{ padding: '6px 12px', borderRadius: 8, border: '1.5px solid #E8D4B0', background: 'white', color: '#8E5915', fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
-                      👁 Voir
-                    </a>
+                    <button onClick={() => setViewPendingUrl(dep.receipt_url)}
+                      style={{ padding: '6px 12px', borderRadius: 8, border: '1.5px solid #E8D4B0', background: 'white', color: '#8E5915', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Eye size={11} /> Voir
+                    </button>
                   )}
                   <button onClick={() => { setAssignTarget(dep); setAssignBlId(''); }}
                     style={{ padding: '6px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#F5C842,#D4A017)', color: '#1A141A', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
@@ -627,6 +628,13 @@ export default function BLPage() {
           </div>
         </div>
       )}
+
+      {/* FileViewer pour BL en attente */}
+      <FileViewerModal
+        url={viewPendingUrl}
+        title="Document BL"
+        onClose={() => setViewPendingUrl(null)}
+      />
     </div>
   );
 }

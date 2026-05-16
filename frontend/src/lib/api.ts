@@ -168,7 +168,7 @@ export const depensesApi = {
   create: (data: any) => api.post('/depenses', data),
   update: (id: string, data: any) => api.patch(`/depenses/${id}`, data),
   approve: (id: string) => api.patch(`/depenses/${id}/approve`),
-  reject: (id: string) => api.patch(`/depenses/${id}/reject`),
+  reject: (id: string, reason?: string) => api.patch(`/depenses/${id}/reject`, { reason: reason || '' }),
   delete: (id: string) => api.delete(`/depenses/${id}`),
   stats: (params?: any) => api.get('/depenses/stats', { params }),
 };
