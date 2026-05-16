@@ -309,6 +309,15 @@ export default function BCPage() {
                       className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all">
                       <Eye size={12} />
                     </button>
+                    {/* Fichier original pour les BCs importés */}
+                    {bc.imported_file_url && (
+                      <button
+                        onClick={() => setPreviewFileUrl(bc.imported_file_url)}
+                        title="Voir le fichier importé"
+                        style={{ display:'flex', alignItems:'center', gap:4, padding:'3px 8px', borderRadius:6, border:'1.5px solid #BFDBFE', background:'#EFF6FF', color:'#1D4ED8', fontSize:10, fontWeight:700, cursor:'pointer' }}>
+                        <File size={10} /> Fichier
+                      </button>
+                    )}
                     {/* PDF */}
                     <PDFButton docType="bc" docId={bc.id} docNumber={bc.number} variant="inline" />
                     {canDel && (bc.status === 'OPEN' || bc.status === 'PARTIALLY_DELIVERED') && (
@@ -656,6 +665,17 @@ export default function BCPage() {
                           style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1.5px solid #3B82F6', background:'white', color:'#1D4ED8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
                           <Eye size={13} /> Voir
                         </button>
+                        <a
+                          href={viewTarget.imported_file_url.includes('cloudinary.com')
+                            ? viewTarget.imported_file_url.includes('/raw/upload/')
+                              ? viewTarget.imported_file_url.replace('/raw/upload/', '/raw/upload/fl_attachment/')
+                              : viewTarget.imported_file_url.replace('/upload/', '/upload/fl_attachment/')
+                            : viewTarget.imported_file_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#3B82F6,#1D4ED8)', color:'white', fontSize:12, fontWeight:700, cursor:'pointer', textDecoration:'none' }}>
+                          <Download size={13} /> Télécharger
+                        </a>
                       </div>
                     </div>
                   )}
