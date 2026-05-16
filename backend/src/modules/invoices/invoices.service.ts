@@ -62,6 +62,12 @@ export class InvoicesService {
     });
 
     if (!bl) throw new NotFoundException('BL non trouvé');
+
+    // Si pas de signature choisie → utiliser la signature par défaut
+    if (!input.signature_id) {
+      const defaultSig = await this.prisma.signature.findFirst({ where: { is_default: true } });
+      if (defaultSig) input = { ...input, signature_id: defaultSig.id };
+    }
     if (bl.status !== 'DELIVERED' && bl.status !== 'SIGNED') {
       throw new BadRequestException('Le BL doit être livré ou signé avant facturation');
     }

@@ -137,7 +137,13 @@ export default function FacturesPage() {
   const openEmiseModal = () => {
     setSelectedBlId(''); setEmiseSignatureId(''); setEmiseError('');
     blApi.list({ status: 'SIGNED', limit: 200 } as any).then(r => setSignedBls(r.data.data || [])).catch(() => {});
-    signaturesApi.list().then(r => setSignatures(r.data || [])).catch(() => {});
+    signaturesApi.list().then(r => {
+      const sigs = r.data || [];
+      setSignatures(sigs);
+      // Pré-sélectionner la signature par défaut
+      const defaultSig = sigs.find((s: any) => s.is_default);
+      if (defaultSig) setEmiseSignatureId(defaultSig.id);
+    }).catch(() => {});
     setShowEmiseModal(true);
   };
 
