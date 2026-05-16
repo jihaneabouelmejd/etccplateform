@@ -240,10 +240,7 @@ export class BLService {
   }
 
   async remove(id: string) {
-    const bl = await this.findOne(id);
-    if (bl.status === 'INVOICED') {
-      throw new BadRequestException('Un BL facture ne peut pas etre supprime');
-    }
+    await this.findOne(id);
     await this.prisma.bonLivraison.delete({ where: { id } });
     return { deleted: true };
   }

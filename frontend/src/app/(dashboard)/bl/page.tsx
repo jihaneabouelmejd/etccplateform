@@ -392,8 +392,8 @@ export default function BLPage() {
                       </button>
                     )}
                     {/* Supprimer (tout sauf INVOICED) */}
-                    {canDel && bl.status !== 'INVOICED' && (
-                      <button onClick={() => setDeleteTarget(bl)} title="Supprimer"
+                    {canDel && (
+                      <button onClick={() => setDeleteTarget(bl)} title="Supprimer définitivement"
                         className="w-7 h-7 rounded-md border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-all">
                         <Trash2 size={12} />
                       </button>
@@ -623,6 +623,29 @@ export default function BLPage() {
                 style={{ ...btnPrimary, opacity: (!scanUrl || savingScan || uploading) ? 0.6 : 1 }}
               >
                 {savingScan ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== POPUP : Confirmation suppression BL ===== */}
+      {deleteTarget && (
+        <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div onClick={() => setDeleteTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }} />
+          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:420, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', padding:28 }}>
+            <div style={{ textAlign:'center', marginBottom:20 }}>
+              <div style={{ width:56, height:56, borderRadius:'50%', background:'#FFF0F0', border:'2px solid #FECACA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, margin:'0 auto 14px' }}>🗑️</div>
+              <h3 style={{ margin:'0 0 8px', fontSize:17, fontWeight:700, color:'#1A141A' }}>Supprimer ce BL ?</h3>
+              <p style={{ margin:0, fontSize:13, color:'#DC2626' }}>
+                <strong>{deleteTarget.number}</strong> sera supprimé définitivement. Cette action est irréversible.
+              </p>
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setDeleteTarget(null)} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
+              <button onClick={handleDelete} disabled={deleting}
+                style={{ ...btnDanger, flex:1, opacity:deleting ? 0.7 : 1 }}>
+                {deleting ? 'Suppression...' : 'Supprimer'}
               </button>
             </div>
           </div>
