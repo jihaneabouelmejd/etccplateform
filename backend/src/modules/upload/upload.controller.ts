@@ -415,4 +415,108 @@ export class UploadController implements OnModuleInit {
     if (dl === '1') res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return res.sendFile(filePath);
   }
+
+  // ── GET /upload/proxy — proxy Cloudinary files (contourne auth 401) ────────
+  @Get('proxy')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async proxyFile(
+    @Query('url') encodedUrl: string,
+    @Query('dl') dl: string,
+    @Res() res: Response,
+  ) {
+    if (!encodedUrl) return res.status(400).json({ message: 'url requis' });
+
+    let targetUrl: string;
+    try {
+      targetUrl = decodeURIComponent(encodedUrl);
+    } catch {
+      targetUrl = encodedUrl;
+    }
+
+    // Sécurité : uniquement Cloudinary ou uploads locaux
+    const isCloudinary = targetUrl.includes('cloudinary.com');
+    const isLocal = targetUrl.startsWith('/') || targetUrl.startsWith('http://localhost');
+    if (!isCloudinary && !isLocal) {
+      return res.status(403).json({ message: 'URL non autorisee' });
+    }
+
+    try {
+      // Pour Cloudinary : utiliser l'API SDK pour un accès authentifié
+      if (isCloudinary && USE_CLOUDINARY) {
+        // Extraire le public_id depuis l'URL
+        const urlPath = targetUrl.split('?')[0];
+        const ext = urlPath.split('.').pop()?.toLowerCase() || '';
+        const filename = urlPath.split('/').pop() || 'fichier';
+        const isPdfFile = ext === 'pdf' || targetUrl.includes('/raw/upload/');
+        const contentType = isPdfFile ? 'application/pdf' : `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+
+        if (dl === '1') {
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        } else {
+          res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        }
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+
+        // Fetch direct depuis Cloudinary (URLs raw sont signées automatiquement via SDK)
+        const httpLib = targetUrl.startsWith('https') ? require('https') : require('http');
+        return new Promise<void>((resolve) => {
+          httpLib.get(targetUrl, (response: any) => {
+            if (response.statusCode === 401 || response.statusCode === 403) {
+              // Essayer avec signed URL via SDK
+              const urlObj = new URL(targetUrl);
+              const pathParts = urlObj.pathname.split('/upload/');
+              if (pathParts.length === 2) {
+                const publicIdWithExt = pathParts[1].replace(/^v\d+\//, '');
+                const resourceType = targetUrl.includes('/raw/upload/') ? 'raw' : 'image';
+                try {
+                  const signedUrl = cloudinary.url(publicIdWithExt, {
+                    resource_type: resourceType,
+                    type: 'upload',
+                    sign_url: true,
+                    secure: true,
+                  });
+                  httpLib.get(signedUrl, (signedResp: any) => {
+                    signedResp.pipe(res);
+                    signedResp.on('end', resolve);
+                  }).on('error', () => { res.status(500).end(); resolve(); });
+                } catch {
+                  res.status(500).json({ message: 'Impossible de generer URL signee' });
+                  resolve();
+                }
+              } else {
+                res.status(401).json({ message: 'Acces refuse par Cloudinary' });
+                resolve();
+              }
+            } else {
+              response.pipe(res);
+              response.on('end', resolve);
+            }
+          }).on('error', (err: any) => {
+            res.status(500).json({ message: 'Erreur fetch: ' + err.message });
+            resolve();
+          });
+        });
+      }
+
+      // Fallback: fetch direct
+      const httpLib = targetUrl.startsWith('https') ? require('https') : require('http');
+      return new Promise<void>((resolve) => {
+        httpLib.get(targetUrl, (response: any) => {
+          const contentType = response.headers['content-type'] || 'application/octet-stream';
+          const filename = targetUrl.split('/').pop() || 'fichier';
+          res.setHeader('Content-Type', contentType);
+          if (dl === '1') res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          response.pipe(res);
+          response.on('end', resolve);
+        }).on('error', (err: any) => {
+          res.status(500).json({ message: err.message });
+          resolve();
+        });
+      });
+    } catch (err: any) {
+      return res.status(500).json({ message: 'Erreur proxy: ' + err.message });
+    }
+  }
 }
