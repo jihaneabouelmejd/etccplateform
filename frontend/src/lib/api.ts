@@ -123,6 +123,7 @@ export const bcApi = {
   createFromDevis: (devisId: string, signatureId?: string) => api.post(`/bc/from-devis/${devisId}`, signatureId ? { signature_id: signatureId } : {}),
   updateStatus: (id: string, status: string) => api.patch(`/bc/${id}/status`, { status }),
   cancel: (id: string) => api.delete(`/bc/${id}`),
+  delete: (id: string) => api.delete(`/bc/${id}/permanent`),
   import: (data: any) => api.post('/bc/import', data),
 };
 

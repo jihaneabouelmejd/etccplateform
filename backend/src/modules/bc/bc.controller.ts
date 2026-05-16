@@ -56,4 +56,8 @@ export class BCController {
   @Delete(':id')
   @Roles(Role.ADMIN, Role.GERANT)
   cancel(@Param('id') id: string) { return this.bc.cancel(id); }
+
+  @Delete(':id/permanent')
+  @Roles(Role.ADMIN, Role.GERANT)
+  hardDelete(@Param('id') id: string) { return this.bc.hardDelete(id); }
 }

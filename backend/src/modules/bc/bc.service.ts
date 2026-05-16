@@ -142,4 +142,9 @@ export class BCService {
     await this.findOne(id);
     return this.prisma.bonCommande.update({ where: { id }, data: { status: 'CANCELLED' } });
   }
+
+  async hardDelete(id: string) {
+    await this.findOne(id);
+    return this.prisma.bonCommande.delete({ where: { id } });
+  }
 }

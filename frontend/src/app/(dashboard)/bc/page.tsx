@@ -75,6 +75,8 @@ export default function BCPage() {
   const [cancelTarget, setCancelTarget] = useState<any>(null);
   const [cancelling, setCancelling] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // View modal
   const [viewTarget, setViewTarget] = useState<any>(null);
@@ -230,6 +232,16 @@ export default function BCPage() {
     finally { setCancelling(false); }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await bcApi.delete(deleteTarget.id);
+      fetchData(); setDeleteTarget(null);
+    } catch (e: any) { alert(e?.response?.data?.message || 'Erreur lors de la suppression'); }
+    finally { setDeleting(false); }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-start mb-5">
@@ -314,7 +326,13 @@ export default function BCPage() {
                       </button>
                     )}
                     {canDel && bc.status !== 'CANCELLED' && bc.status !== 'DELIVERED' && (
-                      <button onClick={() => setCancelTarget(bc)} title="Annuler"
+                      <button onClick={() => setCancelTarget(bc)} title="Annuler le BC"
+                        className="px-2 py-1 rounded text-[10px] font-semibold border border-orange-200 bg-orange-50 text-orange-600 hover:bg-orange-100 transition-all">
+                        Annuler
+                      </button>
+                    )}
+                    {canDel && (
+                      <button onClick={() => setDeleteTarget(bc)} title="Supprimer définitivement"
                         className="w-7 h-7 rounded-md border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-all">
                         <Trash2 size={12} />
                       </button>
@@ -676,6 +694,28 @@ export default function BCPage() {
               <button onClick={handleCancel} disabled={cancelling} style={{ ...btnDanger, flex:1, opacity:cancelling ? 0.7 : 1 }}>
                 {cancelling ? 'Annulation...' : 'Confirmer annulation'}
 
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== POPUP : Suppression définitive ===== */}
+      {deleteTarget && (
+        <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div onClick={() => setDeleteTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }} />
+          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:420, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', padding:28 }}>
+            <div style={{ textAlign:'center', marginBottom:20 }}>
+              <div style={{ width:56, height:56, borderRadius:'50%', background:'#FFF0F0', border:'2px solid #FECACA', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, margin:'0 auto 14px' }}>🗑️</div>
+              <h3 style={{ margin:'0 0 8px', fontSize:17, fontWeight:700, color:'#1A141A' }}>Supprimer définitivement ?</h3>
+              <p style={{ margin:0, fontSize:13, color:'#DC2626' }}>
+                <strong>{deleteTarget.number}</strong> sera supprimé de la base de données. Cette action est irréversible.
+              </p>
+            </div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setDeleteTarget(null)} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
+              <button onClick={handleDelete} disabled={deleting} style={{ ...btnDanger, flex:1, opacity:deleting ? 0.7 : 1 }}>
+                {deleting ? 'Suppression...' : 'Supprimer'}
               </button>
             </div>
           </div>
