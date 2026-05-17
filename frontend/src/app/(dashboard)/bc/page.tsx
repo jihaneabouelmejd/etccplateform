@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, Search, ArrowRight, Trash2, Upload, PlusCircle, X, FileImage, File, Eye, Download } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import FileViewerModal from '@/components/ui/FileViewerModal';
@@ -70,6 +70,7 @@ export default function BCPage() {
   const [importFileUrl, setImportFileUrl] = useState('');
   const [uploadingFile, setUploadingFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadAbortRef = useRef<AbortController | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [cancelTarget, setCancelTarget] = useState<any>(null);
@@ -82,6 +83,8 @@ export default function BCPage() {
   const [viewTarget, setViewTarget] = useState<any>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
+  // Compteur de requête pour éviter les race conditions (vieille réponse API qui écrase la nouvelle)
+  const viewRequestRef = useRef(0);
 
   const fetchData = () => {
     setLoading(true);
@@ -119,11 +122,14 @@ export default function BCPage() {
   };
 
   const openImportModal = () => {
+    // Annuler tout upload en cours au cas où
+    if (uploadAbortRef.current) { uploadAbortRef.current.abort(); uploadAbortRef.current = null; }
     setImportClientId('');
     setImportLines([emptyLine()]);
     setImportError('');
     setImportFile(null);
     setImportFileUrl('');
+    setUploadingFile(false);
     setImportMode('manual');
     setBcSignatureId('');
     setShowImportModal(true);
@@ -132,19 +138,34 @@ export default function BCPage() {
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Annuler tout upload précédent en cours
+    if (uploadAbortRef.current) {
+      uploadAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    uploadAbortRef.current = controller;
+
     setImportFile(file);
+    setImportFileUrl('');   // Réinitialiser l'URL avant le nouvel upload
     setUploadingFile(true);
     setImportError('');
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = await api.post('/upload', fd);
-      setImportFileUrl(res.data.url || res.data.filename || '');
+      const res = await api.post('/upload', fd, { signal: controller.signal });
+      // Ne mettre à jour que si cet upload n'a pas été annulé
+      if (!controller.signal.aborted) {
+        setImportFileUrl(res.data.url || '');
+      }
     } catch (err: any) {
+      if (err?.code === 'ERR_CANCELED' || err?.name === 'AbortError') return; // Upload annulé — ignorer
       const msg = err?.response?.data?.message || err?.message || 'Erreur lors du téléversement du fichier';
       setImportError(Array.isArray(msg) ? msg.join(', ') : String(msg));
     } finally {
-      setUploadingFile(false);
+      if (!controller.signal.aborted) {
+        setUploadingFile(false);
+      }
     }
   };
 
@@ -204,13 +225,30 @@ export default function BCPage() {
   };
 
   const openView = async (bc: any) => {
+    // Incrémenter le compteur pour invalider toute requête précédente en vol
+    const requestId = ++viewRequestRef.current;
     setViewLoading(true);
-    setViewTarget(bc);
+    setViewTarget(bc);   // Affiche immédiatement les données du tableau (avec "Chargement...")
     try {
       const res = await bcApi.get(bc.id);
-      setViewTarget(res.data);
-    } catch { /* keep whatever we have */ }
-    finally { setViewLoading(false); }
+      // Ne mettre à jour que si cette requête est toujours la courante
+      if (requestId === viewRequestRef.current) {
+        setViewTarget(res.data);
+      }
+    } catch {
+      // Si erreur API, garder les données de la liste (viewTarget reste = bc)
+    } finally {
+      if (requestId === viewRequestRef.current) {
+        setViewLoading(false);
+      }
+    }
+  };
+
+  const closeView = () => {
+    // Invalider toute requête en vol avant de fermer
+    viewRequestRef.current++;
+    setViewTarget(null);
+    setViewLoading(false);
   };
 
   const handleStatusChange = async (bc: any, newStatus: string) => {
@@ -487,7 +525,14 @@ export default function BCPage() {
                         {uploadingFile ? '⏳ Téléversement en cours...' : importFileUrl ? '✅ Fichier prêt' : '❌ Erreur de téléversement'}
                       </p>
                     </div>
-                    <button type="button" onClick={() => { setImportFile(null); setImportFileUrl(''); }}
+                    <button type="button" onClick={() => {
+                      // Annuler l'upload en cours si nécessaire
+                      if (uploadAbortRef.current) { uploadAbortRef.current.abort(); uploadAbortRef.current = null; }
+                      setImportFile(null);
+                      setImportFileUrl('');
+                      setUploadingFile(false);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
                       style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', flexShrink:0 }}>
                       <X size={13} />
                     </button>
@@ -575,9 +620,9 @@ export default function BCPage() {
 
             <div style={{ display:'flex', gap:10 }}>
               <button onClick={() => setShowImportModal(false)} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
-              <button onClick={handleImport} disabled={importing}
-                style={{ ...btnPrimary, flex:2, opacity:importing?0.6:1 }}>
-                {importing ? 'Import en cours...' : 'Importer le BC'}
+              <button onClick={handleImport} disabled={importing || uploadingFile}
+                style={{ ...btnPrimary, flex:2, opacity:(importing || uploadingFile)?0.6:1 }}>
+                {uploadingFile ? 'Upload en cours...' : importing ? 'Import en cours...' : 'Importer le BC'}
               </button>
             </div>
           </div>
@@ -587,7 +632,7 @@ export default function BCPage() {
       {/* ===== MODAL : Voir BC ===== */}
       {viewTarget && (
         <div style={{ position:'fixed', inset:0, zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div onClick={() => setViewTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
+          <div onClick={closeView} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
           <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:620, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', maxHeight:'90vh', overflowY:'auto' }}>
             {/* Header */}
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'20px 24px', borderBottom:'1px solid #EDDEC1', background:'#FBF6EE', borderRadius:'16px 16px 0 0' }}>
@@ -606,7 +651,7 @@ export default function BCPage() {
                   {sourceLabel[viewTarget.source] || viewTarget.source} · {formatDate(viewTarget.issue_date)}
                 </p>
               </div>
-              <button onClick={() => setViewTarget(null)} style={{ width:32, height:32, borderRadius:8, border:'1.5px solid #EDDEC1', background:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#A33C00' }}>
+              <button onClick={closeView} style={{ width:32, height:32, borderRadius:8, border:'1.5px solid #EDDEC1', background:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#A33C00' }}>
                 <X size={15} />
               </button>
             </div>
@@ -691,7 +736,7 @@ export default function BCPage() {
             </div>
 
             <div style={{ padding:'16px 24px', borderTop:'1px solid #EDDEC1', display:'flex', justifyContent:'flex-end' }}>
-              <button onClick={() => setViewTarget(null)} style={{ ...btnSecondary }}>Fermer</button>
+              <button onClick={closeView} style={{ ...btnSecondary }}>Fermer</button>
             </div>
           </div>
         </div>

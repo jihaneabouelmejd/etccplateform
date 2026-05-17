@@ -80,6 +80,7 @@ export default function TachesPage() {
 
   const [projects, setProjects]       = useState<any[]>([]);
   const [users, setUsers]             = useState<any[]>([]);
+  const [formError, setFormError]     = useState('');
   const canDel                        = isAdminRole(currentRole);
 
   const load = useCallback(async () => {
@@ -118,6 +119,7 @@ export default function TachesPage() {
   const openCreate = (status = 'TODO') => {
     setEditTarget(null);
     setForm({ ...emptyForm, status });
+    setFormError('');
     setShowForm(true);
   };
 
@@ -139,11 +141,16 @@ export default function TachesPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+    if (!form.project_id) {
+      setFormError('Veuillez sélectionner un chantier.');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         title:       form.title,
-        project_id:  form.project_id || undefined,
+        project_id:  form.project_id,
         assignee_ids: form.assignee_ids,
         priority:    Number(form.priority),
         due_date:    form.due_date || undefined,
@@ -160,8 +167,9 @@ export default function TachesPage() {
       setEditTarget(null);
       setForm({ ...emptyForm });
       await load();
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      const m = err?.response?.data?.message;
+      setFormError(Array.isArray(m) ? m.join(', ') : (m || 'Erreur lors de l\'enregistrement'));
     }
     setSaving(false);
   };
@@ -513,6 +521,11 @@ export default function TachesPage() {
                 </div>
               </div>
 
+              {formError && (
+                <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:13, color:'#B91C1C' }}>
+                  {formError}
+                </div>
+              )}
               <div style={{ display:'flex', justifyContent:'flex-end', gap:10, paddingTop:16, borderTop:'1px solid #EDDEC1' }}>
                 <button type="button" onClick={() => { setShowForm(false); setEditTarget(null); }} style={btnSecondary}>Annuler</button>
                 <button type="submit" style={btnPrimary} disabled={saving}>

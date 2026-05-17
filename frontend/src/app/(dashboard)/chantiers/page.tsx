@@ -149,12 +149,14 @@ export default function ChantiersPage() {
 
   /* -- CREATE -- */
   const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault(); setSaving(true); setFormError('');
+    e.preventDefault(); setFormError('');
+    if (!form.client_id) { setFormError('Veuillez sélectionner un client.'); return; }
+    setSaving(true);
     try {
       await projectsApi.create({
         name: form.name, city: form.city || undefined,
         budget_amount: parseFloat(form.budget) || 0,
-        client_id: form.client_id || undefined,
+        client_id: form.client_id,
         start_date: form.start_date || undefined,
         end_date: form.end_date || undefined,
         description: form.description || undefined,

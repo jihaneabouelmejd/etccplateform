@@ -407,6 +407,9 @@ model Project {
   // Budget
   budget_amount   Decimal         @db.Decimal(12, 2)
   actual_amount   Decimal         @default(0) @db.Decimal(12, 2)
+
+  // Avancement manuel (0-100)
+  progress        Int             @default(0)
   
   // Dates
   start_date      DateTime?
