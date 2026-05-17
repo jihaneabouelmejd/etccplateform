@@ -126,7 +126,18 @@ export class ProjectsService {
 
   async update(id: string, data: any) {
     await this.findOne(id);
-    return this.prisma.project.update({ where: { id }, data });
+    const updateData: any = {};
+    if (data.name        !== undefined) updateData.name         = data.name;
+    if (data.city        !== undefined) updateData.city         = data.city;
+    if (data.description !== undefined) updateData.description  = data.description;
+    if (data.status      !== undefined) updateData.status       = data.status;
+    if (data.progress    !== undefined) updateData.progress     = Number(data.progress);
+    if (data.budget_amount !== undefined) updateData.budget_amount = data.budget_amount;
+    if (data.start_date  !== undefined) updateData.start_date   = data.start_date ? new Date(data.start_date) : null;
+    if (data.end_date    !== undefined) updateData.end_date     = data.end_date   ? new Date(data.end_date)   : null;
+    if (data.client_id   !== undefined) updateData.client_id    = data.client_id;
+    if (data.address     !== undefined) updateData.address      = data.address;
+    return this.prisma.project.update({ where: { id }, data: updateData });
   }
 
   async updateStatus(id: string, status: ProjectStatus) {

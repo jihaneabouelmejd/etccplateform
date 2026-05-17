@@ -39,7 +39,14 @@ export class ProjectsController {
 
   @Patch(':id')
   @Roles(Role.ADMIN, Role.GERANT)
-  update(@Param('id') id: string, @Body() data: any) { return this.projects.update(id, data); }
+  async update(@Param('id') id: string, @Body() data: any) {
+    try {
+      return await this.projects.update(id, data);
+    } catch (e: any) {
+      console.error('[ProjectUpdate] id=%s error=%s data=%j', id, e?.message, data);
+      throw e;
+    }
+  }
 
   @Patch(':id/status')
   @Roles(Role.ADMIN, Role.GERANT)
