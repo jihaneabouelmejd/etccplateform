@@ -16,8 +16,13 @@ export class ProjectsController {
 
   @Post()
   @Roles(Role.ADMIN, Role.GERANT)
-  create(@Body() data: any, @CurrentUser('id') userId: string) {
-    return this.projects.create(data, userId);
+  async create(@Body() data: any, @CurrentUser('id') userId: string) {
+    try {
+      return await this.projects.create(data, userId);
+    } catch (e: any) {
+      console.error('[ProjectCreate] userId=%s error=%s data=%j', userId, e?.message, data);
+      throw e;
+    }
   }
 
   @Get()
