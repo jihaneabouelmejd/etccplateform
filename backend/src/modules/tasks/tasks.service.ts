@@ -158,23 +158,25 @@ export class TasksService {
     if (data.status !== undefined) updateData.status = data.status;
     if (data.progress !== undefined) updateData.progress = data.progress;
 
-    // Handle assignments update
-    if (data.assignee_ids !== undefined) {
-      await this.prisma.taskAssignment.deleteMany({ where: { task_id: id } });
-      if (data.assignee_ids.length > 0) {
-        updateData.assignments = {
-          create: data.assignee_ids.map((userId) => ({ user_id: userId })),
-        };
+    // Wrap delete+create in a transaction to prevent unique-constraint race conditions
+    return this.prisma.$transaction(async (tx) => {
+      if (data.assignee_ids !== undefined) {
+        await tx.taskAssignment.deleteMany({ where: { task_id: id } });
+        if (data.assignee_ids.length > 0) {
+          updateData.assignments = {
+            create: data.assignee_ids.map((userId) => ({ user_id: userId })),
+          };
+        }
       }
-    }
 
-    return this.prisma.task.update({
-      where: { id },
-      data: updateData,
-      include: {
-        assignments: { include: { user: { select: { id: true, first_name: true, last_name: true } } } },
-        project: { select: { name: true, code: true } },
-      },
+      return tx.task.update({
+        where: { id },
+        data: updateData,
+        include: {
+          assignments: { include: { user: { select: { id: true, first_name: true, last_name: true } } } },
+          project: { select: { name: true, code: true } },
+        },
+      });
     });
   }
 

@@ -189,34 +189,36 @@ export class DevisService {
     }));
     const totals = this.computeTotals(lines, discountRate);
 
-    // Replace lines if provided
-    if (input.lines) {
-      await this.prisma.devisLine.deleteMany({ where: { devis_id: id } });
-    }
+    // Wrap delete+create in a transaction to keep lines consistent
+    return this.prisma.$transaction(async (tx) => {
+      if (input.lines) {
+        await tx.devisLine.deleteMany({ where: { devis_id: id } });
+      }
 
-    return this.prisma.devis.update({
-      where: { id },
-      data: {
-        client_id: input.client_id ?? devis.client_id,
-        project_id: input.project_id !== undefined ? input.project_id : devis.project_id,
-        object: input.object !== undefined ? input.object : devis.object,
-        payment_terms: input.payment_terms !== undefined ? input.payment_terms : devis.payment_terms,
-        notes: input.notes !== undefined ? input.notes : devis.notes,
-        signature_id: input.signature_id !== undefined ? (input.signature_id || null) : devis.signature_id,
-        ...totals,
-        ...(input.lines ? {
-          lines: {
-            create: input.lines.map((line, i) => ({
-              description: line.description,
-              quantity: line.quantity,
-              unit_price: line.unit_price,
-              total_ht: line.quantity * line.unit_price,
-              order: i + 1,
-            })),
-          },
-        } : {}),
-      },
-      include: { lines: true, client: { select: { commercial_name: true } } },
+      return tx.devis.update({
+        where: { id },
+        data: {
+          client_id: input.client_id ?? devis.client_id,
+          project_id: input.project_id !== undefined ? input.project_id : devis.project_id,
+          object: input.object !== undefined ? input.object : devis.object,
+          payment_terms: input.payment_terms !== undefined ? input.payment_terms : devis.payment_terms,
+          notes: input.notes !== undefined ? input.notes : devis.notes,
+          signature_id: input.signature_id !== undefined ? (input.signature_id || null) : devis.signature_id,
+          ...totals,
+          ...(input.lines ? {
+            lines: {
+              create: input.lines.map((line, i) => ({
+                description: line.description,
+                quantity: line.quantity,
+                unit_price: line.unit_price,
+                total_ht: line.quantity * line.unit_price,
+                order: i + 1,
+              })),
+            },
+          } : {}),
+        },
+        include: { lines: true, client: { select: { commercial_name: true } } },
+      });
     });
   }
 

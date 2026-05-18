@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Plus, LayoutGrid, List, Pencil, Trash2, RefreshCw, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { projectsApi, tasksApi, assignableUsersApi } from '@/lib/api';
@@ -34,7 +34,6 @@ const emptyForm = {
   description: '', blocker: '', progress: 0,
 };
 
-// Map task from API to a display object
 function mapTask(t: any) {
   return {
     id: t.id,
@@ -65,34 +64,54 @@ export default function TachesPage() {
   const currentRole: string = user?.role || '';
   const admin = isAdminRole(currentRole);
 
-  const [view, setView]           = useState<'kanban' | 'list'>('kanban');
-  const [kanban, setKanban]       = useState<Record<string, any[]>>({ TODO:[], IN_PROGRESS:[], BLOCKED:[], DONE:[] });
-  const [allTasks, setAllTasks]   = useState<any[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [myTasks, setMyTasks]     = useState(false);
-  const [filterUserId, setFilterUserId] = useState(''); // admin: filtrer par utilisateur
+  const [view, setView]         = useState<'kanban' | 'list'>('kanban');
+  const [kanban, setKanban]     = useState<Record<string, any[]>>({ TODO:[], IN_PROGRESS:[], BLOCKED:[], DONE:[] });
+  const [allTasks, setAllTasks] = useState<any[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [myTasks, setMyTasks]   = useState(false);
+  const [filterUserId, setFilterUserId] = useState('');
 
-  const [showForm, setShowForm]           = useState(false);
-  const [editTarget, setEditTarget]       = useState<any | null>(null);
-  const [deleteTarget, setDeleteTarget]   = useState<any | null>(null);
-  const [form, setForm]                   = useState({ ...emptyForm });
-  const [saving, setSaving]               = useState(false);
+  const [showForm, setShowForm]         = useState(false);
+  const [editTarget, setEditTarget]     = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [form, setForm]                 = useState({ ...emptyForm });
+  const [saving, setSaving]             = useState(false);
+  const [formError, setFormError]       = useState('');
 
-  const [projects, setProjects]       = useState<any[]>([]);
-  const [users, setUsers]             = useState<any[]>([]);
-  const [formError, setFormError]     = useState('');
-  const canDel                        = isAdminRole(currentRole);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [users, setUsers]       = useState<any[]>([]);
 
+  const canDel = isAdminRole(currentRole);
+
+  /**
+   * savingRef: synchronous guard against double-click / concurrent submits.
+   * React setState is async — between two rapid clicks, `saving` might still
+   * read false. The ref is updated synchronously before any await.
+   */
+  const savingRef = useRef(false);
+
+  /**
+   * mountedRef: prevents setState calls after the component unmounts
+   * (e.g. user navigates away while a save is in flight).
+   */
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  // ── Load tasks ────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
+    if (!mountedRef.current) return;
     setLoading(true);
     try {
       const params: any = {};
-      // Admin : contrôle via toggles ; Non-admin : le backend force le filtre de toute façon
       if (admin) {
         if (myTasks) params.my_tasks = 'true';
         else if (filterUserId) params.filter_user_id = filterUserId;
       }
       const res = await tasksApi.list(params);
+      if (!mountedRef.current) return; // navigated away while loading
       const { data, kanban: kb } = res.data;
       setAllTasks((data || []).map(mapTask));
       setKanban({
@@ -101,29 +120,40 @@ export default function TachesPage() {
         BLOCKED:     (kb?.BLOCKED     || []).map(mapTask),
         DONE:        (kb?.DONE        || []).map(mapTask),
       });
-    } catch { /* silently fail */ }
-    setLoading(false);
+    } catch {
+      // network error — keep current data
+    } finally {
+      if (mountedRef.current) setLoading(false);
+    }
   }, [myTasks, filterUserId, admin]);
 
   useEffect(() => {
     load();
     projectsApi.list({ limit: 200 }).then(r => {
+      if (!mountedRef.current) return;
       const list = Array.isArray(r.data) ? r.data : (r.data?.data || []);
       setProjects(list);
     }).catch(() => {});
     assignableUsersApi.list().then(r => {
+      if (!mountedRef.current) return;
       setUsers(Array.isArray(r.data) ? r.data : []);
     }).catch(() => {});
   }, [load]);
 
-  const openCreate = (status = 'TODO') => {
+  // ── Modal helpers ─────────────────────────────────────────────────────────
+
+  /** Open create modal — blocked while a save is in progress */
+  const openCreate = useCallback((status = 'TODO') => {
+    if (savingRef.current) return;
     setEditTarget(null);
     setForm({ ...emptyForm, status });
     setFormError('');
     setShowForm(true);
-  };
+  }, []);
 
-  const openEdit = (task: any) => {
+  /** Open edit modal — blocked while a save is in progress */
+  const openEdit = useCallback((task: any) => {
+    if (savingRef.current) return;
     setEditTarget(task);
     setForm({
       title:        task.title || '',
@@ -136,54 +166,99 @@ export default function TachesPage() {
       blocker:      task.blocker || '',
       progress:     task.progress ?? 0,
     });
+    setFormError('');
     setShowForm(true);
-  };
+  }, []);
 
+  /** Close modal — blocked while a save is in progress to prevent orphaned requests */
+  const closeModal = useCallback(() => {
+    if (savingRef.current) return;
+    setShowForm(false);
+    setEditTarget(null);
+    setFormError('');
+  }, []);
+
+  // ── Save handler ──────────────────────────────────────────────────────────
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+
+    // ① Synchronous guard — prevents double-click even before React re-renders
+    if (savingRef.current) return;
+
     setFormError('');
+
     if (!form.project_id) {
       setFormError('Veuillez sélectionner un chantier.');
       return;
     }
+
+    // ② Mark as saving BEFORE the first await so any concurrent call is blocked
+    savingRef.current = true;
     setSaving(true);
+
+    // Snapshot form values at submit time — prevents stale-closure issues if
+    // the user somehow mutates the form while the request is in flight
+    const payload = {
+      title:        form.title,
+      project_id:   form.project_id,
+      assignee_ids: form.assignee_ids,
+      priority:     Number(form.priority),
+      due_date:     form.due_date || undefined,
+      status:       form.status,
+      description:  form.description || undefined,
+      progress:     Number(form.progress),
+    };
+    const targetId = editTarget?.id ?? null;
+
     try {
-      const payload = {
-        title:       form.title,
-        project_id:  form.project_id,
-        assignee_ids: form.assignee_ids,
-        priority:    Number(form.priority),
-        due_date:    form.due_date || undefined,
-        status:      form.status,
-        description: form.description || undefined,
-        progress:    Number(form.progress),
-      };
-      if (editTarget) {
-        await tasksApi.update(editTarget.id, payload);
+      if (targetId) {
+        await tasksApi.update(targetId, payload);
       } else {
         await tasksApi.create(payload);
       }
-      setShowForm(false);
-      setEditTarget(null);
-      setForm({ ...emptyForm });
-      await load();
+
+      // ③ Only touch state if still mounted (user might have navigated away)
+      if (mountedRef.current) {
+        setShowForm(false);
+        setEditTarget(null);
+        setForm({ ...emptyForm });
+        setFormError('');
+        // Reload list — awaited so the UI reflects the saved data before
+        // the user can open another modal
+        await load();
+      }
     } catch (err: any) {
-      const m = err?.response?.data?.message;
-      setFormError(Array.isArray(m) ? m.join(', ') : (m || 'Erreur lors de l\'enregistrement'));
+      // ④ Always show the error; never crash
+      if (mountedRef.current) {
+        const raw = err?.response?.data?.message;
+        const msg = Array.isArray(raw)
+          ? raw.join(', ')
+          : raw || 'Erreur lors de l\'enregistrement. Veuillez réessayer.';
+        setFormError(msg);
+      }
+    } finally {
+      // ⑤ ALWAYS release the lock — even if an exception bubbled up
+      savingRef.current = false;
+      if (mountedRef.current) setSaving(false);
     }
-    setSaving(false);
   };
 
+  // ── Delete ────────────────────────────────────────────────────────────────
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
       await tasksApi.delete(deleteTarget.id);
-      await load();
-    } catch {}
-    setDeleteTarget(null);
+      if (mountedRef.current) {
+        setDeleteTarget(null);
+        await load();
+      }
+    } catch {
+      if (mountedRef.current) setDeleteTarget(null);
+    }
   };
 
-  // Toggle assignee in multi-select
+  // ── Assignee toggle ───────────────────────────────────────────────────────
   const toggleAssignee = (uid: string) => {
     setForm(f => ({
       ...f,
@@ -193,8 +268,8 @@ export default function TachesPage() {
     }));
   };
 
-  const getUserInitials = (user: any) =>
-    `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase();
+  const getUserInitials = (u: any) =>
+    `${u?.first_name?.[0] || ''}${u?.last_name?.[0] || ''}`.toUpperCase();
 
   const renderAssignees = (assignees: any[]) => {
     if (!assignees?.length) return (
@@ -205,8 +280,9 @@ export default function TachesPage() {
     return (
       <div className="flex -space-x-1">
         {assignees.slice(0, 3).map((u, i) => (
-          <div key={u.id || i} className="w-6 h-6 rounded-full bg-honey-gradient flex items-center justify-center text-[9px] font-bold text-honey-dark border border-white"
-            title={`${u.first_name} ${u.last_name}`}>
+          <div key={u?.id || i}
+            className="w-6 h-6 rounded-full bg-honey-gradient flex items-center justify-center text-[9px] font-bold text-honey-dark border border-white"
+            title={`${u?.first_name} ${u?.last_name}`}>
             {getUserInitials(u)}
           </div>
         ))}
@@ -219,6 +295,7 @@ export default function TachesPage() {
     );
   };
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div>
       <div className="flex justify-between items-start mb-5">
@@ -227,7 +304,6 @@ export default function TachesPage() {
           <p className="text-sm text-honey-caramel mt-0.5">{t('task.kanban')} & {t('task.progress').toLowerCase()}</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
-          {/* Admin : filtre par utilisateur */}
           {admin && (
             <select
               value={filterUserId}
@@ -239,7 +315,6 @@ export default function TachesPage() {
               ))}
             </select>
           )}
-          {/* Mes tâches toggle — admin seulement */}
           {admin && (
             <button
               onClick={() => { setMyTasks(v => !v); setFilterUserId(''); }}
@@ -249,14 +324,14 @@ export default function TachesPage() {
               👤 {t('dash.my_tasks')}
             </button>
           )}
-          {/* Non-admin : badge informatif */}
           {!admin && (
             <span className="px-3 py-1.5 rounded-lg text-xs font-semibold border bg-honey-gold border-honey-gold text-honey-dark">
               👤 Mes tâches
             </span>
           )}
-          <button onClick={load} className="p-1.5 rounded-lg border border-honey-beige-soft text-honey-caramel hover:text-honey-dark hover:border-honey-gold transition-all">
-            <RefreshCw size={14} />
+          <button onClick={load} disabled={loading}
+            className="p-1.5 rounded-lg border border-honey-beige-soft text-honey-caramel hover:text-honey-dark hover:border-honey-gold transition-all disabled:opacity-50">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
           <div className="inline-flex bg-honey-cream rounded-lg p-0.5 border border-honey-beige-soft">
             <button onClick={() => setView('kanban')}
@@ -299,13 +374,17 @@ export default function TachesPage() {
                         {task.title}
                       </p>
                       <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                        <button onClick={() => openEdit(task)}
-                          className="p-1 rounded hover:bg-honey-beige-soft text-honey-caramel hover:text-honey-dark transition-colors">
+                        <button
+                          onClick={() => openEdit(task)}
+                          disabled={saving}
+                          className="p-1 rounded hover:bg-honey-beige-soft text-honey-caramel hover:text-honey-dark transition-colors disabled:opacity-40">
                           <Pencil size={10} />
                         </button>
                         {canDel && (
-                          <button onClick={() => setDeleteTarget(task)}
-                            className="p-1 rounded hover:bg-red-50 text-honey-caramel hover:text-red-500 transition-colors">
+                          <button
+                            onClick={() => setDeleteTarget(task)}
+                            disabled={saving}
+                            className="p-1 rounded hover:bg-red-50 text-honey-caramel hover:text-red-500 transition-colors disabled:opacity-40">
                             <Trash2 size={10} />
                           </button>
                         )}
@@ -331,8 +410,8 @@ export default function TachesPage() {
                     </div>
                   </div>
                 ))}
-                <button onClick={() => openCreate(col.id)}
-                  className="w-full py-2 text-[11px] text-honey-caramel hover:text-honey-dark border border-dashed border-honey-beige rounded-lg hover:border-honey-gold transition-all flex items-center justify-center gap-1">
+                <button onClick={() => openCreate(col.id)} disabled={saving}
+                  className="w-full py-2 text-[11px] text-honey-caramel hover:text-honey-dark border border-dashed border-honey-beige rounded-lg hover:border-honey-gold transition-all flex items-center justify-center gap-1 disabled:opacity-40">
                   <Plus size={11} /> Ajouter
                 </button>
               </div>
@@ -347,7 +426,7 @@ export default function TachesPage() {
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-honey-cream">
-                {['Tâche', 'Chantier', 'Assigné(s)', 'Priorité', 'Avancement', 'Échéance', 'Statut', 'Actions'].map((h) => (
+                {['Tâche','Chantier','Assigné(s)','Priorité','Avancement','Échéance','Statut','Actions'].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-[10px] font-semibold uppercase tracking-wide text-honey-caramel border-b border-honey-beige-soft">{h}</th>
                 ))}
               </tr>
@@ -382,13 +461,13 @@ export default function TachesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1">
-                      <button onClick={() => openEdit(task)}
-                        className="p-1.5 rounded-lg bg-honey-cream border border-honey-beige-soft text-honey-caramel hover:text-honey-dark hover:border-honey-gold transition-all">
+                      <button onClick={() => openEdit(task)} disabled={saving}
+                        className="p-1.5 rounded-lg bg-honey-cream border border-honey-beige-soft text-honey-caramel hover:text-honey-dark hover:border-honey-gold transition-all disabled:opacity-40">
                         <Pencil size={12} />
                       </button>
                       {canDel && (
-                        <button onClick={() => setDeleteTarget(task)}
-                          className="p-1.5 rounded-lg bg-red-50 border border-red-200 text-red-400 hover:text-red-600 hover:bg-red-100 transition-all">
+                        <button onClick={() => setDeleteTarget(task)} disabled={saving}
+                          className="p-1.5 rounded-lg bg-red-50 border border-red-200 text-red-400 hover:text-red-600 hover:bg-red-100 transition-all disabled:opacity-40">
                           <Trash2 size={12} />
                         </button>
                       )}
@@ -407,78 +486,105 @@ export default function TachesPage() {
       {/* ── MODAL Créer / Éditer tâche ─────────────────────────────────────── */}
       {showForm && (
         <div style={{ position:'fixed', inset:0, zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div onClick={() => { setShowForm(false); setEditTarget(null); }} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
+          {/* Backdrop — blocked while saving to prevent accidental close */}
+          <div
+            onClick={closeModal}
+            style={{
+              position:'absolute', inset:0,
+              background:'rgba(26,20,26,0.5)',
+              backdropFilter:'blur(4px)',
+              cursor: saving ? 'not-allowed' : 'pointer',
+            }}
+          />
           <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:540, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', maxHeight:'90vh', overflowY:'auto' }}>
             <div style={{ padding:'18px 24px', borderBottom:'1px solid #EDDEC1', display:'flex', justifyContent:'space-between', alignItems:'center', position:'sticky', top:0, background:'white', zIndex:1 }}>
               <h2 style={{ margin:0, fontSize:16, fontWeight:700, color:'#1A141A' }}>
                 {editTarget ? '✏️ Modifier la tâche' : '✅ Nouvelle tâche'}
               </h2>
-              <button onClick={() => { setShowForm(false); setEditTarget(null); }} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'#A33C00' }}>×</button>
+              <button
+                onClick={closeModal}
+                disabled={saving}
+                style={{ background:'none', border:'none', fontSize:22, cursor: saving ? 'not-allowed' : 'pointer', color:'#A33C00', opacity: saving ? 0.4 : 1 }}>
+                ×
+              </button>
             </div>
+
             <form onSubmit={handleSave} style={{ padding:24 }}>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
 
                 {/* Titre */}
                 <div style={{ gridColumn:'1/-1' }}>
                   <label style={labelStyle}>Titre de la tâche *</label>
-                  <input required value={form.title} onChange={e => setForm({...form, title:e.target.value})}
-                    placeholder="Ex: Coffrage dalle R+1" style={inputStyle} />
+                  <input
+                    required
+                    disabled={saving}
+                    value={form.title}
+                    onChange={e => setForm({...form, title:e.target.value})}
+                    placeholder="Ex: Coffrage dalle R+1"
+                    style={{ ...inputStyle, opacity: saving ? 0.7 : 1 }}
+                  />
                 </div>
 
                 {/* Chantier */}
                 <div style={{ gridColumn:'1/-1' }}>
                   <label style={labelStyle}>Chantier</label>
-                  <select value={form.project_id} onChange={e => setForm({...form, project_id:e.target.value})} style={inputStyle}>
+                  <select
+                    disabled={saving}
+                    value={form.project_id}
+                    onChange={e => setForm({...form, project_id:e.target.value})}
+                    style={{ ...inputStyle, opacity: saving ? 0.7 : 1 }}>
                     <option value="">-- Choisir un chantier --</option>
                     {projects.map(p => <option key={p.id} value={p.id}>{p.name}{p.city ? ` (${p.city})` : ''}</option>)}
                   </select>
                 </div>
 
-                {/* Assigné à — multi-select (admin seulement) */}
-                {admin && <div style={{ gridColumn:'1/-1' }}>
-                  <label style={labelStyle}>Assigné à</label>
-                  <div style={{ border:'1.5px solid #EDDEC1', borderRadius:8, padding:'8px 10px', background:'white', maxHeight:180, overflowY:'auto' }}>
-                    {users.length === 0 && (
-                      <p style={{ fontSize:12, color:'#A33C00', margin:0 }}>Chargement des utilisateurs...</p>
+                {/* Assigné à — admin seulement */}
+                {admin && (
+                  <div style={{ gridColumn:'1/-1' }}>
+                    <label style={labelStyle}>Assigné à</label>
+                    <div style={{ border:'1.5px solid #EDDEC1', borderRadius:8, padding:'8px 10px', background:'white', maxHeight:180, overflowY:'auto', opacity: saving ? 0.7 : 1 }}>
+                      {users.length === 0 && (
+                        <p style={{ fontSize:12, color:'#A33C00', margin:0 }}>Chargement des utilisateurs...</p>
+                      )}
+                      {['ADMIN','GERANT','EMPLOYE','COMPTABLE'].map(role => {
+                        const group = users.filter(u => u.role === role);
+                        if (!group.length) return null;
+                        return (
+                          <div key={role} style={{ marginBottom:6 }}>
+                            <p style={{ fontSize:10, fontWeight:700, color:'#755C00', textTransform:'uppercase', letterSpacing:0.5, margin:'0 0 4px' }}>
+                              {roleLabel[role]}
+                            </p>
+                            {group.map(u => (
+                              <label key={u.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 6px', borderRadius:6, cursor: saving ? 'not-allowed' : 'pointer', background: form.assignee_ids.includes(u.id) ? 'rgba(235,184,0,0.12)' : 'transparent' }}>
+                                <input
+                                  type="checkbox"
+                                  disabled={saving}
+                                  checked={form.assignee_ids.includes(u.id)}
+                                  onChange={() => !saving && toggleAssignee(u.id)}
+                                  style={{ accentColor:'#EBB800', width:14, height:14, flexShrink:0 }}
+                                />
+                                <div style={{ width:26, height:26, borderRadius:'50%', background:'linear-gradient(135deg,#EBB800,#755C00)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#1A141A', flexShrink:0 }}>
+                                  {u.first_name?.[0]}{u.last_name?.[0]}
+                                </div>
+                                <span style={{ fontSize:13, color:'#1A141A', fontWeight:500 }}>{u.first_name} {u.last_name}</span>
+                              </label>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {form.assignee_ids.length > 0 && (
+                      <p style={{ fontSize:11, color:'#755C00', marginTop:4 }}>
+                        {form.assignee_ids.length} personne(s) assignée(s)
+                      </p>
                     )}
-                    {/* Group by role */}
-                    {['ADMIN','GERANT','EMPLOYE','COMPTABLE'].map(role => {
-                      const group = users.filter(u => u.role === role);
-                      if (!group.length) return null;
-                      return (
-                        <div key={role} style={{ marginBottom:6 }}>
-                          <p style={{ fontSize:10, fontWeight:700, color:'#755C00', textTransform:'uppercase', letterSpacing:0.5, margin:'0 0 4px' }}>
-                            {roleLabel[role]}
-                          </p>
-                          {group.map(u => (
-                            <label key={u.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 6px', borderRadius:6, cursor:'pointer', background: form.assignee_ids.includes(u.id) ? 'rgba(235,184,0,0.12)' : 'transparent' }}>
-                              <input
-                                type="checkbox"
-                                checked={form.assignee_ids.includes(u.id)}
-                                onChange={() => toggleAssignee(u.id)}
-                                style={{ accentColor:'#EBB800', width:14, height:14, flexShrink:0 }}
-                              />
-                              <div style={{ width:26, height:26, borderRadius:'50%', background:'linear-gradient(135deg,#EBB800,#755C00)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#1A141A', flexShrink:0 }}>
-                                {u.first_name?.[0]}{u.last_name?.[0]}
-                              </div>
-                              <span style={{ fontSize:13, color:'#1A141A', fontWeight:500 }}>{u.first_name} {u.last_name}</span>
-                            </label>
-                          ))}
-                        </div>
-                      );
-                    })}
                   </div>
-                  {form.assignee_ids.length > 0 && (
-                    <p style={{ fontSize:11, color:'#755C00', marginTop:4 }}>
-                      {form.assignee_ids.length} personne(s) assignée(s)
-                    </p>
-                  )}
-                </div>}
+                )}
 
                 {/* Priorité */}
                 <div>
                   <label style={labelStyle}>Priorité</label>
-                  <select value={form.priority} onChange={e => setForm({...form, priority:Number(e.target.value)})} style={inputStyle}>
+                  <select disabled={saving} value={form.priority} onChange={e => setForm({...form, priority:Number(e.target.value)})} style={{ ...inputStyle, opacity: saving ? 0.7 : 1 }}>
                     <option value={2}>🔴 Haute</option>
                     <option value={1}>🟡 Moyenne</option>
                     <option value={0}>🟢 Basse</option>
@@ -488,7 +594,7 @@ export default function TachesPage() {
                 {/* Statut */}
                 <div>
                   <label style={labelStyle}>Statut</label>
-                  <select value={form.status} onChange={e => setForm({...form, status:e.target.value})} style={inputStyle}>
+                  <select disabled={saving} value={form.status} onChange={e => setForm({...form, status:e.target.value})} style={{ ...inputStyle, opacity: saving ? 0.7 : 1 }}>
                     <option value="TODO">À faire</option>
                     <option value="IN_PROGRESS">En cours</option>
                     <option value="BLOCKED">Bloqué</option>
@@ -499,16 +605,17 @@ export default function TachesPage() {
                 {/* Date d'échéance */}
                 <div>
                   <label style={labelStyle}>Date d'échéance</label>
-                  <input type="date" value={form.due_date} onChange={e => setForm({...form, due_date:e.target.value})} style={inputStyle} />
+                  <input type="date" disabled={saving} value={form.due_date} onChange={e => setForm({...form, due_date:e.target.value})} style={{ ...inputStyle, opacity: saving ? 0.7 : 1 }} />
                 </div>
 
                 {/* Avancement */}
                 <div>
                   <label style={labelStyle}>Avancement (%)</label>
                   <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <input type="range" min={0} max={100} value={form.progress}
+                    <input type="range" min={0} max={100} disabled={saving}
+                      value={form.progress}
                       onChange={e => setForm({...form, progress: Number(e.target.value)})}
-                      style={{ flex:1, accentColor:'#EBB800' }} />
+                      style={{ flex:1, accentColor:'#EBB800', opacity: saving ? 0.7 : 1 }} />
                     <span style={{ fontSize:13, fontWeight:700, fontFamily:'monospace', color:'#1A141A', minWidth:32 }}>{form.progress}%</span>
                   </div>
                 </div>
@@ -516,20 +623,35 @@ export default function TachesPage() {
                 {/* Description */}
                 <div style={{ gridColumn:'1/-1' }}>
                   <label style={labelStyle}>Description</label>
-                  <textarea value={form.description} onChange={e => setForm({...form, description:e.target.value})}
-                    placeholder="Détails de la tâche..." rows={2} style={{...inputStyle, resize:'none'}} />
+                  <textarea disabled={saving} value={form.description} onChange={e => setForm({...form, description:e.target.value})}
+                    placeholder="Détails de la tâche..." rows={2} style={{ ...inputStyle, resize:'none', opacity: saving ? 0.7 : 1 }} />
                 </div>
               </div>
 
+              {/* Error banner */}
               {formError && (
-                <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:13, color:'#B91C1C' }}>
-                  {formError}
+                <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, padding:'10px 14px', marginBottom:12, fontSize:13, color:'#B91C1C', display:'flex', alignItems:'center', gap:8 }}>
+                  <span>⚠️</span>
+                  <span>{formError}</span>
                 </div>
               )}
+
               <div style={{ display:'flex', justifyContent:'flex-end', gap:10, paddingTop:16, borderTop:'1px solid #EDDEC1' }}>
-                <button type="button" onClick={() => { setShowForm(false); setEditTarget(null); }} style={btnSecondary}>Annuler</button>
-                <button type="submit" style={btnPrimary} disabled={saving}>
-                  {saving ? 'Enregistrement...' : editTarget ? '✓ Enregistrer' : '+ Créer la tâche'}
+                <button type="button" onClick={closeModal} disabled={saving} style={{ ...btnSecondary, opacity: saving ? 0.5 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                  Annuler
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  style={{ ...btnPrimary, opacity: saving ? 0.7 : 1, cursor: saving ? 'not-allowed' : 'pointer', minWidth:140, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                  {saving ? (
+                    <>
+                      <span style={{ display:'inline-block', width:12, height:12, border:'2px solid #1A141A', borderTopColor:'transparent', borderRadius:'50%', animation:'spin 0.7s linear infinite' }} />
+                      Enregistrement...
+                    </>
+                  ) : (
+                    editTarget ? '✓ Enregistrer' : '+ Créer la tâche'
+                  )}
                 </button>
               </div>
             </form>
@@ -555,6 +677,9 @@ export default function TachesPage() {
           </div>
         </div>
       )}
+
+      {/* Spinner keyframe */}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
