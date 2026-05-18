@@ -18,14 +18,14 @@ export class TasksService {
       data: {
         project_id: data.project_id,
         title: data.title,
-        description: data.description,
-        due_date: data.due_date,
-        priority: data.priority || 0,
+        description: data.description || undefined,
+        due_date: data.due_date ? new Date(data.due_date) : undefined,
+        priority: Number(data.priority) || 0,
+        status: (data as any).status || 'TODO',
+        progress: Number((data as any).progress) || 0,
         assignments: data.assignee_ids?.length
           ? {
-              create: data.assignee_ids.map((userId) => ({
-                user_id: userId,
-              })),
+              create: data.assignee_ids.map((uid) => ({ user_id: uid })),
             }
           : undefined,
       },

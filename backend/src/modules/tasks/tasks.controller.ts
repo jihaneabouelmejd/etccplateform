@@ -20,17 +20,27 @@ export class TasksController {
   constructor(private readonly tasks: TasksService) {}
 
   @Post()
-  create(
+  async create(
     @Body() data: any,
     @CurrentUser('id') userId: string,
     @CurrentUser('role') role: string,
   ) {
-    // Non-admins ne peuvent créer que pour eux-mêmes
-    const payload = { ...data };
-    if (!isAdmin(role)) {
-      payload.assignee_ids = [userId];
+    try {
+      if (!data?.project_id) {
+        throw new (require('@nestjs/common').BadRequestException)('project_id est requis');
+      }
+      if (!data?.title) {
+        throw new (require('@nestjs/common').BadRequestException)('title est requis');
+      }
+      const payload = { ...data };
+      if (!isAdmin(role)) {
+        payload.assignee_ids = [userId];
+      }
+      return await this.tasks.create(payload, userId);
+    } catch (e: any) {
+      console.error('[TaskCreate] userId=%s error=%s data=%j', userId, e?.message, data);
+      throw e;
     }
-    return this.tasks.create(payload, userId);
   }
 
   @Get()
