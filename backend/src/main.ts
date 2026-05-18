@@ -84,6 +84,14 @@ async function bootstrap() {
   app.use(require('express').urlencoded({ extended: true, limit: '20mb' }));
   app.use(cookieParser());
 
+  // Debug middleware — log all POST/PATCH bodies
+  app.use((req: any, res: any, next: any) => {
+    if (['POST', 'PATCH', 'PUT'].includes(req.method)) {
+      console.log(`[REQ] ${req.method} ${req.path} body=${JSON.stringify(req.body)}`);
+    }
+    next();
+  });
+
   app.enableCors({
     origin: true,
     credentials: true,
@@ -94,7 +102,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
+    whitelist: false,
     forbidNonWhitelisted: false,
     transform: true,
   }));
