@@ -48,9 +48,19 @@ async function proxy(
     const resContentType = backendRes.headers.get('content-type') ?? 'application/json';
     const resBody = await backendRes.text();
 
+    const resHeaders = new Headers({ 'content-type': resContentType });
+
+    // Forward Set-Cookie so the browser receives the refresh-token cookie from the backend
+    const setCookie = backendRes.headers.get('set-cookie');
+    if (setCookie) resHeaders.set('set-cookie', setCookie);
+
+    // Forward other useful headers
+    const location = backendRes.headers.get('location');
+    if (location) resHeaders.set('location', location);
+
     return new NextResponse(resBody, {
       status: backendRes.status,
-      headers: { 'content-type': resContentType },
+      headers: resHeaders,
     });
   } catch (err: any) {
     console.error('[API proxy] Error:', err?.message ?? err);

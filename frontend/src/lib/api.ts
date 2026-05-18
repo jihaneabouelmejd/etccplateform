@@ -21,6 +21,10 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Shared refresh promise — ensures only ONE refresh request is in-flight at a time.
+// If multiple requests 401 simultaneously, they all wait for the same refresh.
+let refreshPromise: Promise<string> | null = null;
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -28,9 +32,19 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
-        const { data } = await axios.post('/api/auth/refresh', {}, { withCredentials: true });
-        localStorage.setItem('access_token', data.access_token);
-        originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+        if (!refreshPromise) {
+          refreshPromise = axios
+            .post('/api/auth/refresh', {}, { withCredentials: true })
+            .then(({ data }) => {
+              localStorage.setItem('access_token', data.access_token);
+              return data.access_token as string;
+            })
+            .finally(() => {
+              refreshPromise = null;
+            });
+        }
+        const newToken = await refreshPromise;
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch {
         localStorage.removeItem('access_token');

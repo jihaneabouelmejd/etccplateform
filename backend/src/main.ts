@@ -5,6 +5,7 @@ import * as cookieParser from 'cookie-parser';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
+import { GlobalExceptionFilter } from './common/filters/prisma-exception.filter';
 
 async function ensureDefaultUsers(app: any) {
   try {
@@ -100,6 +101,8 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api');
+
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.useGlobalPipes(new ValidationPipe({
     whitelist: false,
