@@ -144,36 +144,63 @@ export class TasksService {
   async update(id: string, data: {
     title?: string;
     description?: string;
-    due_date?: Date;
+    due_date?: string | Date | null;
     priority?: number;
     status?: TaskStatus;
     progress?: number;
     assignee_ids?: string[];
   }) {
+    // Build the scalar-only update payload (no nested relations)
     const updateData: any = {};
-    if (data.title !== undefined) updateData.title = data.title;
-    if (data.description !== undefined) updateData.description = data.description;
-    if (data.due_date !== undefined) updateData.due_date = data.due_date;
-    if (data.priority !== undefined) updateData.priority = data.priority;
-    if (data.status !== undefined) updateData.status = data.status;
-    if (data.progress !== undefined) updateData.progress = data.progress;
+    if (data.title       !== undefined) updateData.title       = data.title;
+    if (data.description !== undefined) updateData.description = data.description || null;
+    if (data.priority    !== undefined) updateData.priority    = Number(data.priority);
+    if (data.status      !== undefined) updateData.status      = data.status;
+    if (data.progress    !== undefined) updateData.progress    = Number(data.progress);
 
-    // Wrap delete+create in a transaction to prevent unique-constraint race conditions
+    // due_date: empty string → null (clear the date), ISO string → Date
+    if (data.due_date !== undefined) {
+      if (!data.due_date || data.due_date === '') {
+        updateData.due_date = null;
+      } else {
+        updateData.due_date = new Date(data.due_date as string);
+      }
+    }
+
+    /**
+     * Use an interactive transaction to:
+     *  1. Update task scalar fields
+     *  2. Replace assignments atomically (delete-then-createMany)
+     *  3. Return the full task with relations via a final findUnique
+     *
+     * We intentionally separate the assignment operations from the task.update()
+     * call to avoid PrismaClientValidationError caused by mixing nested-write
+     * (data.assignments.create) with include (include.assignments) in the same
+     * update query inside a transaction context.
+     */
     return this.prisma.$transaction(async (tx) => {
+      // Step 1 — update scalar fields
+      await tx.task.update({ where: { id }, data: updateData });
+
+      // Step 2 — replace assignments if provided
       if (data.assignee_ids !== undefined) {
         await tx.taskAssignment.deleteMany({ where: { task_id: id } });
+
         if (data.assignee_ids.length > 0) {
-          updateData.assignments = {
-            create: data.assignee_ids.map((userId) => ({ user_id: userId })),
-          };
+          await tx.taskAssignment.createMany({
+            data: data.assignee_ids.map((userId) => ({ task_id: id, user_id: userId })),
+            skipDuplicates: true,  // safety net against duplicates
+          });
         }
       }
 
-      return tx.task.update({
+      // Step 3 — return fresh task with all relations
+      return tx.task.findUnique({
         where: { id },
-        data: updateData,
         include: {
-          assignments: { include: { user: { select: { id: true, first_name: true, last_name: true } } } },
+          assignments: {
+            include: { user: { select: { id: true, first_name: true, last_name: true } } },
+          },
           project: { select: { name: true, code: true } },
         },
       });
