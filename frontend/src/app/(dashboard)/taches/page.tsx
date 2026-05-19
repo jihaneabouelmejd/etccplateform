@@ -158,7 +158,7 @@ export default function TachesPage() {
     setForm({
       title:        task.title || '',
       project_id:   task.project_id || '',
-      assignee_ids: task.assignees?.map((u: any) => u.id) || [],
+      assignee_ids: (task.assignees?.map((u: any) => u?.id).filter((id: any) => typeof id === 'string' && id.length > 0)) || [],
       priority:     task.priorityNum ?? 1,
       due_date:     task.due || '',
       status:       task.status,
@@ -202,7 +202,8 @@ export default function TachesPage() {
     const payload = {
       title:        form.title,
       project_id:   form.project_id,
-      assignee_ids: form.assignee_ids,
+      // Filter out any null/undefined IDs that could slip in from stale task data
+      assignee_ids: form.assignee_ids.filter((id): id is string => typeof id === 'string' && id.length > 0),
       priority:     Number(form.priority),
       due_date:     form.due_date || undefined,
       status:       form.status,

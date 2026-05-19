@@ -20,17 +20,19 @@ export class TasksService {
         title: data.title,
         description: data.description || undefined,
         due_date: data.due_date ? new Date(data.due_date) : undefined,
-        priority: Number(data.priority) || 0,
+        priority: Math.round(Number(data.priority)) || 0,
         status: (data as any).status || 'TODO',
-        progress: Number((data as any).progress) || 0,
+        progress: Math.round(Number((data as any).progress)) || 0,
         assignments: data.assignee_ids?.length
           ? {
-              create: data.assignee_ids.map((uid) => ({ user_id: uid })),
+              create: (data.assignee_ids as any[])
+                .filter((uid) => typeof uid === 'string' && uid.trim().length > 0)
+                .map((uid) => ({ user_id: uid })),
             }
           : undefined,
       },
       include: {
-        assignments: { include: { user: { select: { first_name: true, last_name: true, avatar_url: true } } } },
+        assignments: { include: { user: { select: { id: true, first_name: true, last_name: true, avatar_url: true } } } },
         project: { select: { name: true, code: true } },
       },
     });
@@ -60,7 +62,7 @@ export class TasksService {
         orderBy: [{ priority: 'desc' }, { created_at: 'desc' }],
         include: {
           assignments: {
-            include: { user: { select: { first_name: true, last_name: true, avatar_url: true } } },
+            include: { user: { select: { id: true, first_name: true, last_name: true, avatar_url: true } } },
           },
           project: { select: { name: true, code: true } },
           _count: { select: { comments: true } },
@@ -193,11 +195,16 @@ export class TasksService {
 
       // Step 2 — replace assignments if provided
       if (data.assignee_ids !== undefined) {
+        // Filter out any null/undefined/empty IDs to prevent "user_id is missing" error
+        const validIds = (data.assignee_ids as any[]).filter(
+          (uid) => typeof uid === 'string' && uid.trim().length > 0,
+        );
+
         await tx.taskAssignment.deleteMany({ where: { task_id: id } });
 
-        if (data.assignee_ids.length > 0) {
+        if (validIds.length > 0) {
           await tx.taskAssignment.createMany({
-            data: data.assignee_ids.map((uid) => ({ task_id: id, user_id: uid })),
+            data: validIds.map((uid) => ({ task_id: id, user_id: uid })),
             skipDuplicates: true,
           });
         }
