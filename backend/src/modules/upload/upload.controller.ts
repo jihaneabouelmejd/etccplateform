@@ -595,6 +595,20 @@ export class UploadController implements OnModuleInit {
       });
     };
 
+    // ── Stratégie : utiliser private_download_url en premier si credentials dispo ──────────────
+    // Évite le 401 sur le CDN public en passant directement par l'API Cloudinary authentifiée.
+    // Fonctionne quel que soit le mode de livraison (upload / authenticated / strict delivery).
+    if (USE_CLOUDINARY) {
+      const info = extractCloudinaryInfo(targetUrl);
+      if (info) {
+        const apiUrl = buildPrivateDownloadUrl(info.publicId, info.resourceType);
+        if (apiUrl) {
+          return streamUrl(apiUrl, false);  // fetch from api.cloudinary.com directly
+        }
+      }
+    }
+
+    // Fallback: tentative CDN directe (cas sans Cloudinary credentials)
     return streamUrl(targetUrl);
   }
 }
