@@ -477,27 +477,46 @@ export class UploadController implements OnModuleInit {
       return { publicId, resourceType: resType, deliveryType };
     };
 
-    // Helper: generate a signed URL via Cloudinary SDK
-    // Must use the SAME deliveryType as the original resource, otherwise Cloudinary rejects it
-    const buildSignedUrl = (publicId: string, resourceType: string, deliveryType = 'upload'): string | null => {
+    // Helper: generate a private_download_url via Cloudinary API
+    // Unlike CDN signed URLs, this uses api.cloudinary.com with API credentials embedded —
+    // it bypasses ALL delivery type / strict-mode restrictions and always works server-side.
+    // Generated URL format: https://api.cloudinary.com/v1_1/{cloud}/{type}/download?public_id=...&api_key=...&signature=...
+    const buildPrivateDownloadUrl = (publicId: string, resourceType: string): string | null => {
       if (!USE_CLOUDINARY) return null;
       try {
-        return cloudinary.url(publicId, {
+        let pid = publicId;
+        let format = 'pdf';
+
+        // Extract extension as format, strip it from pid for raw resources
+        const dotIdx = publicId.lastIndexOf('.');
+        if (dotIdx !== -1) {
+          format = publicId.substring(dotIdx + 1).toLowerCase() || 'pdf';
+          if (resourceType === 'raw') pid = publicId.substring(0, dotIdx); // Cloudinary wants pid without ext here
+        }
+
+        const apiUrl = cloudinary.utils.private_download_url(pid, format, {
           resource_type: resourceType,
-          type: deliveryType,       // ← critical: must match resource's delivery type
-          sign_url: true,
-          secure: true,
-          expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour
+          expires_at: Math.floor(Date.now() / 1000) + 3600,
         });
+        this.logger.log(`[Proxy] Generated private_download_url: ${apiUrl.substring(0, 120)}`);
+        return apiUrl;
       } catch (e: any) {
-        this.logger.error(`[Proxy] Failed to generate signed URL: ${e.message}`);
-        return null;
+        this.logger.error(`[Proxy] private_download_url failed: ${e.message}`);
+        // Last-resort fallback: signed CDN URL (works when strict-delivery mode is off)
+        try {
+          return cloudinary.url(publicId, {
+            resource_type: resourceType,
+            type: 'upload',
+            sign_url: true,
+            secure: true,
+          });
+        } catch { return null; }
       }
     };
 
     // Helper: stream a URL to the response
     const streamUrl = (fetchUrl: string, isRetry = false): Promise<void> => {
-      this.logger.log(`[Proxy] ${isRetry ? 'Retry with signed URL' : 'Fetching'}: ${fetchUrl.substring(0, 100)}...`);
+      this.logger.log(`[Proxy] ${isRetry ? 'Retry via API' : 'Fetching'}: ${fetchUrl.substring(0, 100)}...`);
       const https = require('https');
       const http = require('http');
       const httpLib = fetchUrl.startsWith('https') ? https : http;
@@ -506,21 +525,19 @@ export class UploadController implements OnModuleInit {
         const request = httpLib.get(fetchUrl, (response: any) => {
           this.logger.log(`[Proxy] Cloudinary status: ${response.statusCode}`);
 
-          // On 401, try to generate a signed URL and retry (once)
+          // On 401, retry via Cloudinary API with embedded credentials (bypasses delivery-type restrictions)
           if (response.statusCode === 401 && !isRetry && USE_CLOUDINARY) {
             response.resume(); // drain the response body
-            this.logger.warn('[Proxy] Got 401 — attempting signed URL retry');
+            this.logger.warn('[Proxy] Got 401 — switching to private_download_url (API credentials)');
             const info = extractCloudinaryInfo(targetUrl);
             if (info) {
-              // Pass deliveryType so the signed URL matches the resource's actual type
-              const signedUrl = buildSignedUrl(info.publicId, info.resourceType, info.deliveryType);
-              if (signedUrl) {
-                this.logger.log(`[Proxy] Retrying with signed URL (type=${info.deliveryType}): ${signedUrl.substring(0, 100)}`);
-                streamUrl(signedUrl, true).then(resolve);
+              const apiUrl = buildPrivateDownloadUrl(info.publicId, info.resourceType);
+              if (apiUrl) {
+                streamUrl(apiUrl, true).then(resolve);
                 return;
               }
             }
-            // Could not build signed URL — return meaningful error
+            // Could not build API URL
             if (!res.headersSent) {
               res.status(403).json({ message: 'Fichier non accessible (accès refusé)' });
             }
