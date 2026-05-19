@@ -352,15 +352,17 @@ export default function BCPage() {
                       className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all">
                       <Eye size={12} />
                     </button>
-                    {/* Fichier original importé */}
-                    {bc.imported_file_url && (
+                    {/* Fichier original — uniquement pour les BC importés */}
+                    {bc.source !== 'INTERNAL' && bc.imported_file_url && (
                       <button onClick={() => setPreviewFileUrl(bc.imported_file_url)} title="Voir le fichier importé"
                         style={{ display:'flex', alignItems:'center', gap:4, padding:'3px 8px', borderRadius:6, border:'1.5px solid #BFDBFE', background:'#EFF6FF', color:'#1D4ED8', fontSize:10, fontWeight:700, cursor:'pointer' }}>
                         <File size={10} /> Fichier
                       </button>
                     )}
-                    {/* PDF généré */}
-                    <PDFButton docType="bc" docId={bc.id} docNumber={bc.number} variant="inline" />
+                    {/* PDF généré — uniquement pour les BC internes (générés depuis un devis) */}
+                    {bc.source === 'INTERNAL' && (
+                      <PDFButton docType="bc" docId={bc.id} docNumber={bc.number} variant="inline" />
+                    )}
                     {canDel && (bc.status === 'OPEN' || bc.status === 'PARTIALLY_DELIVERED') && (
                       <button onClick={() => handleStatusChange(bc, 'DELIVERED')} disabled={updatingStatus}
                         className="px-2 py-1 rounded text-[10px] font-semibold border bg-green-50 text-green-700 border-green-200 hover:bg-green-100 transition-all">
@@ -771,14 +773,16 @@ export default function BCPage() {
                     </div>
                   )}
 
-                  {/* PDF généré */}
-                  <div style={{ padding:'14px 16px', background:'#FFF8EE', borderRadius:10, border:'1px solid #EDDEC1', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                    <div>
-                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1A141A' }}>📄 PDF officiel du BC</p>
-                      <p style={{ margin:'2px 0 0', fontSize:11, color:'#A33C00' }}>Version PDF générée avec signature ETCC</p>
+                  {/* PDF généré — uniquement pour BC internes */}
+                  {viewTarget.source === 'INTERNAL' && (
+                    <div style={{ padding:'14px 16px', background:'#FFF8EE', borderRadius:10, border:'1px solid #EDDEC1', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                      <div>
+                        <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1A141A' }}>📄 PDF officiel du BC</p>
+                        <p style={{ margin:'2px 0 0', fontSize:11, color:'#A33C00' }}>Version PDF générée avec signature ETCC</p>
+                      </div>
+                      <PDFButton docType="bc" docId={viewTarget.id} docNumber={viewTarget.number} variant="inline" />
                     </div>
-                    <PDFButton docType="bc" docId={viewTarget.id} docNumber={viewTarget.number} variant="inline" />
-                  </div>
+                  )}
 
                   {viewTarget.notes && (
                     <div style={{ marginTop:16, padding:'12px 16px', background:'#FFFBEB', borderRadius:10, border:'1px solid #FDE68A' }}>
