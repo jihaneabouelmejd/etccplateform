@@ -69,6 +69,8 @@ function uploadBufferToCloudinary(
         public_id: publicId,
         use_filename: true,
         unique_filename: true, // ajoute suffix unique si doublon
+        access_mode: 'public',  // Force public delivery (prevent 401 on future uploads)
+        type: 'upload',         // Explicit upload type (not 'authenticated')
       },
       (error: any, result: any) => {
         if (error) {
@@ -459,62 +461,119 @@ export class UploadController implements OnModuleInit {
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
     }
 
-    // Fetch direct depuis Cloudinary (fichiers publics, pas besoin de signed URL)
-    // Le backend peut accéder aux URLs Cloudinary publiques sans restriction
-    const fetchUrl = targetUrl;
-    this.logger.log(`[Proxy] Fetching: ${fetchUrl.substring(0, 80)}...`);
+    // Helper: extract public_id and resource_type from a Cloudinary URL
+    // e.g. https://res.cloudinary.com/mycloud/raw/upload/v123/etcc/file.pdf
+    //   or https://res.cloudinary.com/mycloud/image/upload/etcc/photo.jpg
+    const extractCloudinaryInfo = (url: string): { publicId: string; resourceType: string } | null => {
+      const match = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
+      if (!match) return null;
+      // Remove file extension for images (Cloudinary public_id has no ext), keep for raw
+      let publicId = match[2];
+      const resType = match[1];
+      if (resType !== 'raw') {
+        publicId = publicId.replace(/\.[^/.]+$/, '');
+      }
+      return { publicId, resourceType: resType };
+    };
 
-    const https = require('https');
-    const http = require('http');
-    const httpLib = fetchUrl.startsWith('https') ? https : http;
+    // Helper: generate a signed URL via Cloudinary SDK
+    const buildSignedUrl = (publicId: string, resourceType: string): string | null => {
+      if (!USE_CLOUDINARY) return null;
+      try {
+        return cloudinary.url(publicId, {
+          resource_type: resourceType,
+          type: 'upload',
+          sign_url: true,
+          secure: true,
+          expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour
+        });
+      } catch (e: any) {
+        this.logger.error(`[Proxy] Failed to generate signed URL: ${e.message}`);
+        return null;
+      }
+    };
 
-    return new Promise<void>((resolve) => {
-      const request = httpLib.get(fetchUrl, (response: any) => {
-        this.logger.log(`[Proxy] Cloudinary status: ${response.statusCode}`);
+    // Helper: stream a URL to the response
+    const streamUrl = (fetchUrl: string, isRetry = false): Promise<void> => {
+      this.logger.log(`[Proxy] ${isRetry ? 'Retry with signed URL' : 'Fetching'}: ${fetchUrl.substring(0, 100)}...`);
+      const https = require('https');
+      const http = require('http');
+      const httpLib = fetchUrl.startsWith('https') ? https : http;
 
-        if (response.statusCode >= 400) {
-          this.logger.error(`[Proxy] Cloudinary error ${response.statusCode} for ${fetchUrl.substring(0, 80)}`);
-          res.status(response.statusCode).json({ message: `Erreur Cloudinary: ${response.statusCode}` });
+      return new Promise<void>((resolve) => {
+        const request = httpLib.get(fetchUrl, (response: any) => {
+          this.logger.log(`[Proxy] Cloudinary status: ${response.statusCode}`);
+
+          // On 401, try to generate a signed URL and retry (once)
+          if (response.statusCode === 401 && !isRetry && USE_CLOUDINARY) {
+            response.resume(); // drain the response body
+            this.logger.warn('[Proxy] Got 401 — attempting signed URL retry');
+            const info = extractCloudinaryInfo(targetUrl);
+            if (info) {
+              const signedUrl = buildSignedUrl(info.publicId, info.resourceType);
+              if (signedUrl) {
+                streamUrl(signedUrl, true).then(resolve);
+                return;
+              }
+            }
+            // Could not build signed URL — return meaningful error
+            if (!res.headersSent) {
+              res.status(403).json({ message: 'Fichier non accessible (accès refusé)' });
+            }
+            resolve();
+            return;
+          }
+
+          if (response.statusCode >= 400) {
+            this.logger.error(`[Proxy] Cloudinary error ${response.statusCode} for ${fetchUrl.substring(0, 80)}`);
+            if (!res.headersSent) {
+              res.status(response.statusCode).json({ message: `Fichier non accessible (${response.statusCode})` });
+            }
+            resolve();
+            return;
+          }
+
+          // Utiliser le Content-Type réel renvoyé par Cloudinary
+          const realCt = response.headers['content-type'];
+          if (!res.headersSent) {
+            res.setHeader('Content-Type', realCt || defaultCt);
+          }
+
+          // Transférer les headers de cache
+          if (response.headers['cache-control'] && !res.headersSent) {
+            res.setHeader('Cache-Control', response.headers['cache-control']);
+          }
+          if (response.headers['content-length'] && !res.headersSent) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+          }
+
+          response.pipe(res);
+          response.on('end', resolve);
+          response.on('error', (err: any) => {
+            this.logger.error(`[Proxy] Stream error: ${err.message}`);
+            resolve();
+          });
+        });
+
+        request.on('error', (err: any) => {
+          this.logger.error(`[Proxy] Request error: ${err.message}`);
+          if (!res.headersSent) {
+            res.status(500).json({ message: 'Erreur de connexion: ' + err.message });
+          }
           resolve();
-          return;
-        }
+        });
 
-        // Utiliser le Content-Type réel renvoyé par Cloudinary
-        const realCt = response.headers['content-type'];
-        res.setHeader('Content-Type', realCt || defaultCt);
-
-        // Transférer les headers de cache
-        if (response.headers['cache-control']) {
-          res.setHeader('Cache-Control', response.headers['cache-control']);
-        }
-        if (response.headers['content-length']) {
-          res.setHeader('Content-Length', response.headers['content-length']);
-        }
-
-        response.pipe(res);
-        response.on('end', resolve);
-        response.on('error', (err: any) => {
-          this.logger.error(`[Proxy] Stream error: ${err.message}`);
+        request.setTimeout(15000, () => {
+          this.logger.error('[Proxy] Timeout after 15s');
+          request.destroy();
+          if (!res.headersSent) {
+            res.status(504).json({ message: 'Timeout: fichier non accessible' });
+          }
           resolve();
         });
       });
+    };
 
-      request.on('error', (err: any) => {
-        this.logger.error(`[Proxy] Request error: ${err.message}`);
-        if (!res.headersSent) {
-          res.status(500).json({ message: 'Erreur de connexion: ' + err.message });
-        }
-        resolve();
-      });
-
-      request.setTimeout(15000, () => {
-        this.logger.error('[Proxy] Timeout after 15s');
-        request.destroy();
-        if (!res.headersSent) {
-          res.status(504).json({ message: 'Timeout: fichier non accessible' });
-        }
-        resolve();
-      });
-    });
+    return streamUrl(targetUrl);
   }
 }
