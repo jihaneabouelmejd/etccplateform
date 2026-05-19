@@ -461,28 +461,30 @@ export class UploadController implements OnModuleInit {
       res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
     }
 
-    // Helper: extract public_id and resource_type from a Cloudinary URL
-    // e.g. https://res.cloudinary.com/mycloud/raw/upload/v123/etcc/file.pdf
-    //   or https://res.cloudinary.com/mycloud/image/upload/etcc/photo.jpg
-    const extractCloudinaryInfo = (url: string): { publicId: string; resourceType: string } | null => {
-      const match = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
+    // Helper: extract public_id, resource_type AND delivery_type from a Cloudinary URL
+    // e.g. https://res.cloudinary.com/mycloud/raw/upload/v123/etcc/file.pdf      → deliveryType='upload'
+    //   or https://res.cloudinary.com/mycloud/image/authenticated/etcc/photo.jpg → deliveryType='authenticated'
+    const extractCloudinaryInfo = (url: string): { publicId: string; resourceType: string; deliveryType: string } | null => {
+      const match = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
       if (!match) return null;
-      // Remove file extension for images (Cloudinary public_id has no ext), keep for raw
-      let publicId = match[2];
+      // Remove file extension for images (Cloudinary public_id has no ext), keep for raw/pdf
+      let publicId = match[3];
       const resType = match[1];
+      const deliveryType = match[2]; // 'upload' or 'authenticated'
       if (resType !== 'raw') {
         publicId = publicId.replace(/\.[^/.]+$/, '');
       }
-      return { publicId, resourceType: resType };
+      return { publicId, resourceType: resType, deliveryType };
     };
 
     // Helper: generate a signed URL via Cloudinary SDK
-    const buildSignedUrl = (publicId: string, resourceType: string): string | null => {
+    // Must use the SAME deliveryType as the original resource, otherwise Cloudinary rejects it
+    const buildSignedUrl = (publicId: string, resourceType: string, deliveryType = 'upload'): string | null => {
       if (!USE_CLOUDINARY) return null;
       try {
         return cloudinary.url(publicId, {
           resource_type: resourceType,
-          type: 'upload',
+          type: deliveryType,       // ← critical: must match resource's delivery type
           sign_url: true,
           secure: true,
           expires_at: Math.floor(Date.now() / 1000) + 3600, // 1 hour
@@ -510,8 +512,10 @@ export class UploadController implements OnModuleInit {
             this.logger.warn('[Proxy] Got 401 — attempting signed URL retry');
             const info = extractCloudinaryInfo(targetUrl);
             if (info) {
-              const signedUrl = buildSignedUrl(info.publicId, info.resourceType);
+              // Pass deliveryType so the signed URL matches the resource's actual type
+              const signedUrl = buildSignedUrl(info.publicId, info.resourceType, info.deliveryType);
               if (signedUrl) {
+                this.logger.log(`[Proxy] Retrying with signed URL (type=${info.deliveryType}): ${signedUrl.substring(0, 100)}`);
                 streamUrl(signedUrl, true).then(resolve);
                 return;
               }
