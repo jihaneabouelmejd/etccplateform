@@ -434,7 +434,6 @@ export class UploadController implements OnModuleInit {
     let targetUrl: string;
     try { targetUrl = decodeURIComponent(encodedUrl); } catch { targetUrl = encodedUrl; }
 
-    // Sécurité : uniquement Cloudinary
     if (!targetUrl.includes('cloudinary.com')) {
       return (res as any).status(403).json({ message: 'URL non autorisee' });
     }
@@ -442,132 +441,96 @@ export class UploadController implements OnModuleInit {
     const urlPath = targetUrl.split('?')[0];
     const ext = urlPath.split('.').pop()?.toLowerCase() || '';
     const filename = urlPath.split('/').pop() || 'fichier';
-
-    // Détecter le type depuis le path Cloudinary
-    const isRaw = targetUrl.includes('/raw/upload/');
+    const isRaw = targetUrl.includes('/raw/');
     const isPdfFile = ext === 'pdf' || isRaw;
     const defaultCt = isPdfFile ? 'application/pdf'
       : ['jpg','jpeg'].includes(ext) ? 'image/jpeg'
       : ext === 'png' ? 'image/png'
-      : ext === 'gif' ? 'image/gif'
-      : ext === 'webp' ? 'image/webp'
       : 'application/octet-stream';
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('X-Frame-Options', 'ALLOWALL');
-    if (dl === '1') {
-      res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
-    } else {
-      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
-    }
+    res.setHeader('Content-Disposition',
+      dl === '1'
+        ? `attachment; filename="${encodeURIComponent(filename)}"`
+        : `inline; filename="${encodeURIComponent(filename)}"`
+    );
 
-    // Helper: extract public_id, resource_type AND delivery_type from a Cloudinary URL
-    // e.g. https://res.cloudinary.com/mycloud/raw/upload/v123/etcc/file.pdf      → deliveryType='upload'
-    //   or https://res.cloudinary.com/mycloud/image/authenticated/etcc/photo.jpg → deliveryType='authenticated'
-    const extractCloudinaryInfo = (url: string): { publicId: string; resourceType: string; deliveryType: string } | null => {
-      const match = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
-      if (!match) return null;
-      // Remove file extension for images (Cloudinary public_id has no ext), keep for raw/pdf
-      let publicId = match[3];
-      const resType = match[1];
-      const deliveryType = match[2]; // 'upload' or 'authenticated'
-      if (resType !== 'raw') {
-        publicId = publicId.replace(/\.[^/.]+$/, '');
-      }
-      return { publicId, resourceType: resType, deliveryType };
+    // ── Extract public_id + resource_type from Cloudinary CDN URL ─────────────
+    const extractInfo = (url: string): { publicId: string; resourceType: string } | null => {
+      // Matches: res.cloudinary.com/{cloud}/{image|video|raw}/{upload|authenticated}[/v123]/{public_id}
+      const m = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
+      if (!m) return null;
+      return { publicId: m[2], resourceType: m[1] };
     };
 
-    // Helper: generate a private_download_url via Cloudinary API
-    // Unlike CDN signed URLs, this uses api.cloudinary.com with API credentials embedded —
-    // it bypasses ALL delivery type / strict-mode restrictions and always works server-side.
-    // Generated URL format: https://api.cloudinary.com/v1_1/{cloud}/{type}/download?public_id=...&api_key=...&signature=...
-    const buildPrivateDownloadUrl = (publicId: string, resourceType: string): string | null => {
+    // ── Build Cloudinary REST API download URL with manual SHA1 signature ─────
+    // Uses api.cloudinary.com — works regardless of CDN delivery restrictions.
+    // Signature algorithm: SHA1(sorted_params_string + api_secret)
+    const buildApiUrl = (publicId: string, resourceType: string): string | null => {
       if (!USE_CLOUDINARY) return null;
       try {
-        let pid = publicId;
-        let format = 'pdf';
-
-        // Extract extension as format, strip it from pid for raw resources
-        const dotIdx = publicId.lastIndexOf('.');
-        if (dotIdx !== -1) {
-          format = publicId.substring(dotIdx + 1).toLowerCase() || 'pdf';
-          if (resourceType === 'raw') pid = publicId.substring(0, dotIdx); // Cloudinary wants pid without ext here
-        }
-
-        const apiUrl = cloudinary.utils.private_download_url(pid, format, {
-          resource_type: resourceType,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
+        const timestamp = Math.floor(Date.now() / 1000);
+        // params to sign: sorted alphabetically, joined as key=value&...
+        const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}`;
+        const signature = require('crypto')
+          .createHash('sha1')
+          .update(paramsToSign + CLOUD_SECRET)
+          .digest('hex');
+        const qs = new URLSearchParams({
+          public_id: publicId,
+          api_key: CLOUD_KEY,
+          timestamp: String(timestamp),
+          signature,
         });
-        this.logger.log(`[Proxy] Generated private_download_url: ${apiUrl.substring(0, 120)}`);
-        return apiUrl;
+        const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/download?${qs.toString()}`;
+        this.logger.log(`[Proxy] API download URL: ${url.substring(0, 120)}`);
+        return url;
       } catch (e: any) {
-        this.logger.error(`[Proxy] private_download_url failed: ${e.message}`);
-        // Last-resort fallback: signed CDN URL (works when strict-delivery mode is off)
-        try {
-          return cloudinary.url(publicId, {
-            resource_type: resourceType,
-            type: 'upload',
-            sign_url: true,
-            secure: true,
-          });
-        } catch { return null; }
+        this.logger.error(`[Proxy] buildApiUrl error: ${e.message}`);
+        return null;
       }
     };
 
-    // Helper: stream a URL to the response
-    const streamUrl = (fetchUrl: string, isRetry = false): Promise<void> => {
-      this.logger.log(`[Proxy] ${isRetry ? 'Retry via API' : 'Fetching'}: ${fetchUrl.substring(0, 100)}...`);
+    // ── Stream helper with redirect following (max 5 hops) ───────────────────
+    const stream = (fetchUrl: string, hops = 0): Promise<void> => {
+      this.logger.log(`[Proxy] Fetching (hop ${hops}): ${fetchUrl.substring(0, 100)}`);
       const https = require('https');
       const http = require('http');
-      const httpLib = fetchUrl.startsWith('https') ? https : http;
+      const lib = fetchUrl.startsWith('https') ? https : http;
 
       return new Promise<void>((resolve) => {
-        const request = httpLib.get(fetchUrl, (response: any) => {
-          this.logger.log(`[Proxy] Cloudinary status: ${response.statusCode}`);
+        const req = lib.get(fetchUrl, (response: any) => {
+          const sc = response.statusCode as number;
+          this.logger.log(`[Proxy] Status: ${sc}`);
 
-          // On 401, retry via Cloudinary API with embedded credentials (bypasses delivery-type restrictions)
-          if (response.statusCode === 401 && !isRetry && USE_CLOUDINARY) {
-            response.resume(); // drain the response body
-            this.logger.warn('[Proxy] Got 401 — switching to private_download_url (API credentials)');
-            const info = extractCloudinaryInfo(targetUrl);
-            if (info) {
-              const apiUrl = buildPrivateDownloadUrl(info.publicId, info.resourceType);
-              if (apiUrl) {
-                streamUrl(apiUrl, true).then(resolve);
-                return;
-              }
+          // ── Follow redirects ────────────────────────────────────────────────
+          if ([301, 302, 303, 307, 308].includes(sc) && hops < 5) {
+            response.resume();
+            const location = response.headers['location'] as string | undefined;
+            if (location) {
+              stream(location, hops + 1).then(resolve);
+              return;
             }
-            // Could not build API URL
+          }
+
+          // ── Error ──────────────────────────────────────────────────────────
+          if (sc >= 400) {
+            this.logger.error(`[Proxy] Error ${sc} at ${fetchUrl.substring(0, 80)}`);
             if (!res.headersSent) {
-              res.status(403).json({ message: 'Fichier non accessible (accès refusé)' });
+              (res as any).status(sc).json({ message: `Fichier non accessible (${sc})` });
             }
             resolve();
             return;
           }
 
-          if (response.statusCode >= 400) {
-            this.logger.error(`[Proxy] Cloudinary error ${response.statusCode} for ${fetchUrl.substring(0, 80)}`);
-            if (!res.headersSent) {
-              res.status(response.statusCode).json({ message: `Fichier non accessible (${response.statusCode})` });
-            }
-            resolve();
-            return;
-          }
-
-          // Utiliser le Content-Type réel renvoyé par Cloudinary
-          const realCt = response.headers['content-type'];
+          // ── Stream ─────────────────────────────────────────────────────────
           if (!res.headersSent) {
-            res.setHeader('Content-Type', realCt || defaultCt);
+            res.setHeader('Content-Type', response.headers['content-type'] || defaultCt);
+            if (response.headers['content-length']) {
+              res.setHeader('Content-Length', response.headers['content-length']);
+            }
           }
-
-          // Transférer les headers de cache
-          if (response.headers['cache-control'] && !res.headersSent) {
-            res.setHeader('Cache-Control', response.headers['cache-control']);
-          }
-          if (response.headers['content-length'] && !res.headersSent) {
-            res.setHeader('Content-Length', response.headers['content-length']);
-          }
-
           response.pipe(res);
           response.on('end', resolve);
           response.on('error', (err: any) => {
@@ -576,39 +539,29 @@ export class UploadController implements OnModuleInit {
           });
         });
 
-        request.on('error', (err: any) => {
+        req.on('error', (err: any) => {
           this.logger.error(`[Proxy] Request error: ${err.message}`);
-          if (!res.headersSent) {
-            res.status(500).json({ message: 'Erreur de connexion: ' + err.message });
-          }
+          if (!res.headersSent) (res as any).status(500).json({ message: err.message });
           resolve();
         });
 
-        request.setTimeout(15000, () => {
-          this.logger.error('[Proxy] Timeout after 15s');
-          request.destroy();
-          if (!res.headersSent) {
-            res.status(504).json({ message: 'Timeout: fichier non accessible' });
-          }
+        req.setTimeout(20000, () => {
+          req.destroy();
+          if (!res.headersSent) (res as any).status(504).json({ message: 'Timeout' });
           resolve();
         });
       });
     };
 
-    // ── Stratégie : utiliser private_download_url en premier si credentials dispo ──────────────
-    // Évite le 401 sur le CDN public en passant directement par l'API Cloudinary authentifiée.
-    // Fonctionne quel que soit le mode de livraison (upload / authenticated / strict delivery).
-    if (USE_CLOUDINARY) {
-      const info = extractCloudinaryInfo(targetUrl);
-      if (info) {
-        const apiUrl = buildPrivateDownloadUrl(info.publicId, info.resourceType);
-        if (apiUrl) {
-          return streamUrl(apiUrl, false);  // fetch from api.cloudinary.com directly
-        }
-      }
+    // ── Strategy: always use Cloudinary REST API with credentials ────────────
+    // This bypasses all CDN delivery restrictions (strict mode, authenticated type, etc.)
+    const info = extractInfo(targetUrl);
+    if (info && USE_CLOUDINARY) {
+      const apiUrl = buildApiUrl(info.publicId, info.resourceType);
+      if (apiUrl) return stream(apiUrl);
     }
 
-    // Fallback: tentative CDN directe (cas sans Cloudinary credentials)
-    return streamUrl(targetUrl);
+    // Fallback: direct CDN fetch (works if resource is fully public)
+    return stream(targetUrl);
   }
 }
