@@ -62,10 +62,12 @@ export class BCService {
 
   /**
    * Importer un BC du client (OCR ou manuel)
+   * Peut optionnellement être lié à un devis existant via devis_id
    */
   async importBC(data: {
     client_id: string;
     project_id?: string;
+    devis_id?: string;
     source: BCSource;
     imported_file_url?: string;
     ocr_raw_data?: any;
@@ -74,12 +76,23 @@ export class BCService {
   }, createdBy: string) {
     const number = await this.generateNumber();
 
+    // Si un devis est lié, récupérer le client/project depuis ce devis si pas fournis
+    let resolvedClientId = data.client_id;
+    let resolvedProjectId = data.project_id;
+    if (data.devis_id) {
+      const devis = await this.prisma.devis.findUnique({ where: { id: data.devis_id } });
+      if (!devis) throw new (require('@nestjs/common').NotFoundException)('Devis lié introuvable');
+      if (!resolvedClientId) resolvedClientId = devis.client_id;
+      if (!resolvedProjectId) resolvedProjectId = devis.project_id ?? undefined;
+    }
+
     return this.prisma.bonCommande.create({
       data: {
         number,
         source: data.source,
-        client_id: data.client_id,
-        project_id: data.project_id,
+        client_id: resolvedClientId,
+        project_id: resolvedProjectId,
+        devis_id: data.devis_id || null,
         created_by: createdBy,
         imported_file_url: data.imported_file_url,
         ocr_raw_data: data.ocr_raw_data,
@@ -94,7 +107,11 @@ export class BCService {
           })),
         },
       } as any,
-      include: { lines: true },
+      include: {
+        lines: true,
+        client: { select: { commercial_name: true } },
+        devis: { select: { number: true } },
+      },
     });
   }
 
