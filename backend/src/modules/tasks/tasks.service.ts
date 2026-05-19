@@ -154,9 +154,9 @@ export class TasksService {
     const updateData: any = {};
     if (data.title       !== undefined) updateData.title       = data.title;
     if (data.description !== undefined) updateData.description = data.description || null;
-    if (data.priority    !== undefined) updateData.priority    = Number(data.priority);
+    if (data.priority    !== undefined) updateData.priority    = Math.round(Number(data.priority));
     if (data.status      !== undefined) updateData.status      = data.status;
-    if (data.progress    !== undefined) updateData.progress    = Number(data.progress);
+    if (data.progress    !== undefined) updateData.progress    = Math.round(Number(data.progress));
 
     // due_date: empty string → null (clear the date), ISO string → Date
     if (data.due_date !== undefined) {
@@ -167,20 +167,29 @@ export class TasksService {
       }
     }
 
+    // Auto-manage completed_at based on status transition
+    if (updateData.status === 'DONE') {
+      updateData.completed_at = new Date();
+      if (updateData.progress === undefined) updateData.progress = 100;
+    } else if (updateData.status !== undefined) {
+      // Switching away from DONE — clear completed_at
+      updateData.completed_at = null;
+    }
+
     /**
-     * Use an interactive transaction to:
-     *  1. Update task scalar fields
-     *  2. Replace assignments atomically (delete-then-createMany)
-     *  3. Return the full task with relations via a final findUnique
+     * Fully-separated transaction to avoid PrismaClientValidationError:
+     *  - Step 1: scalar-only task.update  (NEVER mix nested-write + include in same call)
+     *  - Step 2: replace assignments atomically
+     *  - Step 3: fresh findUnique with includes
      *
-     * We intentionally separate the assignment operations from the task.update()
-     * call to avoid PrismaClientValidationError caused by mixing nested-write
-     * (data.assignments.create) with include (include.assignments) in the same
-     * update query inside a transaction context.
+     * Guard: skip Step 1 entirely when updateData is empty to avoid
+     * "Argument data must not be empty" from Prisma.
      */
     return this.prisma.$transaction(async (tx) => {
-      // Step 1 — update scalar fields
-      await tx.task.update({ where: { id }, data: updateData });
+      // Step 1 — update scalar fields (guard against empty payload)
+      if (Object.keys(updateData).length > 0) {
+        await tx.task.update({ where: { id }, data: updateData });
+      }
 
       // Step 2 — replace assignments if provided
       if (data.assignee_ids !== undefined) {
@@ -188,8 +197,8 @@ export class TasksService {
 
         if (data.assignee_ids.length > 0) {
           await tx.taskAssignment.createMany({
-            data: data.assignee_ids.map((userId) => ({ task_id: id, user_id: userId })),
-            skipDuplicates: true,  // safety net against duplicates
+            data: data.assignee_ids.map((uid) => ({ task_id: id, user_id: uid })),
+            skipDuplicates: true,
           });
         }
       }

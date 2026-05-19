@@ -54,7 +54,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.error(`Prisma ${exception.code}: ${exception.message}`, { meta: exception.meta });
     } else if (exception instanceof Prisma.PrismaClientValidationError) {
       status = HttpStatus.BAD_REQUEST;
-      message = 'Données invalides envoyées à la base de données';
+      // Include a trimmed version of the validation message to help frontend display root cause
+      const detail = exception.message?.split('\n').find(l => l.trim().startsWith('Argument')) || '';
+      message = detail
+        ? `Données invalides : ${detail.trim()}`
+        : 'Données invalides envoyées à la base de données';
       this.logger.error('Prisma validation error:', exception.message);
     } else if (exception instanceof Prisma.PrismaClientInitializationError) {
       status = HttpStatus.SERVICE_UNAVAILABLE;
