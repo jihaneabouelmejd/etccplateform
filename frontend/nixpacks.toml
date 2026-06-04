@@ -2,11 +2,14 @@
 # Railway NixPacks config — ETCC Frontend (Next.js)
 # ============================================================
 
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
 [phases.install]
 cmds = ["npm install --legacy-peer-deps"]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["NEXT_TELEMETRY_DISABLED=1 npm run build"]
 
 [start]
 cmd = "npm start"
