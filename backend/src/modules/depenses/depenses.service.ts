@@ -8,6 +8,8 @@ export class DepensesService {
 
   async create(data: {
     project_id?: string;
+    prestation_id?: string;
+    prestation_nom?: string;
     category: ExpenseCategory;
     payment_method?: string;
     amount: number;
@@ -24,6 +26,8 @@ export class DepensesService {
     return this.prisma.expense.create({
       data: {
         project_id:     data.project_id || null,
+        prestation_id:  data.prestation_id || null,
+        prestation_nom: data.prestation_nom || null,
         category:       data.category,
         amount:         data.amount,
         tva_amount:     data.tva_amount ?? null,
@@ -49,16 +53,17 @@ export class DepensesService {
 
   async findAll(params?: {
     status?: ExpenseStatus; category?: ExpenseCategory;
-    project_id?: string; submitted_by?: string;
-    month?: number; year?: number; page?: number;
+    project_id?: string; prestation_id?: string; submitted_by?: string;
+    month?: number; year?: number; page?: number; limit?: number;
   }) {
     const page = params?.page || 1;
-    const limit = 50;
+    const limit = params?.limit || 50;
     const where: any = {};
 
     if (params?.status) where.status = params.status;
     if (params?.category) where.category = params.category;
     if (params?.project_id) where.project_id = params.project_id;
+    if (params?.prestation_id) where.prestation_id = params.prestation_id;
     if (params?.submitted_by) where.submitted_by = params.submitted_by;
 
     if (params?.month && params?.year) {
@@ -102,6 +107,8 @@ export class DepensesService {
     if (data.category !== undefined) updateData.category = data.category;
     if (data.payment_method !== undefined) updateData.payment_method = data.payment_method;
     if (data.project_id !== undefined) updateData.project_id = data.project_id || null;
+    if (data.prestation_id !== undefined) updateData.prestation_id = data.prestation_id || null;
+    if (data.prestation_nom !== undefined) updateData.prestation_nom = data.prestation_nom || null;
     if (data.date !== undefined) updateData.date = data.date;
     if (data.notes !== undefined) updateData.notes = data.notes;
     if (data.payment_method !== undefined) updateData.payment_method = data.payment_method as PaymentType || null;

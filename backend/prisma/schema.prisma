@@ -1023,6 +1023,10 @@ model Expense {
   id              String          @id @default(uuid())
   project_id      String?
 
+  // Lien prestation (localStorage-based, pas FK)
+  prestation_id   String?
+  prestation_nom  String?
+
   category        ExpenseCategory
   amount          Decimal         @db.Decimal(10, 2)
   tva_amount      Decimal?        @db.Decimal(10, 2)

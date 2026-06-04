@@ -26,11 +26,13 @@ export class DepensesController {
     @Query('status') status?: ExpenseStatus,
     @Query('category') category?: ExpenseCategory,
     @Query('project_id') projectId?: string,
+    @Query('prestation_id') prestationId?: string,
     @Query('month') month?: number,
     @Query('year') year?: number,
     @Query('page') page?: number,
+    @Query('limit') limit?: number,
   ) {
-    return this.depenses.findAll({ status, category, project_id: projectId, month, year, page });
+    return this.depenses.findAll({ status, category, project_id: projectId, prestation_id: prestationId, month, year, page, limit: limit ? Number(limit) : undefined });
   }
 
   @Get('stats')
@@ -44,10 +46,11 @@ export class DepensesController {
   findMine(
     @CurrentUser('id') userId: string,
     @Query('page') page?: number,
+    @Query('limit') limit?: number,
     @Query('category') category?: ExpenseCategory,
     @Query('status') status?: ExpenseStatus,
   ) {
-    return this.depenses.findAll({ submitted_by: userId, page, category, status });
+    return this.depenses.findAll({ submitted_by: userId, page, limit: limit ? Number(limit) : undefined, category, status });
   }
 
   @Get(':id')
