@@ -354,15 +354,16 @@ export default function DepensesPage() {
 
   const groupByPrestation = (items: any[]) => {
     const acc: Record<string,any> = {};
-    items.filter(d => d.prestation_id).forEach(d => {
-      const key = d.prestation_id;
-      const name = d.prestation_nom || key;
+    // Group by prestation_id if available, else by prestation_nom
+    items.filter(d => d.prestation_id || d.prestation_nom).forEach(d => {
+      const key = d.prestation_id || `__nom__${d.prestation_nom}`;
+      const name = d.prestation_nom || d.prestation_id || 'Prestation';
       if (!acc[key]) acc[key] = { key, name, items:[], total:0, approved:0 };
       acc[key].items.push(d); acc[key].total += Number(d.amount);
       if (d.status==='APPROVED') acc[key].approved += Number(d.amount);
     });
-    // Also include items without project_id AND without prestation_id as "Sans affectation"
-    const orphans = items.filter(d => !d.project_id && !d.prestation_id);
+    // Only truly unaffiliated items (no project, no prestation_id, no prestation_nom)
+    const orphans = items.filter(d => !d.project_id && !d.prestation_id && !d.prestation_nom);
     if (orphans.length > 0) {
       acc['__none__'] = { key:'__none__', name:'Sans affectation', items:orphans, total:orphans.reduce((s:number,d:any)=>s+Number(d.amount),0), approved:orphans.filter((d:any)=>d.status==='APPROVED').reduce((s:number,d:any)=>s+Number(d.amount),0) };
     }
@@ -507,15 +508,15 @@ export default function DepensesPage() {
 
   const moByPrestation = (() => {
     const acc: Record<string,any> = {};
-    moList.filter(d => d.prestation_id).forEach(d => {
-      const key = d.prestation_id;
-      const name = d.prestation_nom || key;
+    moList.filter(d => d.prestation_id || d.prestation_nom).forEach(d => {
+      const key = d.prestation_id || `__nom__${d.prestation_nom}`;
+      const name = d.prestation_nom || d.prestation_id || 'Prestation';
       if (!acc[key]) acc[key] = { key, name, items:[], total:0, paye:0, pending:0 };
       acc[key].items.push(d); acc[key].total += Number(d.amount);
       if (d.status==='APPROVED') acc[key].paye += Number(d.amount);
       if (d.status==='PENDING') acc[key].pending += Number(d.amount);
     });
-    const orphans = moList.filter(d => !d.project_id && !d.prestation_id);
+    const orphans = moList.filter(d => !d.project_id && !d.prestation_id && !d.prestation_nom);
     if (orphans.length) acc['__none__'] = { key:'__none__', name:'Sans affectation', items:orphans, total:orphans.reduce((s:number,d:any)=>s+Number(d.amount),0), paye:orphans.filter((d:any)=>d.status==='APPROVED').reduce((s:number,d:any)=>s+Number(d.amount),0), pending:orphans.filter((d:any)=>d.status==='PENDING').reduce((s:number,d:any)=>s+Number(d.amount),0) };
     return Object.values(acc).sort((a:any,b:any)=>b.total-a.total);
   })();
@@ -673,47 +674,89 @@ export default function DepensesPage() {
             </div>
           )}
 
-          {/* KPIs par période */}
-          {isMgr && (
-            <div className="bg-gradient-to-br from-honey-beige-soft to-honey-cream border border-honey-beige-soft rounded-lg p-4 mb-4">
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-honey-caramel">Total par période</p>
-                <PeriodSelector/>
-              </div>
-              {/* Chantiers */}
-              <p style={{ fontSize:10, fontWeight:700, color:'#8E5915', margin:'0 0 6px', textTransform:'uppercase' }}>📍 Chantiers</p>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:10 }}>
-                <div className="bg-white rounded-lg border border-honey-beige-soft" style={{ padding:'8px 14px', minWidth:120 }}>
-                  <p style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', color:'#8E5915', marginBottom:3 }}>Total</p>
-                  <p style={{ fontSize:16, fontWeight:800, color:'#F4B315', fontFamily:'monospace', margin:0 }}>
-                    {formatCurrency(filterByPeriod(depenses,kpiPeriod).filter(d=>d.project_id&&!d.prestation_id).reduce((s,d)=>s+Number(d.amount),0))}
-                  </p>
+          {/* KPIs tableau par période */}
+          {isMgr && (() => {
+            const periods = ['semaine','mois','trimestre','annee'] as const;
+            const periodLabel: Record<string,string> = { semaine:'Semaine', mois:'Mois', trimestre:'Trimestre', annee:'Année' };
+            const chantierRows = groupByChantier(depenses);
+            const prestationRows = groupByPrestation(depenses).filter(g => g.key !== '__none__');
+            const getTotal = (key: string, period: string) => {
+              const filtered = filterByPeriod(depenses, period);
+              if (key === '__chantiers__') return filtered.filter(d=>d.project_id&&!d.prestation_id&&!d.prestation_nom).reduce((s,d)=>s+Number(d.amount),0);
+              if (key === '__prestations__') return filtered.filter(d=>d.prestation_id||d.prestation_nom).reduce((s,d)=>s+Number(d.amount),0);
+              const isChantier = chantierRows.find(g=>g.key===key);
+              if (isChantier) return filtered.filter(d=>(d.project?.id||d.project_id)===key&&!d.prestation_id&&!d.prestation_nom).reduce((s,d)=>s+Number(d.amount),0);
+              // prestation
+              const prestKey = key.startsWith('__nom__') ? undefined : key;
+              const prestNom = key.startsWith('__nom__') ? key.replace('__nom__','') : undefined;
+              return filtered.filter(d => prestKey ? d.prestation_id===prestKey : d.prestation_nom===prestNom).reduce((s,d)=>s+Number(d.amount),0);
+            };
+            const cellStyle = (v:number, bold=false): React.CSSProperties => ({
+              padding:'7px 12px', textAlign:'right' as const, fontFamily:'monospace',
+              fontSize: bold ? 12 : 11, fontWeight: bold ? 800 : 600,
+              color: v === 0 ? '#D3AF85' : '#1A141A',
+            });
+            return (
+              <div style={{ background:'white', border:'1px solid #F5E6D3', borderRadius:12, marginBottom:16, overflow:'hidden' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 16px', background:'linear-gradient(to right, #FBF6EE, #FFF8EE)', borderBottom:'1px solid #F5E6D3' }}>
+                  <p style={{ margin:0, fontSize:11, fontWeight:800, color:'#1A141A', textTransform:'uppercase', letterSpacing:0.5 }}>Total par période</p>
                 </div>
-                {groupByChantier(filterByPeriod(depenses,kpiPeriod)).map(g => (
-                  <div key={g.key} className="bg-white rounded-lg border border-honey-beige-soft" style={{ padding:'8px 14px', minWidth:120, maxWidth:180 }}>
-                    <p style={{ fontSize:9, fontWeight:700, color:'#8E5915', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={g.name}>{g.name}</p>
-                    <p style={{ fontSize:15, fontWeight:800, color:'#1A141A', fontFamily:'monospace', margin:0 }}>{formatCurrency(g.total)}</p>
-                  </div>
-                ))}
-              </div>
-              {/* Prestations */}
-              <p style={{ fontSize:10, fontWeight:700, color:'#8E5915', margin:'0 0 6px', textTransform:'uppercase' }}>📋 Prestations</p>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                <div className="bg-white rounded-lg border border-honey-beige-soft" style={{ padding:'8px 14px', minWidth:120 }}>
-                  <p style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', color:'#8E5915', marginBottom:3 }}>Total</p>
-                  <p style={{ fontSize:16, fontWeight:800, color:'#8B5CF6', fontFamily:'monospace', margin:0 }}>
-                    {formatCurrency(filterByPeriod(depenses,kpiPeriod).filter(d=>d.prestation_id).reduce((s,d)=>s+Number(d.amount),0))}
-                  </p>
+                <div style={{ overflowX:'auto' }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11 }}>
+                    <thead>
+                      <tr style={{ background:'#FDF6E9' }}>
+                        <th style={{ padding:'8px 14px', textAlign:'left', fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.4, borderBottom:'1px solid #F5E6D3', minWidth:160 }}>Chantier / Prestation</th>
+                        {periods.map(p => (
+                          <th key={p} style={{ padding:'8px 12px', textAlign:'right', fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.4, borderBottom:'1px solid #F5E6D3', minWidth:100 }}>{periodLabel[p]}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* CHANTIERS */}
+                      {chantierRows.length > 0 && (
+                        <>
+                          <tr style={{ background:'#FFFDF5' }}>
+                            <td colSpan={5} style={{ padding:'5px 14px', fontSize:9, fontWeight:800, color:'#F4B315', textTransform:'uppercase', letterSpacing:0.5, borderBottom:'1px solid #F5E6D3' }}>📍 Chantiers</td>
+                          </tr>
+                          {chantierRows.map((g:any) => (
+                            <tr key={g.key} style={{ borderBottom:'1px solid #FAF0E4' }}>
+                              <td style={{ padding:'7px 14px', fontSize:12, color:'#1A141A', fontWeight:600, paddingLeft:20 }}>{g.name}</td>
+                              {periods.map(p => { const v = getTotal(g.key, p); return <td key={p} style={cellStyle(v)}>{v===0?'—':formatCurrency(v)}</td>; })}
+                            </tr>
+                          ))}
+                          <tr style={{ background:'#FDF6E9', borderBottom:'2px solid #F5E6D3' }}>
+                            <td style={{ padding:'6px 14px', fontSize:10, fontWeight:800, color:'#8E5915' }}>Total chantiers</td>
+                            {periods.map(p => { const v = getTotal('__chantiers__', p); return <td key={p} style={cellStyle(v,true)}>{v===0?'—':formatCurrency(v)}</td>; })}
+                          </tr>
+                        </>
+                      )}
+                      {/* PRESTATIONS */}
+                      {prestationRows.length > 0 && (
+                        <>
+                          <tr style={{ background:'#FFFDF5' }}>
+                            <td colSpan={5} style={{ padding:'5px 14px', fontSize:9, fontWeight:800, color:'#8B5CF6', textTransform:'uppercase', letterSpacing:0.5, borderBottom:'1px solid #F5E6D3' }}>📋 Prestations</td>
+                          </tr>
+                          {prestationRows.map((g:any) => (
+                            <tr key={g.key} style={{ borderBottom:'1px solid #FAF0E4' }}>
+                              <td style={{ padding:'7px 14px', fontSize:12, color:'#1A141A', fontWeight:600, paddingLeft:20 }}>{g.name}</td>
+                              {periods.map(p => { const v = getTotal(g.key, p); return <td key={p} style={cellStyle(v)}>{v===0?'—':formatCurrency(v)}</td>; })}
+                            </tr>
+                          ))}
+                          <tr style={{ background:'#F5F3FF', borderBottom:'2px solid #EDE9FE' }}>
+                            <td style={{ padding:'6px 14px', fontSize:10, fontWeight:800, color:'#8B5CF6' }}>Total prestations</td>
+                            {periods.map(p => { const v = getTotal('__prestations__', p); return <td key={p} style={{ ...cellStyle(v,true), color: v===0?'#C4B5FD':'#8B5CF6' }}>{v===0?'—':formatCurrency(v)}</td>; })}
+                          </tr>
+                        </>
+                      )}
+                      {chantierRows.length === 0 && prestationRows.length === 0 && (
+                        <tr><td colSpan={5} style={{ padding:'20px', textAlign:'center', color:'#B8A090', fontSize:12 }}>Aucune dépense enregistrée</td></tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-                {groupByPrestation(filterByPeriod(depenses,kpiPeriod)).filter(g=>g.key!=='__none__').map(g => (
-                  <div key={g.key} className="bg-white rounded-lg border border-honey-beige-soft" style={{ padding:'8px 14px', minWidth:120, maxWidth:180 }}>
-                    <p style={{ fontSize:9, fontWeight:700, color:'#8E5915', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={g.name}>{g.name}</p>
-                    <p style={{ fontSize:15, fontWeight:800, color:'#1A141A', fontFamily:'monospace', margin:0 }}>{formatCurrency(g.total)}</p>
-                  </div>
-                ))}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Filtre statut */}
           <div style={{ display:'flex', gap:6, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
@@ -852,18 +895,30 @@ export default function DepensesPage() {
                 {/* Par chantier */}
                 {(() => {
                   const byChantier: Record<string,any> = {};
-                  dettes.filter(d=>d.project_id&&!d.prestation_id).forEach(d => {
+                  dettes.filter(d=>d.project_id&&!d.prestation_id&&!d.prestation_nom).forEach(d => {
                     const key = d.project_id; const name = d.project?.name || 'Chantier';
-                    if (!byChantier[key]) byChantier[key] = { name, items:[] };
+                    if (!byChantier[key]) byChantier[key] = { name, items:[], total:0, reste:0 };
                     byChantier[key].items.push(d);
+                    byChantier[key].total += Number(d.montant);
+                    byChantier[key].reste += Number(d.montant) - Number(d.montant_paye);
                   });
                   const groups = Object.values(byChantier);
                   return groups.length > 0 && (
                     <div style={{ marginBottom:20 }}>
-                      <p style={{ fontSize:12, fontWeight:800, color:'#1A141A', marginBottom:8 }}>📍 Dettes par Chantier</p>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                        <p style={{ fontSize:12, fontWeight:800, color:'#1A141A', margin:0 }}>📍 Dettes par Chantier</p>
+                        <span style={{ fontSize:11, color:'#EF4444', fontWeight:700, fontFamily:'monospace' }}>
+                          Reste: {formatCurrency(groups.reduce((s,g:any)=>s+g.reste,0))}
+                        </span>
+                      </div>
                       {groups.map((g:any) => (
-                        <div key={g.name} style={{ marginBottom:8 }}>
-                          <p style={{ fontSize:11, fontWeight:700, color:'#8E5915', marginBottom:6, paddingLeft:8, borderLeft:'3px solid #F4B315' }}>{g.name}</p>
+                        <div key={g.name} style={{ marginBottom:10 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingLeft:8, borderLeft:'3px solid #F4B315', marginBottom:6 }}>
+                            <p style={{ fontSize:11, fontWeight:700, color:'#8E5915', margin:0 }}>{g.name}</p>
+                            <span style={{ fontSize:10, color:'#8E5915', fontFamily:'monospace' }}>
+                              {formatCurrency(g.total)} · reste <span style={{ color:'#EF4444', fontWeight:700 }}>{formatCurrency(g.reste)}</span>
+                            </span>
+                          </div>
                           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                             {g.items.map((d:any) => renderDetteCard(d))}
                           </div>
@@ -875,18 +930,30 @@ export default function DepensesPage() {
                 {/* Par prestation */}
                 {(() => {
                   const byPrest: Record<string,any> = {};
-                  dettes.filter(d=>d.prestation_id).forEach(d => {
-                    const key = d.prestation_id; const name = d.prestation_nom || key;
-                    if (!byPrest[key]) byPrest[key] = { name, items:[] };
+                  dettes.filter(d=>d.prestation_id||d.prestation_nom).forEach(d => {
+                    const key = d.prestation_id || `__nom__${d.prestation_nom}`; const name = d.prestation_nom || d.prestation_id;
+                    if (!byPrest[key]) byPrest[key] = { name, items:[], total:0, reste:0 };
                     byPrest[key].items.push(d);
+                    byPrest[key].total += Number(d.montant);
+                    byPrest[key].reste += Number(d.montant) - Number(d.montant_paye);
                   });
                   const groups = Object.values(byPrest);
                   return groups.length > 0 && (
                     <div style={{ marginBottom:20 }}>
-                      <p style={{ fontSize:12, fontWeight:800, color:'#1A141A', marginBottom:8 }}>📋 Dettes par Prestation</p>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                        <p style={{ fontSize:12, fontWeight:800, color:'#1A141A', margin:0 }}>📋 Dettes par Prestation</p>
+                        <span style={{ fontSize:11, color:'#EF4444', fontWeight:700, fontFamily:'monospace' }}>
+                          Reste: {formatCurrency(groups.reduce((s,g:any)=>s+g.reste,0))}
+                        </span>
+                      </div>
                       {groups.map((g:any) => (
-                        <div key={g.name} style={{ marginBottom:8 }}>
-                          <p style={{ fontSize:11, fontWeight:700, color:'#8B5CF6', marginBottom:6, paddingLeft:8, borderLeft:'3px solid #8B5CF6' }}>{g.name}</p>
+                        <div key={g.name} style={{ marginBottom:10 }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', paddingLeft:8, borderLeft:'3px solid #8B5CF6', marginBottom:6 }}>
+                            <p style={{ fontSize:11, fontWeight:700, color:'#8B5CF6', margin:0 }}>{g.name}</p>
+                            <span style={{ fontSize:10, color:'#8B5CF6', fontFamily:'monospace' }}>
+                              {formatCurrency(g.total)} · reste <span style={{ color:'#EF4444', fontWeight:700 }}>{formatCurrency(g.reste)}</span>
+                            </span>
+                          </div>
                           <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                             {g.items.map((d:any) => renderDetteCard(d))}
                           </div>
@@ -897,7 +964,7 @@ export default function DepensesPage() {
                 })()}
                 {/* Sans affectation */}
                 {(() => {
-                  const orphans = dettes.filter(d=>!d.project_id&&!d.prestation_id);
+                  const orphans = dettes.filter(d=>!d.project_id&&!d.prestation_id&&!d.prestation_nom);
                   return orphans.length > 0 && (
                     <div>
                       <p style={{ fontSize:12, fontWeight:800, color:'#1A141A', marginBottom:8 }}>⚪ Sans affectation</p>
