@@ -90,10 +90,16 @@ export default function DepensesPage() {
   const [payDetteError, setPayDetteError] = useState('');
   const [deleteDetteTarget, setDeleteDetteTarget] = useState<any>(null);
 
+  /* ══════════════════ GROUP / VIEW state ══════════════════ */
+  const [groupMode, setGroupMode] = useState<'list'|'chantier'|'prestation'>('list');
+  const [moGroupMode, setMoGroupMode] = useState<'travailleur'|'chantier'|'prestation'>('travailleur');
+  const [kpiPeriod, setKpiPeriod] = useState<'semaine'|'mois'|'trimestre'|'annee'>('mois');
+  const [expandedGroup, setExpandedGroup] = useState<string|null>(null);
+  const [expandedMoGroup, setExpandedMoGroup] = useState<string|null>(null);
+
   useEffect(() => {
     const mgr = isManager();
     setCanApp(mgr); setIsMgr(mgr);
-    // Dettes tab is admin/gérant only — redirect employee away if needed
     if (!mgr && tab === 'dettes') setTab('depenses');
   }, []);
 
@@ -111,11 +117,10 @@ export default function DepensesPage() {
   const load = () => {
     setLoading(true);
     const endpoint = isMgr ? '/depenses' : '/depenses/my';
-    const params: any = {};
+    const params: any = { limit: 500 };
     if (statusFilter) params.status = statusFilter;
 
     const listReq = api.get(endpoint, { params });
-    // Stats endpoint is admin/gérant/comptable only — skip for employees
     const statsReq = isMgr
       ? api.get('/depenses/stats').catch(() => ({ data: null }))
       : Promise.resolve({ data: null });
@@ -194,7 +199,6 @@ export default function DepensesPage() {
   const loadMO = async () => {
     setLoadingMo(true);
     try {
-      // Admin/Gérant: voir tout le monde  |  Employé: voir uniquement ses propres entrées
       const endpoint = isMgr ? '/depenses' : '/depenses/my';
       const res = await api.get(endpoint, { params:{ category:'MAIN_OEUVRE', limit:500 } });
       setMoList(res.data?.data || res.data || []);
@@ -284,6 +288,247 @@ export default function DepensesPage() {
     } catch(e:any) { alert(e?.response?.data?.message||'Erreur'); }
   };
 
+  /* ══════════════════ HELPERS groupement & période ══════════════════ */
+  const filterByPeriod = (items: any[], period: string) => {
+    const now = new Date();
+    if (period === 'semaine') {
+      const start = new Date(now); start.setDate(now.getDate() - now.getDay());
+      start.setHours(0,0,0,0);
+      return items.filter(d => new Date(d.date) >= start);
+    }
+    if (period === 'mois') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return items.filter(d => new Date(d.date) >= start);
+    }
+    if (period === 'trimestre') {
+      const q = Math.floor(now.getMonth() / 3);
+      const start = new Date(now.getFullYear(), q * 3, 1);
+      return items.filter(d => new Date(d.date) >= start);
+    }
+    if (period === 'annee') {
+      const start = new Date(now.getFullYear(), 0, 1);
+      return items.filter(d => new Date(d.date) >= start);
+    }
+    return items;
+  };
+
+  const groupByProject = (items: any[]) => {
+    const acc: Record<string, { name: string; items: any[]; total: number; approved: number }> = {};
+    items.forEach(d => {
+      const key = d.project?.id || '__none__';
+      const name = d.project?.name || 'Sans chantier';
+      if (!acc[key]) acc[key] = { name, items: [], total: 0, approved: 0 };
+      acc[key].items.push(d);
+      acc[key].total += Number(d.amount);
+      if (d.status === 'APPROVED') acc[key].approved += Number(d.amount);
+    });
+    return Object.values(acc).sort((a, b) => b.total - a.total);
+  };
+
+  const groupByCategory = (items: any[]) => {
+    const acc: Record<string, { label: string; key: string; items: any[]; total: number; approved: number }> = {};
+    items.forEach(d => {
+      const key = d.category;
+      if (!acc[key]) acc[key] = { label: catLabel[key] || key, key, items: [], total: 0, approved: 0 };
+      acc[key].items.push(d);
+      acc[key].total += Number(d.amount);
+      if (d.status === 'APPROVED') acc[key].approved += Number(d.amount);
+    });
+    return Object.values(acc).sort((a, b) => b.total - a.total);
+  };
+
+  /* ══════════════════ RENDER ITEM dépense ══════════════════ */
+  const renderDepenseItem = (d: any) => (
+    <div key={d.id} className={cn('flex items-center gap-4 p-4 rounded-lg border transition-all',
+      d.status==='PENDING'?'border-amber-200 bg-amber-50/20':d.status==='APPROVED'?'border-green-200 bg-green-50/20':'border-gray-200 bg-gray-50')}>
+      <div className="w-10 h-10 rounded-lg bg-white border border-honey-beige-soft flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-honey-caramel">
+        {catLabel[d.category]?.slice(0,3)}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-honey-dark truncate">{d.description}</p>
+          {d.receipt_url && (
+            <button onClick={() => setViewScan(d.receipt_url)} title="Voir le scan"
+              className="flex items-center gap-1 text-[10px] text-green-600 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 hover:bg-green-100 transition-all flex-shrink-0">
+              <Camera size={10}/> Scan
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-honey-caramel mt-0.5">
+          {catLabel[d.category]} &bull; {d.project?.name||'Sans chantier'} &bull; {formatDate(d.date)}
+        </p>
+        {isMgr && (d.submitter?.first_name||d.submitter?.last_name) && (
+          <p className="text-[11px] text-honey-caramel mt-0.5">👷 <strong className="text-honey-dark">{d.submitter.first_name} {d.submitter.last_name}</strong></p>
+        )}
+        {d.reject_reason && <p className="text-[11px] text-red-500 mt-0.5">Motif : {d.reject_reason}</p>}
+      </div>
+      <div className="text-right flex-shrink-0">
+        <p className="font-bold text-honey-dark font-mono">{formatCurrency(Number(d.amount))}</p>
+      </div>
+      <span className={cn('badge border text-[10px] flex-shrink-0', statusConfig[d.status]?.cls)}>{statusConfig[d.status]?.label}</span>
+      {canApp && d.status==='PENDING' && (
+        <div className="flex gap-2 flex-shrink-0">
+          <button onClick={() => approve(d.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold hover:bg-green-100 transition-all"><Check size={12}/> Approuver</button>
+          <button onClick={() => { setRejectTarget(d); setRejectReason(''); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 transition-all"><X size={12}/> Refuser</button>
+        </div>
+      )}
+      {(d.status==='PENDING'||canApp) && (
+        <div className="flex gap-1.5 flex-shrink-0">
+          <button onClick={() => openEdit(d)} className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all"><Pencil size={12}/></button>
+          {canApp && <button onClick={() => setDeleteTarget(d)} className="w-7 h-7 rounded-md border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-all"><Trash2 size={12}/></button>}
+        </div>
+      )}
+    </div>
+  );
+
+  /* ══════════════════ RENDER GROUPE accordion ══════════════════ */
+  const renderGroupAccordion = (groups: any[], keyField: 'name'|'label', expandedKey: string|null, setExpanded: (k:string|null)=>void) => (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {groups.length === 0
+        ? <p className="py-12 text-center text-honey-caramel">Aucune dépense</p>
+        : groups.map(g => {
+          const gKey = g[keyField];
+          const isOpen = expandedKey === gKey;
+          return (
+            <div key={gKey} style={{ background:'white', borderRadius:12, border: isOpen ? '1.5px solid #F4B315' : '1px solid #F5E6D3', overflow:'hidden', transition:'border-color 0.15s' }}>
+              <div onClick={() => setExpanded(isOpen ? null : gKey)}
+                style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'14px 20px', cursor:'pointer', background: isOpen ? '#FFFDF5' : 'white' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  {isOpen ? <ChevronDown size={16} color="#8E5915"/> : <ChevronRight size={16} color="#8E5915"/>}
+                  <div>
+                    <p style={{ margin:0, fontSize:14, fontWeight:700, color:'#1A141A' }}>{gKey}</p>
+                    <p style={{ margin:'2px 0 0', fontSize:11, color:'#8E5915' }}>{g.items.length} dépense{g.items.length>1?'s':''}</p>
+                  </div>
+                </div>
+                <div style={{ textAlign:'right' }}>
+                  <p style={{ margin:0, fontSize:15, fontWeight:800, color:'#1A141A', fontFamily:'monospace' }}>{formatCurrency(g.total)}</p>
+                  <p style={{ margin:'2px 0 0', fontSize:10, color:'#10B981', fontWeight:600 }}>✓ {formatCurrency(g.approved)}</p>
+                </div>
+              </div>
+              {isOpen && (
+                <div style={{ borderTop:'1px solid #F5E6D3', padding:'12px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+                  {g.items.map((d:any) => renderDepenseItem(d))}
+                </div>
+              )}
+            </div>
+          );
+        })
+      }
+    </div>
+  );
+
+  /* ══════════════════ MO groupe accordion ══════════════════ */
+  const renderMoGroupAccordion = (groups: any[]) => (
+    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+      {groups.length === 0
+        ? <div style={{ ...card, textAlign:'center', padding:'48px 20px' }}>
+            <Users size={40} style={{ margin:'0 auto 12px', color:'#D3AF85' }}/>
+            <p style={{ fontSize:14, fontWeight:600, color:'#8E5915' }}>Aucune dépense main d'oeuvre</p>
+          </div>
+        : groups.map((g:any) => {
+          const gKey = g.name || g.label;
+          const isOpen = expandedMoGroup === gKey;
+          return (
+            <div key={gKey} style={card}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
+                onClick={() => setExpandedMoGroup(isOpen ? null : gKey)}>
+                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                  <div style={{ width:40, height:40, borderRadius:'50%', background:'linear-gradient(135deg,#F4B315,#E59312)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <span style={{ fontSize:16, fontWeight:900, color:'#1A141A' }}>{gKey[0]?.toUpperCase()}</span>
+                  </div>
+                  <div>
+                    <p style={{ margin:0, fontSize:14, fontWeight:700, color:'#1A141A' }}>{gKey}</p>
+                    <p style={{ margin:'2px 0 0', fontSize:11, color:'#8E5915' }}>{g.items.length} paiement{g.items.length>1?'s':''}</p>
+                  </div>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+                  <div style={{ textAlign:'right' }}>
+                    <p style={{ margin:0, fontSize:13, fontWeight:800, color:'#1A141A', fontFamily:'monospace' }}>{formatCurrency(g.total)}</p>
+                    <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:2 }}>
+                      <span style={{ fontSize:10, color:'#10B981', fontWeight:600 }}>✓ {formatCurrency(g.paye ?? g.approved ?? 0)}</span>
+                      {(g.pending ?? 0) > 0 && <span style={{ fontSize:10, color:'#F97316', fontWeight:600 }}>⏳ {formatCurrency(g.pending)}</span>}
+                    </div>
+                  </div>
+                  {isOpen ? <ChevronDown size={16} color="#8E5915"/> : <ChevronRight size={16} color="#8E5915"/>}
+                </div>
+              </div>
+              {isOpen && (
+                <div style={{ marginTop:14, borderTop:'1px solid #F5E6D3', paddingTop:14 }}>
+                  <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                    <thead>
+                      <tr style={{ background:'#FDF6E9' }}>
+                        {['Date','Description','Chantier','Montant','Statut'].map(h => (
+                          <th key={h} style={{ padding:'7px 12px', textAlign:'left', fontSize:9, fontWeight:700, color:'#8E5915', textTransform:'uppercase', borderBottom:'1px solid #F5E6D3' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...g.items].sort((a:any,b:any) => new Date(b.date).getTime()-new Date(a.date).getTime()).map((d:any,i:number) => (
+                        <tr key={d.id} style={{ borderBottom:'1px solid #F5E6D3', background:i%2===0?'white':'#FFFDF7' }}>
+                          <td style={{ padding:'8px 12px', color:'#5C3A1E' }}>{formatDate(d.date)}</td>
+                          <td style={{ padding:'8px 12px', color:'#1A141A', fontWeight:600 }}>{d.description}</td>
+                          <td style={{ padding:'8px 12px', color:'#8E5915' }}>{d.project?.name||'—'}</td>
+                          <td style={{ padding:'8px 12px', fontFamily:'monospace', fontWeight:700, color:'#1A141A' }}>{formatCurrency(Number(d.amount))}</td>
+                          <td style={{ padding:'8px 12px' }}>
+                            <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:4,
+                              background:d.status==='APPROVED'?'#F0FFF4':d.status==='PENDING'?'#FFFBEB':'#FFF5F5',
+                              color:d.status==='APPROVED'?'#16A34A':d.status==='PENDING'?'#D97706':'#DC2626',
+                              border:`1px solid ${d.status==='APPROVED'?'#86EFAC':d.status==='PENDING'?'#FDE68A':'#FECACA'}` }}>
+                              {statusConfig[d.status]?.label}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })
+      }
+    </div>
+  );
+
+  /* ══════════════════ MO groupé par chantier ══════════════════ */
+  const moByProject = (() => {
+    const acc: Record<string,any> = {};
+    moList.forEach(d => {
+      const key = d.project?.id || '__none__';
+      const name = d.project?.name || 'Sans chantier';
+      if (!acc[key]) acc[key] = { name, items:[], total:0, paye:0, pending:0 };
+      acc[key].items.push(d);
+      acc[key].total += Number(d.amount);
+      if (d.status === 'APPROVED') acc[key].paye += Number(d.amount);
+      if (d.status === 'PENDING')  acc[key].pending += Number(d.amount);
+    });
+    return Object.values(acc).sort((a:any,b:any) => b.total - a.total);
+  })();
+
+  /* ══════════════════ MO groupé par prestation (catégorie) ══════════════════ */
+  const moByPrestation = (() => {
+    const acc: Record<string,any> = {};
+    moList.forEach(d => {
+      const key = d.category;
+      const label = catLabel[key] || key;
+      if (!acc[key]) acc[key] = { name: label, items:[], total:0, paye:0, pending:0 };
+      acc[key].items.push(d);
+      acc[key].total += Number(d.amount);
+      if (d.status === 'APPROVED') acc[key].paye += Number(d.amount);
+      if (d.status === 'PENDING')  acc[key].pending += Number(d.amount);
+    });
+    return Object.values(acc).sort((a:any,b:any) => b.total - a.total);
+  })();
+
+  /* ══════════════════ GROUP TOGGLE style ══════════════════ */
+  const groupToggleBtn = (active: boolean) => ({
+    padding:'5px 13px', borderRadius:6, border:'none', fontSize:11, fontWeight:700 as const, cursor:'pointer' as const,
+    background: active ? 'white' : 'transparent',
+    color: active ? '#8E5915' : '#B8A090',
+    boxShadow: active ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+    transition:'all 0.15s',
+  });
+
   return (
     <div>
       {/* ── Header ── */}
@@ -309,7 +554,7 @@ export default function DepensesPage() {
         {([
           { id:'depenses',    label:'Dépenses',    mgr: false },
           { id:'main_oeuvre', label:"Main d'Œuvre", mgr: false },
-          { id:'dettes',      label:'Dettes',       mgr: true },  // Admin/Gérant uniquement
+          { id:'dettes',      label:'Dettes',       mgr: true },
         ] as const).filter(t => !t.mgr || isMgr).map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ padding:'9px 20px', borderRadius:'8px 8px 0 0', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all 0.15s',
@@ -325,6 +570,7 @@ export default function DepensesPage() {
       {/* ══════════════════ TAB DÉPENSES ══════════════════ */}
       {tab === 'depenses' && (
         <>
+          {/* KPIs mois en cours */}
           {isMgr && (
             <div className="bg-gradient-to-br from-honey-beige-soft to-honey-cream border border-honey-beige-soft rounded-lg p-4 mb-4">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-honey-caramel mb-3">Ce mois-ci</p>
@@ -343,62 +589,89 @@ export default function DepensesPage() {
               </div>
             </div>
           )}
+
+          {/* ── KPIs par période et par chantier ── */}
+          {isMgr && (
+            <div className="bg-gradient-to-br from-honey-beige-soft to-honey-cream border border-honey-beige-soft rounded-lg p-4 mb-4">
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-honey-caramel">Total dépenses par chantier</p>
+                <div style={{ display:'flex', gap:3, background:'white', borderRadius:8, padding:3, border:'1px solid #E8D4B0' }}>
+                  {(['semaine','mois','trimestre','annee'] as const).map(p => (
+                    <button key={p} onClick={() => setKpiPeriod(p)}
+                      style={{ padding:'4px 10px', borderRadius:5, border:'none', fontSize:10, fontWeight:700, cursor:'pointer', transition:'all 0.15s',
+                        background: kpiPeriod===p ? 'linear-gradient(135deg,#F4B315,#E59312)' : 'transparent',
+                        color: kpiPeriod===p ? '#1A141A' : '#8E5915' }}>
+                      {p==='semaine'?'Semaine':p==='mois'?'Mois':p==='trimestre'?'Trimestre':'Année'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {/* Total général période */}
+                <div className="bg-white rounded-lg border border-honey-beige-soft" style={{ padding:'10px 16px', minWidth:130 }}>
+                  <p style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', color:'#8E5915', marginBottom:4 }}>Total général</p>
+                  <p style={{ fontSize:17, fontWeight:800, color:'#F4B315', fontFamily:'monospace', margin:0 }}>
+                    {formatCurrency(filterByPeriod(depenses, kpiPeriod).reduce((s,d)=>s+Number(d.amount),0))}
+                  </p>
+                </div>
+                {/* Par chantier */}
+                {groupByProject(filterByPeriod(depenses, kpiPeriod)).map(g => (
+                  <div key={g.name} className="bg-white rounded-lg border border-honey-beige-soft" style={{ padding:'10px 16px', minWidth:130, maxWidth:200 }}>
+                    <p style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', color:'#8E5915', marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={g.name}>
+                      📍 {g.name}
+                    </p>
+                    <p style={{ fontSize:17, fontWeight:800, color:'#1A141A', fontFamily:'monospace', margin:0 }}>{formatCurrency(g.total)}</p>
+                    <p style={{ fontSize:10, color:'#10B981', fontWeight:600, margin:'2px 0 0' }}>✓ {formatCurrency(g.approved)}</p>
+                  </div>
+                ))}
+                {groupByProject(filterByPeriod(depenses, kpiPeriod)).length === 0 && (
+                  <p style={{ fontSize:12, color:'#B8A090', padding:'10px 0' }}>Aucune dépense sur cette période</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="card">
-            <div className="flex gap-2 mb-4">
+            {/* ── Contrôles : group mode + filtre statut ── */}
+            <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap', alignItems:'center' }}>
+              {/* Group mode toggle */}
+              <div style={{ display:'flex', gap:2, background:'#F9F3EC', borderRadius:8, padding:3 }}>
+                {([
+                  { id:'list',        label:'Toutes' },
+                  { id:'chantier',    label:'Par Chantier' },
+                  { id:'prestation',  label:'Par Prestation' },
+                ] as const).map(m => (
+                  <button key={m.id} onClick={() => { setGroupMode(m.id); setExpandedGroup(null); }}
+                    style={groupToggleBtn(groupMode === m.id)}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {/* Filtre statut */}
               {(['','PENDING','APPROVED','REJECTED'] as const).map(s => (
                 <button key={s} onClick={() => setStatusFilter(s)}
-                  className={cn('px-3 py-2 rounded-lg text-xs font-semibold border transition-all',
+                  className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
                     statusFilter===s ? 'bg-honey-dark text-white border-honey-dark' : 'bg-white text-honey-caramel border-honey-beige-soft hover:border-honey-gold')}>
-                  {s==='' ? 'Toutes' : statusConfig[s]?.label}
+                  {s==='' ? 'Tous statuts' : statusConfig[s]?.label}
                 </button>
               ))}
             </div>
-            <div className="space-y-2">
-              {loading ? <p className="py-12 text-center text-honey-caramel">Chargement...</p>
-              : depenses.length===0 ? <p className="py-12 text-center text-honey-caramel">Aucune depense</p>
-              : depenses.map(d => (
-                <div key={d.id} className={cn('flex items-center gap-4 p-4 rounded-lg border transition-all',
-                  d.status==='PENDING'?'border-amber-200 bg-amber-50/20':d.status==='APPROVED'?'border-green-200 bg-green-50/20':'border-gray-200 bg-gray-50')}>
-                  <div className="w-10 h-10 rounded-lg bg-white border border-honey-beige-soft flex items-center justify-center flex-shrink-0 text-[11px] font-bold text-honey-caramel">
-                    {catLabel[d.category]?.slice(0,3)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium text-honey-dark truncate">{d.description}</p>
-                      {d.receipt_url && (
-                        <button onClick={() => setViewScan(d.receipt_url)} title="Voir le scan"
-                          className="flex items-center gap-1 text-[10px] text-green-600 bg-green-50 border border-green-200 rounded px-1.5 py-0.5 hover:bg-green-100 transition-all flex-shrink-0">
-                          <Camera size={10}/> Scan
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs text-honey-caramel mt-0.5">
-                      {catLabel[d.category]} &bull; {d.project?.name||'Sans chantier'} &bull; {formatDate(d.date)}
-                    </p>
-                    {isMgr && (d.submitter?.first_name||d.submitter?.last_name) && (
-                      <p className="text-[11px] text-honey-caramel mt-0.5">👷 <strong className="text-honey-dark">{d.submitter.first_name} {d.submitter.last_name}</strong></p>
-                    )}
-                    {d.reject_reason && <p className="text-[11px] text-red-500 mt-0.5">Motif : {d.reject_reason}</p>}
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-honey-dark font-mono">{formatCurrency(Number(d.amount))}</p>
-                  </div>
-                  <span className={cn('badge border text-[10px] flex-shrink-0', statusConfig[d.status]?.cls)}>{statusConfig[d.status]?.label}</span>
-                  {canApp && d.status==='PENDING' && (
-                    <div className="flex gap-2 flex-shrink-0">
-                      <button onClick={() => approve(d.id)} className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold hover:bg-green-100 transition-all"><Check size={12}/> Approuver</button>
-                      <button onClick={() => { setRejectTarget(d); setRejectReason(''); }} className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 transition-all"><X size={12}/> Refuser</button>
-                    </div>
-                  )}
-                  {(d.status==='PENDING'||canApp) && (
-                    <div className="flex gap-1.5 flex-shrink-0">
-                      <button onClick={() => openEdit(d)} className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all"><Pencil size={12}/></button>
-                      {canApp && <button onClick={() => setDeleteTarget(d)} className="w-7 h-7 rounded-md border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-all"><Trash2 size={12}/></button>}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+
+            {loading ? <p className="py-12 text-center text-honey-caramel">Chargement...</p>
+            : groupMode === 'list' ? (
+              <div className="space-y-2">
+                {depenses.length===0
+                  ? <p className="py-12 text-center text-honey-caramel">Aucune depense</p>
+                  : depenses.map(d => renderDepenseItem(d))}
+              </div>
+            ) : groupMode === 'chantier' ? (
+              renderGroupAccordion(groupByProject(depenses), 'name', expandedGroup, setExpandedGroup)
+            ) : (
+              renderGroupAccordion(
+                groupByCategory(depenses).map(g => ({ ...g, name: g.label })),
+                'name', expandedGroup, setExpandedGroup
+              )
+            )}
           </div>
         </>
       )}
@@ -406,8 +679,8 @@ export default function DepensesPage() {
       {/* ══════════════════ TAB MAIN D'OEUVRE ══════════════════ */}
       {tab === 'main_oeuvre' && (
         <div>
-          {/* KPIs */}
-          <div className="grid grid-cols-3 gap-3 mb-5">
+          {/* KPIs globaux */}
+          <div className="grid grid-cols-3 gap-3 mb-4">
             {[
               { label:"Total Main d'Oeuvre", value:formatCurrency(moList.reduce((s,d)=>s+Number(d.amount),0)), color:'#F4B315' },
               { label:'Paye / Approuve',     value:formatCurrency(moList.filter(d=>d.status==='APPROVED').reduce((s,d)=>s+Number(d.amount),0)), color:'#10B981' },
@@ -420,75 +693,126 @@ export default function DepensesPage() {
             ))}
           </div>
 
-          {loadingMo ? <p className="text-center py-12 text-honey-caramel">Chargement...</p>
-          : moWorkers.length === 0 ? (
-            <div style={{ ...card, textAlign:'center', padding:'48px 20px' }}>
-              <Users size={40} style={{ margin:'0 auto 12px', color:'#D3AF85' }}/>
-              <p style={{ fontSize:14, fontWeight:600, color:'#8E5915' }}>Aucune depense main d'oeuvre</p>
+          {/* ── KPIs par période par chantier (Main d'Oeuvre) ── */}
+          {isMgr && (
+            <div className="bg-gradient-to-br from-honey-beige-soft to-honey-cream border border-honey-beige-soft rounded-lg p-4 mb-4">
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-honey-caramel">Main d'oeuvre par chantier</p>
+                <div style={{ display:'flex', gap:3, background:'white', borderRadius:8, padding:3, border:'1px solid #E8D4B0' }}>
+                  {(['semaine','mois','trimestre','annee'] as const).map(p => (
+                    <button key={p} onClick={() => setKpiPeriod(p)}
+                      style={{ padding:'4px 10px', borderRadius:5, border:'none', fontSize:10, fontWeight:700, cursor:'pointer', transition:'all 0.15s',
+                        background: kpiPeriod===p ? 'linear-gradient(135deg,#F4B315,#E59312)' : 'transparent',
+                        color: kpiPeriod===p ? '#1A141A' : '#8E5915' }}>
+                      {p==='semaine'?'Semaine':p==='mois'?'Mois':p==='trimestre'?'Trimestre':'Année'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                <div className="bg-white rounded-lg border border-honey-beige-soft" style={{ padding:'10px 16px', minWidth:130 }}>
+                  <p style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', color:'#8E5915', marginBottom:4 }}>Total général</p>
+                  <p style={{ fontSize:17, fontWeight:800, color:'#F4B315', fontFamily:'monospace', margin:0 }}>
+                    {formatCurrency(filterByPeriod(moList, kpiPeriod).reduce((s,d)=>s+Number(d.amount),0))}
+                  </p>
+                </div>
+                {groupByProject(filterByPeriod(moList, kpiPeriod)).map(g => (
+                  <div key={g.name} className="bg-white rounded-lg border border-honey-beige-soft" style={{ padding:'10px 16px', minWidth:130, maxWidth:200 }}>
+                    <p style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', color:'#8E5915', marginBottom:4, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={g.name}>
+                      📍 {g.name}
+                    </p>
+                    <p style={{ fontSize:17, fontWeight:800, color:'#1A141A', fontFamily:'monospace', margin:0 }}>{formatCurrency(g.total)}</p>
+                    <p style={{ fontSize:10, color:'#10B981', fontWeight:600, margin:'2px 0 0' }}>✓ {formatCurrency(g.approved)}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          ) : (
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              {moWorkers.map((w:any) => (
-                <div key={w.name} style={card}>
-                  {/* Worker header */}
-                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
-                    onClick={() => setExpandedWorker(expandedWorker===w.name ? null : w.name)}>
-                    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                      <div style={{ width:40, height:40, borderRadius:'50%', background:'linear-gradient(135deg,#F4B315,#E59312)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <span style={{ fontSize:16, fontWeight:900, color:'#1A141A' }}>{w.name[0]?.toUpperCase()}</span>
-                      </div>
-                      <div>
-                        <p style={{ margin:0, fontSize:14, fontWeight:700, color:'#1A141A' }}>{w.name}</p>
-                        <p style={{ margin:'2px 0 0', fontSize:11, color:'#8E5915' }}>{w.items.length} paiement{w.items.length>1?'s':''}</p>
-                      </div>
-                    </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-                      <div style={{ textAlign:'right' }}>
-                        <p style={{ margin:0, fontSize:13, fontWeight:800, color:'#1A141A', fontFamily:'monospace' }}>{formatCurrency(w.total)}</p>
-                        <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:2 }}>
-                          <span style={{ fontSize:10, color:'#10B981', fontWeight:600 }}>✓ {formatCurrency(w.paye)}</span>
-                          {w.pending > 0 && <span style={{ fontSize:10, color:'#F97316', fontWeight:600 }}>⏳ {formatCurrency(w.pending)}</span>}
+          )}
+
+          {/* ── Group mode toggle ── */}
+          <div style={{ display:'flex', gap:2, background:'#F9F3EC', borderRadius:8, padding:3, marginBottom:16, width:'fit-content' }}>
+            {([
+              { id:'travailleur', label:'Par Travailleur' },
+              { id:'chantier',    label:'Par Chantier' },
+              { id:'prestation',  label:'Par Prestation' },
+            ] as const).map(m => (
+              <button key={m.id} onClick={() => { setMoGroupMode(m.id); setExpandedMoGroup(null); setExpandedWorker(null); }}
+                style={groupToggleBtn(moGroupMode === m.id)}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {loadingMo ? <p className="text-center py-12 text-honey-caramel">Chargement...</p>
+          : moGroupMode === 'travailleur' ? (
+            moWorkers.length === 0
+              ? <div style={{ ...card, textAlign:'center', padding:'48px 20px' }}>
+                  <Users size={40} style={{ margin:'0 auto 12px', color:'#D3AF85' }}/>
+                  <p style={{ fontSize:14, fontWeight:600, color:'#8E5915' }}>Aucune depense main d'oeuvre</p>
+                </div>
+              : <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {moWorkers.map((w:any) => (
+                    <div key={w.name} style={card}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', cursor:'pointer' }}
+                        onClick={() => setExpandedWorker(expandedWorker===w.name ? null : w.name)}>
+                        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                          <div style={{ width:40, height:40, borderRadius:'50%', background:'linear-gradient(135deg,#F4B315,#E59312)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            <span style={{ fontSize:16, fontWeight:900, color:'#1A141A' }}>{w.name[0]?.toUpperCase()}</span>
+                          </div>
+                          <div>
+                            <p style={{ margin:0, fontSize:14, fontWeight:700, color:'#1A141A' }}>{w.name}</p>
+                            <p style={{ margin:'2px 0 0', fontSize:11, color:'#8E5915' }}>{w.items.length} paiement{w.items.length>1?'s':''}</p>
+                          </div>
+                        </div>
+                        <div style={{ display:'flex', alignItems:'center', gap:16 }}>
+                          <div style={{ textAlign:'right' }}>
+                            <p style={{ margin:0, fontSize:13, fontWeight:800, color:'#1A141A', fontFamily:'monospace' }}>{formatCurrency(w.total)}</p>
+                            <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:2 }}>
+                              <span style={{ fontSize:10, color:'#10B981', fontWeight:600 }}>✓ {formatCurrency(w.paye)}</span>
+                              {w.pending > 0 && <span style={{ fontSize:10, color:'#F97316', fontWeight:600 }}>⏳ {formatCurrency(w.pending)}</span>}
+                            </div>
+                          </div>
+                          {expandedWorker===w.name ? <ChevronDown size={16} color="#8E5915"/> : <ChevronRight size={16} color="#8E5915"/>}
                         </div>
                       </div>
-                      {expandedWorker===w.name ? <ChevronDown size={16} color="#8E5915"/> : <ChevronRight size={16} color="#8E5915"/>}
+                      {expandedWorker===w.name && (
+                        <div style={{ marginTop:14, borderTop:'1px solid #F5E6D3', paddingTop:14 }}>
+                          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                            <thead>
+                              <tr style={{ background:'#FDF6E9' }}>
+                                {['Date','Description','Chantier','Montant','Statut'].map(h => (
+                                  <th key={h} style={{ padding:'7px 12px', textAlign:'left', fontSize:9, fontWeight:700, color:'#8E5915', textTransform:'uppercase', borderBottom:'1px solid #F5E6D3' }}>{h}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {[...w.items].sort((a:any,b:any) => new Date(b.date).getTime()-new Date(a.date).getTime()).map((d:any,i:number) => (
+                                <tr key={d.id} style={{ borderBottom:'1px solid #F5E6D3', background:i%2===0?'white':'#FFFDF7' }}>
+                                  <td style={{ padding:'8px 12px', color:'#5C3A1E' }}>{formatDate(d.date)}</td>
+                                  <td style={{ padding:'8px 12px', color:'#1A141A', fontWeight:600 }}>{d.description}</td>
+                                  <td style={{ padding:'8px 12px', color:'#8E5915' }}>{d.project?.name||'—'}</td>
+                                  <td style={{ padding:'8px 12px', fontFamily:'monospace', fontWeight:700, color:'#1A141A' }}>{formatCurrency(Number(d.amount))}</td>
+                                  <td style={{ padding:'8px 12px' }}>
+                                    <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:4,
+                                      background:d.status==='APPROVED'?'#F0FFF4':d.status==='PENDING'?'#FFFBEB':'#FFF5F5',
+                                      color:d.status==='APPROVED'?'#16A34A':d.status==='PENDING'?'#D97706':'#DC2626',
+                                      border:`1px solid ${d.status==='APPROVED'?'#86EFAC':d.status==='PENDING'?'#FDE68A':'#FECACA'}` }}>
+                                      {statusConfig[d.status]?.label}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
-                  </div>
-
-                  {/* Expanded payments */}
-                  {expandedWorker===w.name && (
-                    <div style={{ marginTop:14, borderTop:'1px solid #F5E6D3', paddingTop:14 }}>
-                      <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                        <thead>
-                          <tr style={{ background:'#FDF6E9' }}>
-                            {['Date','Description','Chantier','Montant','Statut'].map(h => (
-                              <th key={h} style={{ padding:'7px 12px', textAlign:'left', fontSize:9, fontWeight:700, color:'#8E5915', textTransform:'uppercase', borderBottom:'1px solid #F5E6D3' }}>{h}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[...w.items].sort((a:any,b:any) => new Date(b.date).getTime()-new Date(a.date).getTime()).map((d:any,i:number) => (
-                            <tr key={d.id} style={{ borderBottom:'1px solid #F5E6D3', background:i%2===0?'white':'#FFFDF7' }}>
-                              <td style={{ padding:'8px 12px', color:'#5C3A1E' }}>{formatDate(d.date)}</td>
-                              <td style={{ padding:'8px 12px', color:'#1A141A', fontWeight:600 }}>{d.description}</td>
-                              <td style={{ padding:'8px 12px', color:'#8E5915' }}>{d.project?.name||'—'}</td>
-                              <td style={{ padding:'8px 12px', fontFamily:'monospace', fontWeight:700, color:'#1A141A' }}>{formatCurrency(Number(d.amount))}</td>
-                              <td style={{ padding:'8px 12px' }}>
-                                <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:4,
-                                  background:d.status==='APPROVED'?'#F0FFF4':d.status==='PENDING'?'#FFFBEB':'#FFF5F5',
-                                  color:d.status==='APPROVED'?'#16A34A':d.status==='PENDING'?'#D97706':'#DC2626',
-                                  border:`1px solid ${d.status==='APPROVED'?'#86EFAC':d.status==='PENDING'?'#FDE68A':'#FECACA'}` }}>
-                                  {statusConfig[d.status]?.label}
-                                </span>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  ))}
                 </div>
-              ))}
-            </div>
+          ) : moGroupMode === 'chantier' ? (
+            renderMoGroupAccordion(moByProject)
+          ) : (
+            renderMoGroupAccordion(moByPrestation)
           )}
         </div>
       )}
@@ -544,7 +868,6 @@ export default function DepensesPage() {
                           </span>
                         </div>
                       </div>
-                      {/* Progress bar */}
                       <div style={{ background:'#F5E6D3', borderRadius:4, height:5, marginBottom:6 }}>
                         <div style={{ width:`${pct}%`, background:'linear-gradient(to right,#F4B315,#10B981)', borderRadius:4, height:'100%', transition:'width 0.4s' }}/>
                       </div>
@@ -580,7 +903,6 @@ export default function DepensesPage() {
                 <button onClick={() => setSelectedDette(null)} style={{ background:'none', border:'none', fontSize:20, cursor:'pointer', color:'#8E5915' }}>×</button>
               </div>
 
-              {/* KPIs dette */}
               <div className="grid grid-cols-3 gap-2 mb-4">
                 {[
                   { label:'Total',  value:formatCurrency(Number(selectedDette.montant)),    color:'#F4B315' },
@@ -594,7 +916,6 @@ export default function DepensesPage() {
                 ))}
               </div>
 
-              {/* Btn enregistrer paiement */}
               {selectedDette.statut !== 'SOLDEE' && !showPayDetteForm && (
                 <button onClick={() => { setShowPayDetteForm(true); setPayDetteForm({ montant:String(Number(selectedDette.montant)-Number(selectedDette.montant_paye)), mode:'ESPECES', date:new Date().toISOString().slice(0,10), notes:'' }); }}
                   style={{ ...btnPrimary, width:'100%', marginBottom:16, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
@@ -602,7 +923,6 @@ export default function DepensesPage() {
                 </button>
               )}
 
-              {/* Form paiement */}
               {showPayDetteForm && (
                 <form onSubmit={handlePayDette} style={{ background:'#FFFDF5', border:'1.5px solid #F4B315', borderRadius:10, padding:14, marginBottom:16 }}>
                   <p style={{ margin:'0 0 10px', fontSize:12, fontWeight:700, color:'#1A141A' }}>Nouveau paiement</p>
@@ -640,7 +960,6 @@ export default function DepensesPage() {
                 </form>
               )}
 
-              {/* Historique paiements */}
               <h4 style={{ fontSize:12, fontWeight:700, color:'#1A141A', marginBottom:10 }}>
                 Historique des paiements ({(selectedDette.paiements||[]).length})
               </h4>
@@ -668,7 +987,7 @@ export default function DepensesPage() {
         </div>
       )}
 
-      {/* ══════ MODALS dépenses (existants) ══════ */}
+      {/* ══════ MODALS ══════ */}
       {showScansModal && (
         <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div onClick={() => setShowScansModal(false)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }}/>
@@ -699,12 +1018,7 @@ export default function DepensesPage() {
         </div>
       )}
 
-      {/* Viewer PDF/Image — preview inline */}
-      <FileViewerModal
-        url={viewScan}
-        title="Justificatif"
-        onClose={() => setViewScan(null)}
-      />
+      <FileViewerModal url={viewScan} title="Justificatif" onClose={() => setViewScan(null)}/>
 
       {/* Form depense */}
       {showForm && (
@@ -880,9 +1194,7 @@ export default function DepensesPage() {
           <div onClick={() => setRejectTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }}/>
           <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:420, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.3)', padding:28 }}>
             <h3 style={{ margin:'0 0 6px', fontSize:16, fontWeight:700, color:'#1A141A' }}>Refuser la depense</h3>
-            <p style={{ fontSize:13, color:'#8E5915', marginBottom:14 }}>
-              Raison du refus (optionnel) :
-            </p>
+            <p style={{ fontSize:13, color:'#8E5915', marginBottom:14 }}>Raison du refus (optionnel) :</p>
             <textarea
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
@@ -898,13 +1210,8 @@ export default function DepensesPage() {
         </div>
       )}
 
-      {/* FileViewer modal */}
       {viewScan && (
-        <FileViewerModal
-          url={viewScan}
-          title="Justificatif"
-          onClose={() => setViewScan(null)}
-        />
+        <FileViewerModal url={viewScan} title="Justificatif" onClose={() => setViewScan(null)}/>
       )}
 
     </div>

@@ -1022,13 +1022,13 @@ model Alert {
 model Expense {
   id              String          @id @default(uuid())
   project_id      String?
-  
+
   category        ExpenseCategory
   amount          Decimal         @db.Decimal(10, 2)
   tva_amount      Decimal?        @db.Decimal(10, 2)
   date            DateTime        @default(now())
   description     String
-  
+
   // Paiement
   payment_method  PaymentType?
   notes           String?         @db.Text
@@ -1043,14 +1043,18 @@ model Expense {
   approved_by     String?
   approved_at     DateTime?
   rejection_reason String?
-  
+
+  // Lien automatique depuis paiement main d'oeuvre
+  paiement_dette_id String?       @unique
+
   created_at      DateTime        @default(now())
   updated_at      DateTime        @updatedAt
-  
+
   project         Project?        @relation(fields: [project_id], references: [id])
   submitter       User            @relation("ExpenseSubmitter", fields: [submitted_by], references: [id])
   approver        User?           @relation("ExpenseApprover", fields: [approved_by], references: [id])
-  
+  paiement_dette  PaiementDette?  @relation(fields: [paiement_dette_id], references: [id], onDelete: SetNull)
+
   @@index([status])
   @@index([project_id])
   @@map("expenses")
@@ -1157,6 +1161,7 @@ model PaiementDette {
   created_at DateTime    @default(now())
 
   dette      Dette       @relation(fields: [dette_id], references: [id], onDelete: Cascade)
+  expense    Expense?
 
   @@index([dette_id])
   @@map("paiements_dettes")

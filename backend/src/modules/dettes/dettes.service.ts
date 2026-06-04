@@ -57,7 +57,7 @@ export class DettesService {
     return this.prisma.dette.delete({ where: { id } });
   }
 
-  async addPaiement(detteId: string, dto: any) {
+  async addPaiement(detteId: string, dto: any, userId?: string) {
     const dette = await this.findOne(detteId);
     const paiement = await this.prisma.paiementDette.create({
       data: {
@@ -68,6 +68,30 @@ export class DettesService {
         notes:    dto.notes || undefined,
       },
     });
+
+    // ── Créer automatiquement une dépense MAIN_OEUVRE ──────────────────────
+    if (userId) {
+      try {
+        await (this.prisma.expense as any).create({
+          data: {
+            category:          'MAIN_OEUVRE',
+            amount:            dto.montant,
+            date:              dto.date ? new Date(dto.date) : new Date(),
+            description:       `Paiement main d'oeuvre — ${dette.nom}`,
+            notes:             dto.notes || null,
+            payment_method:    (dto.mode || 'ESPECES') as any,
+            project_id:        dette.project_id || null,
+            submitted_by:      userId,
+            status:            'APPROVED',
+            paiement_dette_id: paiement.id,
+          },
+        });
+      } catch (err: any) {
+        // Ne pas bloquer le paiement si la dépense échoue
+        console.error('[dettes] Erreur création dépense auto:', err?.message);
+      }
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     // Recalculate montant_paye and statut
     const allPaiements = await this.prisma.paiementDette.findMany({ where: { dette_id: detteId } });
@@ -84,6 +108,16 @@ export class DettesService {
   }
 
   async deletePaiement(detteId: string, paiementId: string) {
+    // ── Supprimer la dépense liée avant de supprimer le paiement ────────────
+    try {
+      await (this.prisma.expense as any).deleteMany({
+        where: { paiement_dette_id: paiementId },
+      });
+    } catch (err: any) {
+      console.error('[dettes] Erreur suppression dépense liée:', err?.message);
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     await this.prisma.paiementDette.delete({ where: { id: paiementId } });
     // Recalculate
     const allPaiements = await this.prisma.paiementDette.findMany({ where: { dette_id: detteId } });
