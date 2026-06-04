@@ -8,6 +8,44 @@ import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useLanguage } from '@/lib/i18n';
 import FileViewerModal from '@/components/ui/FileViewerModal';
 
+function CatGrouped({ items, catLabel, renderItem }: {
+  items: any[];
+  catLabel: Record<string, string>;
+  renderItem: (d: any) => React.ReactNode;
+}) {
+  const byCat: Record<string, any[]> = {};
+  items.forEach((d: any) => {
+    if (!byCat[d.category]) byCat[d.category] = [];
+    byCat[d.category].push(d);
+  });
+  const sorted = Object.entries(byCat).sort((pa, pb) => {
+    const sa = pa[1].reduce((s: number, x: any) => s + Number(x.amount), 0);
+    const sb = pb[1].reduce((s: number, x: any) => s + Number(x.amount), 0);
+    return sb - sa;
+  });
+  return (
+    <div style={{ borderTop:'1px solid #F5E6D3', padding:'12px 16px' }}>
+      {sorted.map(([cat, catItems]) => {
+        const catTotal = catItems.reduce((s: number, d: any) => s + Number(d.amount), 0);
+        const color = CAT_COLORS[cat] || '#8E5915';
+        return (
+          <div key={cat} style={{ marginBottom:14 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, padding:'7px 12px', background:'#F9F6F1', borderRadius:8, borderLeft:`3px solid ${color}` }}>
+              <div style={{ width:9, height:9, borderRadius:'50%', background:color, flexShrink:0 }}/>
+              <span style={{ fontSize:12, fontWeight:700, color:'#1A141A', flex:1 }}>{catLabel[cat] || cat}</span>
+              <span style={{ fontSize:12, fontWeight:800, fontFamily:'monospace', color }}>{formatCurrency(catTotal)}</span>
+              <span style={{ fontSize:10, color:'#B8A090', marginLeft:6 }}>{catItems.length} dép.</span>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6, paddingLeft:6 }}>
+              {catItems.map((d: any) => renderItem(d))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 const detteStatutCfg: Record<string, { bg: string; color: string; border: string; label: string }> = {
   EN_COURS: { bg:'#FFFBEB', color:'#D97706', border:'#FDE68A', label:'En cours' },
   PARTIELLE:{ bg:'#FFF7ED', color:'#EA580C', border:'#FDBA74', label:'Partielle' },
@@ -443,32 +481,7 @@ export default function DepensesPage() {
                     </div>
                   </div>
                   {isOpen && (
-                    <div style={{ borderTop:'1px solid #F5E6D3', padding:'12px 16px' }}>
-                      {/* Dépenses groupées par catégorie */}
-                      {Object.entries(
-                        g.items.reduce((acc2: Record<string,any[]>, d: any) => {
-                          if (!acc2[d.category]) acc2[d.category] = [];
-                          acc2[d.category].push(d);
-                          return acc2;
-                        }, {})
-                      ).sort(([,a],[,b]) => b.reduce((s:number,x:any)=>s+Number(x.amount),0) - a.reduce((s:number,x:any)=>s+Number(x.amount),0))
-                      .map(([cat, catItems]) => {
-                        const catTotal = (catItems as any[]).reduce((s,d)=>s+Number(d.amount),0);
-                        return (
-                          <div key={cat} style={{ marginBottom:14 }}>
-                            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, padding:'7px 12px', background:'#F9F6F1', borderRadius:8, borderLeft:`3px solid ${CAT_COLORS[cat]||'#8E5915'}` }}>
-                              <div style={{ width:9, height:9, borderRadius:'50%', background:CAT_COLORS[cat]||'#8E5915', flexShrink:0 }}/>
-                              <span style={{ fontSize:12, fontWeight:700, color:'#1A141A', flex:1 }}>{catLabel[cat]||cat}</span>
-                              <span style={{ fontSize:12, fontWeight:800, fontFamily:'monospace', color:CAT_COLORS[cat]||'#8E5915' }}>{formatCurrency(catTotal)}</span>
-                              <span style={{ fontSize:10, color:'#B8A090', marginLeft:6 }}>{(catItems as any[]).length} dép.</span>
-                            </div>
-                            <div style={{ display:'flex', flexDirection:'column', gap:6, paddingLeft:6 }}>
-                              {(catItems as any[]).map((d:any) => renderDepenseItem(d))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <CatGrouped items={g.items} catLabel={catLabel} renderItem={renderDepenseItem} />
                   )}
                 </div>
               );
