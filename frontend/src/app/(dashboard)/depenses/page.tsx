@@ -444,10 +444,30 @@ export default function DepensesPage() {
                   </div>
                   {isOpen && (
                     <div style={{ borderTop:'1px solid #F5E6D3', padding:'12px 16px' }}>
-                      <RepartitionBars items={g.items}/>
-                      <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:12 }}>
-                        {g.items.map((d:any) => renderDepenseItem(d))}
-                      </div>
+                      {/* Dépenses groupées par catégorie */}
+                      {Object.entries(
+                        g.items.reduce((acc2: Record<string,any[]>, d: any) => {
+                          if (!acc2[d.category]) acc2[d.category] = [];
+                          acc2[d.category].push(d);
+                          return acc2;
+                        }, {})
+                      ).sort(([,a],[,b]) => b.reduce((s:number,x:any)=>s+Number(x.amount),0) - a.reduce((s:number,x:any)=>s+Number(x.amount),0))
+                      .map(([cat, catItems]) => {
+                        const catTotal = (catItems as any[]).reduce((s,d)=>s+Number(d.amount),0);
+                        return (
+                          <div key={cat} style={{ marginBottom:14 }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6, padding:'7px 12px', background:'#F9F6F1', borderRadius:8, borderLeft:`3px solid ${CAT_COLORS[cat]||'#8E5915'}` }}>
+                              <div style={{ width:9, height:9, borderRadius:'50%', background:CAT_COLORS[cat]||'#8E5915', flexShrink:0 }}/>
+                              <span style={{ fontSize:12, fontWeight:700, color:'#1A141A', flex:1 }}>{catLabel[cat]||cat}</span>
+                              <span style={{ fontSize:12, fontWeight:800, fontFamily:'monospace', color:CAT_COLORS[cat]||'#8E5915' }}>{formatCurrency(catTotal)}</span>
+                              <span style={{ fontSize:10, color:'#B8A090', marginLeft:6 }}>{(catItems as any[]).length} dép.</span>
+                            </div>
+                            <div style={{ display:'flex', flexDirection:'column', gap:6, paddingLeft:6 }}>
+                              {(catItems as any[]).map((d:any) => renderDepenseItem(d))}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
