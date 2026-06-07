@@ -6,4 +6,3 @@ startCommand = "npx prisma migrate deploy && node dist/main"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
-healthcheckPath = "/api/health"
