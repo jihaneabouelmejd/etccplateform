@@ -129,6 +129,9 @@ export class DevisService {
       where.status = { in: params.statuses };
     } else if (params?.status) {
       where.status = params.status;
+    } else {
+      // Exclure CANCELLED par défaut — ils vont en Corbeille
+      where.status = { not: 'CANCELLED' as any };
     }
     if (params?.client_id) where.client_id = params.client_id;
     if (params?.search) {

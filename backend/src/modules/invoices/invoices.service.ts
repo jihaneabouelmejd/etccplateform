@@ -229,7 +229,12 @@ export class InvoicesService {
 
     if (params?.created_by) where.created_by = params.created_by;
     if (params?.direction) where.direction = params.direction;
-    if (params?.status) where.status = params.status;
+    // Si status explicitement demandé → filtre exact ; sinon exclure CANCELLED (ils vont en Corbeille)
+    if (params?.status) {
+      where.status = params.status;
+    } else {
+      where.status = { not: 'CANCELLED' };
+    }
     if (params?.client_id) where.client_id = params.client_id;
     if (params?.fournisseur_id) where.fournisseur_id = params.fournisseur_id;
     if (params?.search) where.number = { contains: params.search, mode: 'insensitive' };
