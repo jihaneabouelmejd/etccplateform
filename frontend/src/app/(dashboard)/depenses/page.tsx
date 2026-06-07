@@ -221,7 +221,7 @@ export default function DepensesPage() {
 
   const openEdit = (d: any) => {
     setEditTarget(d);
-    const sourceType = d.prestation_id ? 'prestation' : 'chantier';
+    const sourceType = (d.prestation_id || d.prestation_nom) ? 'prestation' : 'chantier';
     setForm({ description:d.description, amount:String(d.amount), category:d.category, payment_method:d.payment_method||'ESPECES', project_id:d.project?.id||'', prestation_id:d.prestation_id||'', prestation_nom:d.prestation_nom||'', source_type:sourceType, date:d.date?d.date.slice(0,10):new Date().toISOString().slice(0,10), notes:d.notes||'', receipt_url:d.receipt_url||'' });
     setReceiptPreview(''); setReceiptIsPdf(false); setSaveError(''); setShowForm(true);
   };
@@ -276,7 +276,7 @@ export default function DepensesPage() {
   };
   const openEditDette = (d: any) => {
     setEditDette(d);
-    const sourceType = d.prestation_id ? 'prestation' : 'chantier';
+    const sourceType = (d.prestation_id || d.prestation_nom) ? 'prestation' : 'chantier';
     setDetteForm({ nom:d.nom, description:d.description, montant:String(d.montant), date:d.date?d.date.slice(0,10):new Date().toISOString().slice(0,10), project_id:d.project_id||'', prestation_id:d.prestation_id||'', prestation_nom:d.prestation_nom||'', source_type:sourceType, notes:d.notes||'' });
     setDetteError(''); setShowDetteForm(true);
   };
@@ -420,7 +420,7 @@ export default function DepensesPage() {
           )}
         </div>
         <p className="text-xs text-honey-caramel mt-0.5">
-          {catLabel[d.category]} &bull; {d.prestation_nom ? `📋 ${d.prestation_nom}` : d.project?.name ? `📍 ${d.project.name}` : 'Sans affectation'} &bull; {formatDate(d.date)}
+          {catLabel[d.category]} &bull; {(() => { if (d.prestation_nom) return `📋 ${d.prestation_nom}`; if (d.prestation_id) { const p = prestations.find((p:any)=>p.id===d.prestation_id); return `📋 ${p?.nom || d.prestation_id}`; } return d.project?.name ? `📍 ${d.project.name}` : 'Sans affectation'; })()} &bull; {formatDate(d.date)}
         </p>
         {isMgr && (d.submitter?.first_name||d.submitter?.last_name) && (
           <p className="text-[11px] text-honey-caramel mt-0.5">👷 <strong className="text-honey-dark">{d.submitter.first_name} {d.submitter.last_name}</strong></p>

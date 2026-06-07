@@ -19,6 +19,8 @@ interface CreateBLInput {
   delivery_address?: string;
   notes?: string;
   lines: BLLineInput[];
+  custom_number?: string;   // numéro saisi manuellement
+  issue_date?: Date;        // date saisie manuellement
 }
 
 @Injectable()
@@ -88,7 +90,7 @@ export class BLService {
       if (bc.status === 'CANCELLED') throw new BadRequestException('Ce BC a ete annule');
     }
 
-    const number = await this.generateNumber();
+    const number = input.custom_number || await this.generateNumber();
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Verifier le stock disponible
@@ -116,6 +118,7 @@ export class BLService {
           project_id: input.project_id,
           created_by: createdBy,
           signature_id: input.signature_id,
+          issue_date: input.issue_date || new Date(),
           delivery_date: input.delivery_date,
           delivered_by: input.delivered_by,
           delivery_address: input.delivery_address,
@@ -239,10 +242,30 @@ export class BLService {
     return this.prisma.bonLivraison.update({ where: { id }, data });
   }
 
+  /** Soft-delete : passe le BL en CANCELLED (Corbeille) */
   async remove(id: string) {
     await this.findOne(id);
+    return this.prisma.bonLivraison.update({ where: { id }, data: { status: 'CANCELLED' as any } });
+  }
+
+  /** Restaurer depuis la Corbeille */
+  async restore(id: string) {
+    return this.prisma.bonLivraison.update({ where: { id }, data: { status: 'DELIVERED' } });
+  }
+
+  /** Suppression définitive depuis la Corbeille */
+  async hardDelete(id: string) {
     await this.prisma.bonLivraison.delete({ where: { id } });
     return { deleted: true };
+  }
+
+  /** Lister les BL annulés (Corbeille) */
+  async findCancelled() {
+    return this.prisma.bonLivraison.findMany({
+      where: { status: 'CANCELLED' as any },
+      orderBy: { updated_at: 'desc' },
+      include: { client: { select: { commercial_name: true } } },
+    });
   }
 
   async saveSignedScan(id: string, signed_scan_url: string) {

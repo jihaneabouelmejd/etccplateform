@@ -71,4 +71,12 @@ export class DevisController {
   @Delete(':id')
   @Roles(Role.ADMIN, Role.GERANT)
   remove(@Param('id') id: string) { return this.devis.remove(id); }
+
+  @Patch(':id/restore')
+  @Roles(Role.ADMIN, Role.GERANT)
+  restore(@Param('id') id: string) { return this.devis.restore(id); }
+
+  @Delete(':id/hard')
+  @Roles(Role.ADMIN, Role.GERANT)
+  hardDelete(@Param('id') id: string) { return this.devis.hardDelete(id); }
 }

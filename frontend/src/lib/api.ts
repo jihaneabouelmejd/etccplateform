@@ -126,6 +126,8 @@ export const devisApi = {
     api.patch(`/devis/${id}/status`, { status }),
   duplicate: (id: string) => api.post(`/devis/${id}/duplicate`),
   delete: (id: string) => api.delete(`/devis/${id}`),
+  restore: (id: string) => api.patch(`/devis/${id}/restore`),
+  hardDelete: (id: string) => api.delete(`/devis/${id}/hard`),
   linesForBL: (id: string) => api.get(`/devis/${id}/lines-for-bl`),
   linesForInvoice: (id: string) => api.get(`/devis/${id}/lines-for-invoice`),
   stats: () => api.get('/devis/stats'),
@@ -149,15 +151,20 @@ export const blApi = {
   updateStatus: (id: string, status: string) => api.patch(`/bl/${id}/status`, { status }),
   saveSignedScan: (id: string, signed_scan_url: string) => api.patch(`/bl/${id}/signed-scan`, { signed_scan_url }),
   delete: (id: string) => api.delete(`/bl/${id}`),
+  restore: (id: string) => api.patch(`/bl/${id}/restore`),
+  hardDelete: (id: string) => api.delete(`/bl/${id}/hard`),
 };
 
 export const invoicesApi = {
   list: (params?: any) => api.get('/invoices', { params }),
   get: (id: string) => api.get(`/invoices/${id}`),
+  update: (id: string, data: any) => api.patch(`/invoices/${id}`, data),
   createFromBL: (data: any) => api.post('/invoices/from-bl', data),
   createPurchase: (data: any) => api.post('/invoices/purchase', data),
   pay: (id: string, data: any) => api.post(`/invoices/${id}/pay`, data),
   cancel: (id: string) => api.delete(`/invoices/${id}`),
+  restore: (id: string) => api.patch(`/invoices/${id}/restore`),
+  hardDelete: (id: string) => api.delete(`/invoices/${id}/hard`),
   updateStatus: (id: string, status: string) => api.patch(`/invoices/${id}/status`, { status }),
   updateScan: (id: string, scanned_file_url: string | null) =>
     api.patch(`/invoices/${id}/scan`, { scanned_file_url }),

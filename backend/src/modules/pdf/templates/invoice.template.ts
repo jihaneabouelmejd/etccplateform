@@ -103,9 +103,8 @@ body{
 .sigs{margin:auto 48px 28px;display:flex;}
 .sblock{max-width:260px;}
 .sblock h5{font-size:8px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#6B6B6B;margin-bottom:10px;}
-.sarea{border:1.5px dashed #E6E6E6;border-radius:5px;height:100px;display:flex;flex-direction:column;justify-content:space-between;padding:10px 14px;}
+.sarea{display:flex;flex-direction:column;gap:8px;}
 .sarea .sp{font-size:10px;color:#ADADAD;font-style:italic;}
-.sarea .sline{border-top:1px solid #E6E6E6;font-size:8.5px;color:#ADADAD;padding-top:6px;}
 .sarea img{max-height:60px;max-width:160px;object-fit:contain;display:block;}
 
 /* FOOTER */
@@ -249,7 +248,7 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
   <div class="sblock">
     <h5>Signature émetteur — ETCC</h5>
     <div class="sarea">
-      ${signBlock ? signBlock : '<span class="sp">Signature et cachet de l\'émetteur</span>'}
+      ${signBlock}
     </div>
   </div>
 </div>

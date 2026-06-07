@@ -62,4 +62,12 @@ export class BLController {
   @Delete(':id')
   @Roles(Role.ADMIN, Role.GERANT)
   remove(@Param('id') id: string) { return this.bl.remove(id); }
+
+  @Patch(':id/restore')
+  @Roles(Role.ADMIN, Role.GERANT)
+  restore(@Param('id') id: string) { return this.bl.restore(id); }
+
+  @Delete(':id/hard')
+  @Roles(Role.ADMIN, Role.GERANT)
+  hardDelete(@Param('id') id: string) { return this.bl.hardDelete(id); }
 }

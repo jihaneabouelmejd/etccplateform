@@ -348,8 +348,8 @@ export default function DevisPage() {
                             {ns === 'SENT' ? '📤 Envoyer' : ns === 'VALIDATED' ? '✓ Valider' : '✗ Refuser'}
                           </button>
                         ))}
-                        {/* Edit (DRAFT only) */}
-                        {canDel && d.status === 'DRAFT' && (
+                        {/* Edit (tous statuts) */}
+                        {canDel && (
                           <button onClick={() => openEdit(d)} title="Modifier"
                             className="w-6 h-6 rounded border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all">
                             <Pencil size={11} />

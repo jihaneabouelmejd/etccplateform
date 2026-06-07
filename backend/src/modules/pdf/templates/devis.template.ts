@@ -208,10 +208,6 @@ export function devisTemplate(data: DevisTemplateInput): string {
     <div class="mv">${data.expires_at ? fmtDate(data.expires_at, data.lang) : '—'}</div>
     <div class="ms">${data.validity_days} jours</div>
   </div>
-  <div class="mc">
-    <span class="ml">Établi par</span>
-    <div class="mv">${data.creator_name}</div>
-  </div>
   ${data.object ? `<div class="mc"><span class="ml">Réf. projet</span><div class="mv" style="font-size:12px;">${data.object}</div></div>` : ''}
 </div>
 

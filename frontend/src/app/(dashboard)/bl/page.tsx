@@ -56,7 +56,7 @@ export default function BLPage() {
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState('');
   const [selectedBc, setSelectedBc] = useState<any>(null);
-  const [blForm, setBlForm]       = useState({ bc_id: '', delivery_date: '', delivered_by: '', delivery_address: '', notes: '', signature_id: '' });
+  const [blForm, setBlForm]       = useState({ bc_id: '', custom_number: '', issue_date: new Date().toISOString().slice(0,10), delivery_date: '', delivered_by: '', delivery_address: '', notes: '', signature_id: '' });
   const [signatures, setSignatures] = useState<any[]>([]);
   const [blLines, setBlLines]     = useState<BLLine[]>([{ desc: '', qty: 1 }]);
 
@@ -163,6 +163,8 @@ export default function BLPage() {
           bc_id: blForm.bc_id,
           client_id: selectedBc?.client_id,
           project_id: selectedBc?.project_id,
+          custom_number: blForm.custom_number || undefined,
+          issue_date: blForm.issue_date ? new Date(blForm.issue_date) : undefined,
           delivery_date: blForm.delivery_date ? new Date(blForm.delivery_date) : undefined,
           delivered_by: blForm.delivered_by || undefined,
           delivery_address: blForm.delivery_address || undefined,
@@ -173,7 +175,7 @@ export default function BLPage() {
       }
       fetchData();
       setShowForm(false);
-      setBlForm({ bc_id: '', delivery_date: '', delivered_by: '', delivery_address: '', notes: '', signature_id: '' });
+      setBlForm({ bc_id: '', custom_number: '', issue_date: new Date().toISOString().slice(0,10), delivery_date: '', delivered_by: '', delivery_address: '', notes: '', signature_id: '' });
       setBlLines([{ desc: '', qty: 1 }]);
       setSelectedBc(null);
       setSelectedDevisId('');
@@ -429,6 +431,19 @@ export default function BLPage() {
                   style={{ flex:1, padding:'8px 0', borderRadius:8, border:'none', background: blSource==='devis' ? 'white' : 'transparent', color: blSource==='devis' ? '#1A141A' : '#8E5915', fontSize:13, fontWeight:700, cursor:'pointer', boxShadow: blSource==='devis' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
                   📄 Depuis un Devis
                 </button>
+              </div>
+
+              {/* Numéro et date manuels */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                <div>
+                  <label style={labelStyle}>Numéro BL <span style={{ fontWeight:400, color:'#B8A090', textTransform:'none' }}>(laisser vide = auto)</span></label>
+                  <input value={blForm.custom_number} onChange={e => setBlForm({...blForm, custom_number:e.target.value})}
+                    placeholder="Ex: BL-2026-0042" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Date du BL *</label>
+                  <input type="date" value={blForm.issue_date} onChange={e => setBlForm({...blForm, issue_date:e.target.value})} style={inputStyle} required />
+                </div>
               </div>
 
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>

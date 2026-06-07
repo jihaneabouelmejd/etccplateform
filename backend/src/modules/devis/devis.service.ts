@@ -173,13 +173,10 @@ export class DevisService {
   }
 
   /**
-   * Modifier un devis (DRAFT uniquement)
+   * Modifier un devis (tous statuts autorisés)
    */
   async update(id: string, input: Partial<CreateDevisInput>) {
     const devis = await this.findOne(id);
-    if (devis.status !== 'DRAFT') {
-      throw new BadRequestException('Seuls les devis en brouillon peuvent être modifiés');
-    }
 
     const discountRate = input.discount_rate ?? Number(devis.discount_rate);
     const lines = input.lines ?? devis.lines.map(l => ({
@@ -231,11 +228,30 @@ export class DevisService {
     return this.prisma.devis.update({ where: { id }, data });
   }
 
+  /** Soft-delete : passe le devis en CANCELLED (Corbeille) */
   async remove(id: string) {
-    await this.findOne(id); // Vérifier que le devis existe
-    // Admin/Gérant peuvent supprimer un devis quel que soit son statut
+    await this.findOne(id);
+    return this.prisma.devis.update({ where: { id }, data: { status: 'CANCELLED' as any } });
+  }
+
+  /** Restaurer depuis la Corbeille */
+  async restore(id: string) {
+    return this.prisma.devis.update({ where: { id }, data: { status: 'DRAFT' } });
+  }
+
+  /** Suppression définitive depuis la Corbeille */
+  async hardDelete(id: string) {
     await this.prisma.devisLine.deleteMany({ where: { devis_id: id } });
     return this.prisma.devis.delete({ where: { id } });
+  }
+
+  /** Lister les devis annulés (Corbeille) */
+  async findCancelled() {
+    return this.prisma.devis.findMany({
+      where: { status: 'CANCELLED' as any },
+      orderBy: { updated_at: 'desc' },
+      include: { client: { select: { commercial_name: true } } },
+    });
   }
 
   /**

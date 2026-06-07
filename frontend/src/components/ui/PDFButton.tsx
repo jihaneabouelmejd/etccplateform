@@ -77,7 +77,7 @@ export default function PDFButton({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${docNumber}-${lang}.pdf`;
+      a.download = docType === 'devis' ? `Devis ${docNumber.replace(/^DEV-/, '')}-ETCC.pdf` : `${docNumber}-${lang}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

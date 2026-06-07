@@ -94,9 +94,8 @@ body{
 .sigs{margin:auto 48px 32px;display:flex;}
 .sblock{max-width:280px;}
 .sblock h5{font-size:8px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#6B6B6B;margin-bottom:10px;}
-.sarea{border:1.5px dashed #E6E6E6;border-radius:5px;height:140px;display:flex;flex-direction:column;justify-content:space-between;padding:14px 16px;}
+.sarea{display:flex;flex-direction:column;gap:8px;}
 .sarea .sp{font-size:10px;color:#ADADAD;font-style:italic;}
-.sarea .sline{border-top:1px solid #E6E6E6;font-size:8.5px;color:#ADADAD;padding-top:6px;}
 .sarea img{max-height:90px;max-width:190px;object-fit:contain;display:block;}
 
 /* FOOTER */
@@ -219,7 +218,6 @@ export function blTemplate(data: BLTemplateInput): string {
     <h5>Signature expéditeur — ETCC</h5>
     <div class="sarea">
       ${signBlock ? signBlock : '<span class="sp">Signature et cachet de l\'expéditeur</span>'}
-      <div class="sline">Date d'expédition : _____ / _____ / _______</div>
     </div>
   </div>
 </div>

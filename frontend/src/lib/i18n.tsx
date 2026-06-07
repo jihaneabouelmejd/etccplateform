@@ -126,6 +126,7 @@ const T: Record<Lang, Record<string, string>> = {
     'menu.compta_interne':'Compta interne',
     'menu.rapprochement': 'Rapprochement',
     'menu.alertes':       'Alertes',
+    'menu.corbeille':     'Corbeille',
     'menu.parametres':    'Paramètres',
 
     /* ── DASHBOARD ── */
@@ -515,6 +516,7 @@ const T: Record<Lang, Record<string, string>> = {
     'menu.compta_interne':'محاسبة داخلية',
     'menu.rapprochement': 'التسوية البنكية',
     'menu.alertes':       'التنبيهات',
+    'menu.corbeille':     'سلة المهملات',
     'menu.parametres':    'الإعدادات',
 
     /* ── DASHBOARD ── */

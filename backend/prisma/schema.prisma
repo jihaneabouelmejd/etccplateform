@@ -49,6 +49,7 @@ enum DevisStatus {
   VALIDATED
   REJECTED
   EXPIRED
+  CANCELLED
 }
 
 enum BCSource {
@@ -69,6 +70,7 @@ enum BLStatus {
   DELIVERED
   SIGNED
   INVOICED
+  CANCELLED
 }
 
 enum InvoiceDirection {

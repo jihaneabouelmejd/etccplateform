@@ -276,6 +276,66 @@ export class InvoicesService {
     return invoice;
   }
 
+  /**
+   * Modifier manuellement une facture émise (lignes, montants, dates, notes, signature)
+   */
+  async update(id: string, input: {
+    lines?: InvoiceLineInput[];
+    discount_rate?: number;
+    due_date?: Date;
+    payment_terms?: string;
+    notes?: string;
+    signature_id?: string | null;
+    issue_date?: Date;
+  }) {
+    const invoice = await this.findOne(id);
+
+    return this.prisma.$transaction(async (tx) => {
+      let totals: any = {};
+      if (input.lines && input.lines.length > 0) {
+        const dr = input.discount_rate ?? Number(invoice.discount_rate);
+        totals = this.computeTotals(input.lines, dr);
+        // Recalculate balance
+        const paid = Number(invoice.amount_paid);
+        totals.balance = totals.total_ttc - paid;
+        await tx.invoiceLine.deleteMany({ where: { invoice_id: id } });
+      } else if (input.discount_rate !== undefined) {
+        const existingLines = invoice.lines.map((l: any) => ({
+          description: l.description,
+          quantity: Number(l.quantity),
+          unit_price: Number(l.unit_price),
+        }));
+        totals = this.computeTotals(existingLines, input.discount_rate);
+        const paid = Number(invoice.amount_paid);
+        totals.balance = totals.total_ttc - paid;
+      }
+
+      return tx.invoice.update({
+        where: { id },
+        data: {
+          ...(input.issue_date && { issue_date: input.issue_date }),
+          ...(input.due_date && { due_date: input.due_date }),
+          ...(input.payment_terms !== undefined && { payment_terms: input.payment_terms }),
+          ...(input.notes !== undefined && { notes: input.notes }),
+          ...(input.signature_id !== undefined && { signature_id: input.signature_id || null }),
+          ...totals,
+          ...(input.lines && input.lines.length > 0 ? {
+            lines: {
+              create: input.lines.map((line, i) => ({
+                description: line.description,
+                quantity: line.quantity,
+                unit_price: line.unit_price,
+                total_ht: line.quantity * line.unit_price,
+                order: i,
+              })),
+            },
+          } : {}),
+        },
+        include: { lines: { orderBy: { order: 'asc' } }, client: true, signature: true },
+      });
+    });
+  }
+
   async markAsPaid(id: string, paymentData: { type: string; amount: number; reference?: string; date?: Date }) {
     const invoice = await this.findOne(id);
     const newAmountPaid = Number(invoice.amount_paid) + paymentData.amount;
@@ -381,5 +441,26 @@ export class InvoicesService {
 
   async updateScan(id: string, scanned_file_url: string | null) {
     return this.prisma.invoice.update({ where: { id }, data: { scanned_file_url } });
+  }
+
+  /** Restaurer une facture annulée */
+  async restore(id: string) {
+    return this.prisma.invoice.update({ where: { id }, data: { status: 'SENT' } });
+  }
+
+  /** Suppression définitive d'une facture annulée */
+  async hardDelete(id: string) {
+    await this.prisma.invoiceLine.deleteMany({ where: { invoice_id: id } });
+    await this.prisma.invoice.delete({ where: { id } });
+    return { deleted: true };
+  }
+
+  /** Lister les factures annulées (Corbeille) */
+  async findCancelled() {
+    return this.prisma.invoice.findMany({
+      where: { status: 'CANCELLED' },
+      orderBy: { updated_at: 'desc' },
+      include: { client: { select: { commercial_name: true } } },
+    });
   }
 }

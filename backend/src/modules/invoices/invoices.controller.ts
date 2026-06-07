@@ -58,6 +58,12 @@ export class InvoicesController {
     return this.invoices.markAsPaid(id, data);
   }
 
+  @Patch(':id')
+  @Roles(Role.ADMIN, Role.GERANT)
+  update(@Param('id') id: string, @Body() data: any) {
+    return this.invoices.update(id, data);
+  }
+
   @Patch(':id/status')
   @Roles(Role.ADMIN, Role.GERANT, Role.COMPTABLE)
   updateStatus(@Param('id') id: string, @Body() body: any) {
@@ -73,4 +79,12 @@ export class InvoicesController {
   @Delete(':id')
   @Roles(Role.ADMIN, Role.GERANT)
   cancel(@Param('id') id: string) { return this.invoices.cancel(id); }
+
+  @Patch(':id/restore')
+  @Roles(Role.ADMIN, Role.GERANT)
+  restore(@Param('id') id: string) { return this.invoices.restore(id); }
+
+  @Delete(':id/hard')
+  @Roles(Role.ADMIN, Role.GERANT)
+  hardDelete(@Param('id') id: string) { return this.invoices.hardDelete(id); }
 }

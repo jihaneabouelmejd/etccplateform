@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Check, AlertCircle, Trash2, Banknote, Camera, X, Upload, Eye, ImageOff, Sparkles, FileText, ChevronDown } from 'lucide-react';
+import { Plus, Search, Check, AlertCircle, Trash2, Banknote, Camera, X, Upload, Eye, ImageOff, Sparkles, FileText, ChevronDown, Pencil } from 'lucide-react';
 import { invoicesApi, blApi, fournisseursApi, uploadApi, signaturesApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
@@ -74,6 +74,14 @@ export default function FacturesPage() {
   const [statusDropdown, setStatusDropdown] = useState<string | null>(null); // invoice id
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [deletingScan, setDeletingScan] = useState(false);
+
+  // Edit invoice modal
+  const [editTarget, setEditTarget] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ issue_date: '', due_date: '', payment_terms: '', notes: '', discount_rate: 0, signature_id: '' });
+  const [editLines, setEditLines] = useState<Array<{ desc: string; qty: number; pu: number }>>([]);
+  const [editSigs, setEditSigs] = useState<any[]>([]);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
 
   // Factures d'achat en attente (uploads employés)
   const [pendingFacs, setPendingFacs]       = useState<any[]>([]);
@@ -287,6 +295,45 @@ export default function FacturesPage() {
       fetchData();
     } catch (e: any) { alert(e?.response?.data?.message || 'Erreur'); }
     finally { setUpdatingStatus(false); }
+  };
+
+  const openEdit = async (inv: any) => {
+    const res = await invoicesApi.get(inv.id);
+    const full = res.data;
+    setEditTarget(full);
+    setEditForm({
+      issue_date: full.issue_date ? new Date(full.issue_date).toISOString().slice(0,10) : '',
+      due_date: full.due_date ? new Date(full.due_date).toISOString().slice(0,10) : '',
+      payment_terms: full.payment_terms || '',
+      notes: full.notes || '',
+      discount_rate: Number(full.discount_rate) || 0,
+      signature_id: full.signature_id || '',
+    });
+    setEditLines((full.lines || []).map((l: any) => ({ desc: l.description, qty: Number(l.quantity), pu: Number(l.unit_price) })));
+    setEditError('');
+    signaturesApi.list().then(r => setEditSigs(r.data || [])).catch(() => {});
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    setEditSaving(true); setEditError('');
+    try {
+      await invoicesApi.update(editTarget.id, {
+        issue_date: editForm.issue_date ? new Date(editForm.issue_date) : undefined,
+        due_date: editForm.due_date ? new Date(editForm.due_date) : undefined,
+        payment_terms: editForm.payment_terms || undefined,
+        notes: editForm.notes || undefined,
+        discount_rate: editForm.discount_rate,
+        signature_id: editForm.signature_id || null,
+        lines: editLines.filter(l => l.desc).map(l => ({ description: l.desc, quantity: l.qty, unit_price: l.pu })),
+      });
+      fetchData();
+      setEditTarget(null);
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      setEditError(Array.isArray(msg) ? msg.join(', ') : (msg || 'Erreur'));
+    } finally { setEditSaving(false); }
   };
 
   // Close dropdown on outside click
@@ -606,6 +653,12 @@ export default function FacturesPage() {
                         </button>
                       )}
                       <PDFButton variant="inline" docType="invoice" docId={inv.id} docNumber={inv.number} />
+                      {canDel && (
+                        <button onClick={() => openEdit(inv)} title="Modifier"
+                          className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all">
+                          <Pencil size={11} />
+                        </button>
+                      )}
                       {canDel && inv.status !== 'PAID' && inv.status !== 'CANCELLED' && (
                         <button onClick={() => setCancelTarget(inv)} title="Annuler"
                           className="w-7 h-7 rounded-md border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-all">
@@ -945,6 +998,134 @@ export default function FacturesPage() {
           title="Facture d'achat"
           onClose={() => setPendingPreviewUrl(null)}
         />
+      )}
+
+      {/* MODAL Modifier facture */}
+      {editTarget && (
+        <div style={{ position:'fixed', inset:0, zIndex:1500, display:'flex', alignItems:'flex-start', justifyContent:'center', paddingTop:40, paddingBottom:24, overflowY:'auto' }}>
+          <div onClick={() => setEditTarget(null)} style={{ position:'fixed', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
+          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:680, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding:'18px 24px', borderBottom:'1px solid #F5E6D3', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#FFF8EE', borderRadius:'16px 16px 0 0' }}>
+              <h2 style={{ margin:0, fontSize:16, fontWeight:700, color:'#1A141A' }}>✏️ Modifier {editTarget.number}</h2>
+              <button onClick={() => setEditTarget(null)} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'#8E5915' }}>×</button>
+            </div>
+            <form onSubmit={handleEditSave} style={{ padding:24 }}>
+              {/* Dates */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                <div>
+                  <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Date d'émission</label>
+                  <input type="date" value={editForm.issue_date} onChange={e => setEditForm({...editForm, issue_date:e.target.value})}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Date d'échéance</label>
+                  <input type="date" value={editForm.due_date} onChange={e => setEditForm({...editForm, due_date:e.target.value})}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+                </div>
+              </div>
+
+              {/* Lignes */}
+              <div style={{ border:'1.5px solid #E8D4B0', borderRadius:10, overflow:'hidden', marginBottom:16 }}>
+                <div style={{ background:'#FFF8EE', padding:'8px 14px', borderBottom:'1px solid #F5E6D3' }}>
+                  <span style={{ fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5 }}>Lignes</span>
+                </div>
+                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr style={{ background:'#FFF8EE' }}>
+                      <th style={{ textAlign:'left', padding:'8px 12px', fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase' }}>Description</th>
+                      <th style={{ textAlign:'right', padding:'8px 12px', fontSize:10, fontWeight:700, color:'#8E5915', width:70 }}>Qté</th>
+                      <th style={{ textAlign:'right', padding:'8px 12px', fontSize:10, fontWeight:700, color:'#8E5915', width:100 }}>P.U. HT</th>
+                      <th style={{ width:32 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {editLines.map((line, i) => (
+                      <tr key={i} style={{ borderTop:'1px solid #F5E6D3' }}>
+                        <td style={{ padding:'6px 8px' }}>
+                          <input value={line.desc} onChange={e => { const nl=[...editLines]; nl[i]={...nl[i],desc:e.target.value}; setEditLines(nl); }}
+                            style={{ width:'100%', padding:'6px 10px', borderRadius:6, border:'1px solid #E8D4B0', fontSize:13, outline:'none' }} />
+                        </td>
+                        <td style={{ padding:'6px 8px' }}>
+                          <input type="number" value={line.qty} onChange={e => { const nl=[...editLines]; nl[i]={...nl[i],qty:parseFloat(e.target.value)||0}; setEditLines(nl); }}
+                            style={{ width:'100%', padding:'6px 10px', borderRadius:6, border:'1px solid #E8D4B0', fontSize:13, outline:'none', textAlign:'right', fontFamily:'monospace' }} />
+                        </td>
+                        <td style={{ padding:'6px 8px' }}>
+                          <input type="number" value={line.pu} onChange={e => { const nl=[...editLines]; nl[i]={...nl[i],pu:parseFloat(e.target.value)||0}; setEditLines(nl); }}
+                            style={{ width:'100%', padding:'6px 10px', borderRadius:6, border:'1px solid #E8D4B0', fontSize:13, outline:'none', textAlign:'right', fontFamily:'monospace' }} />
+                        </td>
+                        <td style={{ padding:'6px 4px', textAlign:'center' }}>
+                          {editLines.length > 1 && (
+                            <button type="button" onClick={() => setEditLines(editLines.filter((_,idx)=>idx!==i))}
+                              style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444' }}>
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ padding:'8px 12px', borderTop:'1px solid #F5E6D3' }}>
+                  <button type="button" onClick={() => setEditLines([...editLines, {desc:'',qty:1,pu:0}])}
+                    style={{ background:'none', border:'none', cursor:'pointer', fontSize:12, color:'#E59312', fontWeight:600, display:'flex', alignItems:'center', gap:4 }}>
+                    <Plus size={12} /> Ajouter ligne
+                  </button>
+                </div>
+              </div>
+
+              {/* Réduction + Conditions */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                <div>
+                  <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Réduction (%)</label>
+                  <input type="number" value={editForm.discount_rate} onChange={e => setEditForm({...editForm, discount_rate:parseFloat(e.target.value)||0})}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', fontFamily:'monospace', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Conditions de paiement</label>
+                  <input value={editForm.payment_terms} onChange={e => setEditForm({...editForm, payment_terms:e.target.value})}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+                </div>
+              </div>
+
+              <div style={{ marginBottom:16 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Notes</label>
+                <textarea value={editForm.notes} onChange={e => setEditForm({...editForm, notes:e.target.value})}
+                  rows={2} style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', resize:'none', boxSizing:'border-box' }} />
+              </div>
+
+              {/* Signature */}
+              {editSigs.length > 0 && (
+                <div style={{ marginBottom:16 }}>
+                  <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Signature / Cachet</label>
+                  <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                    <div onClick={() => setEditForm({...editForm, signature_id:''})}
+                      style={{ border:`2px solid ${!editForm.signature_id ? '#E59312' : '#E8D4B0'}`, borderRadius:8, padding:'6px 14px', cursor:'pointer', fontSize:12, color:!editForm.signature_id?'#A33C00':'#8E5915', background:!editForm.signature_id?'#FFF8EE':'white', fontWeight:600 }}>
+                      Aucune
+                    </div>
+                    {editSigs.map((sig: any) => (
+                      <div key={sig.id} onClick={() => setEditForm({...editForm, signature_id:sig.id})}
+                        style={{ border:`2px solid ${editForm.signature_id===sig.id?'#E59312':'#E8D4B0'}`, borderRadius:8, padding:6, cursor:'pointer', background:editForm.signature_id===sig.id?'#FFF8EE':'white', display:'flex', flexDirection:'column', alignItems:'center', gap:4, minWidth:90 }}>
+                        <img src={sig.image_url} alt={sig.name} style={{ height:40, maxWidth:120, objectFit:'contain' }} />
+                        <span style={{ fontSize:10, fontWeight:600, color:editForm.signature_id===sig.id?'#A33C00':'#8E5915' }}>{sig.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {editError && (
+                <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:16, fontSize:12, color:'#D32F2F' }}>⚠️ {editError}</div>
+              )}
+
+              <div style={{ display:'flex', justifyContent:'flex-end', gap:10, paddingTop:16, borderTop:'1px solid #F5E6D3' }}>
+                <button type="button" onClick={() => setEditTarget(null)} style={btnSec}>Annuler</button>
+                <button type="submit" disabled={editSaving} style={{ ...btnPri, opacity:editSaving?0.7:1 }}>
+                  {editSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
     </div>
