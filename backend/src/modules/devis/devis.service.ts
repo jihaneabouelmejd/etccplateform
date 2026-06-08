@@ -18,6 +18,8 @@ interface CreateDevisInput {
   payment_terms?: string;
   notes?: string;
   lines: DevisLineInput[];
+  number?: string;
+  issue_date?: string | Date;
 }
 
 @Injectable()
@@ -204,8 +206,8 @@ export class DevisService {
           payment_terms: input.payment_terms !== undefined ? input.payment_terms : devis.payment_terms,
           notes: input.notes !== undefined ? input.notes : devis.notes,
           signature_id: input.signature_id !== undefined ? (input.signature_id || null) : devis.signature_id,
-          ...(input.number ? { number: input.number } : {}),
-          ...(input.issue_date ? { issue_date: new Date(input.issue_date as any) } : {}),
+          ...(input.number !== undefined ? { number: input.number as string } : {}),
+          ...(input.issue_date !== undefined ? { issue_date: input.issue_date instanceof Date ? input.issue_date : new Date(input.issue_date as string) } : {}),
           ...totals,
           ...(input.lines ? {
             lines: {
