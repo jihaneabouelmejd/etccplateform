@@ -74,19 +74,37 @@ export default function BLPage() {
   const [savingScan, setSavingScan] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Edit numéro/date ─────────────────────────────────────────────────────
+  // ── Edit BL complet ──────────────────────────────────────────────────────
   const [editTarget, setEditTarget]     = useState<any>(null);
-  const [editNumber, setEditNumber]     = useState('');
-  const [editDate, setEditDate]         = useState('');
+  const [editForm, setEditForm]         = useState({ number:'', issue_date:'', delivery_date:'', delivered_by:'', delivery_address:'', notes:'', signature_id:'' });
+  const [editLines, setEditLines]       = useState<BLLine[]>([]);
   const [editSaving, setEditSaving]     = useState(false);
 
-  const openEdit = (bl: any) => { setEditTarget(bl); setEditNumber(bl.number || ''); setEditDate(bl.issue_date ? bl.issue_date.split('T')[0] : ''); };
+  const openEdit = async (bl: any) => {
+    const res = await blApi.get(bl.id);
+    const full = res.data;
+    setEditTarget(full);
+    setEditForm({
+      number: full.number || '',
+      issue_date: full.issue_date ? full.issue_date.split('T')[0] : '',
+      delivery_date: full.delivery_date ? full.delivery_date.split('T')[0] : '',
+      delivered_by: full.delivered_by || '',
+      delivery_address: full.delivery_address || '',
+      notes: full.notes || '',
+      signature_id: full.signature_id || '',
+    });
+    setEditLines((full.lines || []).map((l: any) => ({ desc: l.description, qty: Number(l.quantity) })));
+  };
+
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTarget) return;
     setEditSaving(true);
     try {
-      await blApi.update(editTarget.id, { number: editNumber, issue_date: editDate });
+      await blApi.update(editTarget.id, {
+        ...editForm,
+        lines: editLines.filter(l => l.desc).map(l => ({ description: l.desc, quantity: l.qty })),
+      });
       fetchData();
       setEditTarget(null);
     } finally { setEditSaving(false); }
@@ -668,26 +686,120 @@ export default function BLPage() {
         </div>
       )}
 
-      {/* ===== POPUP : Edit numéro/date BL ===== */}
+      {/* ===== POPUP : Edit BL complet ===== */}
       {editTarget && (
-        <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <div onClick={() => setEditTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }} />
-          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:14, width:380, padding:28, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
-            <h3 style={{ margin:'0 0 20px', fontSize:15, fontWeight:700, color:'#1A141A' }}>✏️ Modifier {editTarget.number}</h3>
-            <form onSubmit={handleEditSave}>
-              <div style={{ marginBottom:14 }}>
-                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Numéro</label>
-                <input value={editNumber} onChange={e => setEditNumber(e.target.value)}
-                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' as const, fontFamily:'monospace' }} />
+        <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'flex-start', justifyContent:'center', paddingTop:40, paddingBottom:24, overflowY:'auto' }}>
+          <div onClick={() => setEditTarget(null)} style={{ position:'fixed', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }} />
+          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:620, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+            <div style={{ padding:'18px 24px', borderBottom:'1px solid #F5E6D3', display:'flex', justifyContent:'space-between', alignItems:'center', background:'#FFF8EE', borderRadius:'16px 16px 0 0' }}>
+              <h2 style={{ margin:0, fontSize:16, fontWeight:700, color:'#1A141A' }}>✏️ Modifier {editTarget.number}</h2>
+              <button onClick={() => setEditTarget(null)} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'#8E5915' }}>×</button>
+            </div>
+            <form onSubmit={handleEditSave} style={{ padding:24 }}>
+              {/* Numéro + Date émission */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                <div>
+                  <label style={labelStyle}>Numéro BL</label>
+                  <input value={editForm.number} onChange={e => setEditForm({...editForm, number:e.target.value})} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Date du BL</label>
+                  <input type="date" value={editForm.issue_date} onChange={e => setEditForm({...editForm, issue_date:e.target.value})} style={inputStyle} />
+                </div>
               </div>
-              <div style={{ marginBottom:20 }}>
-                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Date d'émission</label>
-                <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
-                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' as const }} />
+
+              {/* Date livraison + Livreur */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+                <div>
+                  <label style={labelStyle}>Date de livraison</label>
+                  <input type="date" value={editForm.delivery_date} onChange={e => setEditForm({...editForm, delivery_date:e.target.value})} style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Livreur / Transporteur</label>
+                  <input value={editForm.delivered_by} onChange={e => setEditForm({...editForm, delivered_by:e.target.value})} placeholder="Nom du livreur" style={inputStyle} />
+                </div>
               </div>
-              <div style={{ display:'flex', gap:10 }}>
-                <button type="button" onClick={() => setEditTarget(null)} style={{ flex:1, padding:'9px', borderRadius:8, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:13, fontWeight:600, cursor:'pointer' }}>Annuler</button>
-                <button type="submit" disabled={editSaving} style={{ flex:2, padding:'9px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#F4B315,#E59312)', color:'white', fontSize:13, fontWeight:700, cursor:'pointer', opacity:editSaving?0.7:1 }}>
+
+              {/* Adresse */}
+              <div style={{ marginBottom:16 }}>
+                <label style={labelStyle}>Adresse de livraison</label>
+                <input value={editForm.delivery_address} onChange={e => setEditForm({...editForm, delivery_address:e.target.value})} placeholder="Adresse complète" style={inputStyle} />
+              </div>
+
+              {/* Lignes */}
+              <div style={{ border:'1.5px solid #E8D4B0', borderRadius:10, overflow:'hidden', marginBottom:16 }}>
+                <div style={{ background:'#FFF8EE', padding:'8px 14px', borderBottom:'1px solid #F5E6D3', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                  <span style={{ fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5 }}>Lignes de livraison</span>
+                </div>
+                <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr style={{ background:'#FFF8EE' }}>
+                      <th style={{ textAlign:'left', padding:'8px 12px', fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase' }}>Description</th>
+                      <th style={{ textAlign:'right', padding:'8px 12px', fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', width:80 }}>Qté</th>
+                      <th style={{ width:32 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {editLines.map((line, i) => (
+                      <tr key={i} style={{ borderTop:'1px solid #F5E6D3' }}>
+                        <td style={{ padding:'6px 8px' }}>
+                          <input value={line.desc} onChange={e => { const nl=[...editLines]; nl[i]={...nl[i],desc:e.target.value}; setEditLines(nl); }}
+                            placeholder="Description..." style={{ ...inputStyle, padding:'6px 10px' }} />
+                        </td>
+                        <td style={{ padding:'6px 8px' }}>
+                          <input type="number" min={1} value={line.qty} onChange={e => { const nl=[...editLines]; nl[i]={...nl[i],qty:Number(e.target.value)||1}; setEditLines(nl); }}
+                            style={{ ...inputStyle, padding:'6px 10px', textAlign:'right' as const, fontFamily:'monospace' }} />
+                        </td>
+                        <td style={{ padding:'6px 4px', textAlign:'center' as const }}>
+                          {editLines.length > 1 && (
+                            <button type="button" onClick={() => setEditLines(editLines.filter((_,idx)=>idx!==i))}
+                              style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444', padding:4 }}>
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div style={{ padding:'8px 12px', borderTop:'1px solid #F5E6D3' }}>
+                  <button type="button" onClick={() => setEditLines([...editLines, { desc:'', qty:1 }])}
+                    style={{ background:'none', border:'none', cursor:'pointer', fontSize:12, color:'#E59312', fontWeight:600, display:'flex', alignItems:'center', gap:4 }}>
+                    <Plus size={12} /> Ajouter ligne
+                  </button>
+                </div>
+              </div>
+
+              {/* Signature */}
+              {signatures.length > 0 && (
+                <div style={{ marginBottom:16 }}>
+                  <label style={labelStyle}>Signature / Cachet</label>
+                  <div style={{ display:'flex', gap:10, flexWrap:'wrap' as const }}>
+                    <div onClick={() => setEditForm({...editForm, signature_id:''})}
+                      style={{ border:`2px solid ${!editForm.signature_id ? '#E59312' : '#E8D4B0'}`, borderRadius:8, padding:'6px 14px', cursor:'pointer', fontSize:12, color: !editForm.signature_id ? '#A33C00' : '#8E5915', background: !editForm.signature_id ? '#FFF8EE' : 'white', fontWeight:600 }}>
+                      Aucune
+                    </div>
+                    {signatures.map((sig: any) => (
+                      <div key={sig.id} onClick={() => setEditForm({...editForm, signature_id: sig.id})}
+                        style={{ border:`2px solid ${editForm.signature_id === sig.id ? '#E59312' : '#E8D4B0'}`, borderRadius:8, padding:6, cursor:'pointer', background: editForm.signature_id === sig.id ? '#FFF8EE' : 'white', display:'flex', flexDirection:'column' as const, alignItems:'center', gap:4, minWidth:90 }}>
+                        <img src={sig.image_url} alt={sig.name} style={{ height:40, maxWidth:120, objectFit:'contain' as const }} />
+                        <span style={{ fontSize:10, fontWeight:600, color: editForm.signature_id === sig.id ? '#A33C00' : '#8E5915' }}>{sig.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes */}
+              <div style={{ marginBottom:16 }}>
+                <label style={labelStyle}>Notes</label>
+                <textarea value={editForm.notes} onChange={e => setEditForm({...editForm, notes:e.target.value})}
+                  placeholder="Remarques de livraison..." rows={2} style={{...inputStyle, resize:'none' as const}} />
+              </div>
+
+              <div style={{ display:'flex', justifyContent:'flex-end', gap:10, paddingTop:16, borderTop:'1px solid #F5E6D3' }}>
+                <button type="button" onClick={() => setEditTarget(null)} style={btnSecondary}>Annuler</button>
+                <button type="submit" disabled={editSaving} style={{ ...btnPrimary, opacity:editSaving?0.7:1 }}>
                   {editSaving ? 'Enregistrement...' : 'Enregistrer'}
                 </button>
               </div>

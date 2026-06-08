@@ -240,14 +240,43 @@ export class BLService {
     return bl;
   }
 
-  async update(id: string, input: { number?: string; issue_date?: string }) {
+  async update(id: string, input: {
+    number?: string;
+    issue_date?: string;
+    delivery_date?: string;
+    delivered_by?: string;
+    delivery_address?: string;
+    notes?: string;
+    signature_id?: string;
+    lines?: BLLineInput[];
+  }) {
     await this.findOne(id);
-    return this.prisma.bonLivraison.update({
-      where: { id },
-      data: {
-        ...(input.number && { number: input.number }),
-        ...(input.issue_date && { issue_date: new Date(input.issue_date) }),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      if (input.lines) {
+        await tx.bLLine.deleteMany({ where: { bl_id: id } });
+      }
+      return tx.bonLivraison.update({
+        where: { id },
+        data: {
+          ...(input.number && { number: input.number }),
+          ...(input.issue_date && { issue_date: new Date(input.issue_date) }),
+          ...(input.delivery_date !== undefined && { delivery_date: input.delivery_date ? new Date(input.delivery_date) : null }),
+          ...(input.delivered_by !== undefined && { delivered_by: input.delivered_by || null }),
+          ...(input.delivery_address !== undefined && { delivery_address: input.delivery_address || null }),
+          ...(input.notes !== undefined && { notes: input.notes || null }),
+          ...(input.signature_id !== undefined && { signature_id: input.signature_id || null }),
+          ...(input.lines ? {
+            lines: {
+              create: input.lines.map((l, i) => ({
+                description: l.description,
+                quantity: l.quantity,
+                order: i,
+              })),
+            },
+          } : {}),
+        },
+        include: { lines: true, client: { select: { commercial_name: true } } },
+      });
     });
   }
 
