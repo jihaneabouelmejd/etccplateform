@@ -90,13 +90,13 @@ export default function FacturesPage() {
 
   const fetchData = () => {
     setLoading(true);
-    Promise.all([
-      invoicesApi.list({ direction: tab, status: statusFilter || undefined, search: search || undefined }),
-      invoicesApi.stats(now.getMonth() + 1, now.getFullYear()),
-    ]).then(([listRes, statsRes]) => {
-      setInvoices(listRes.data.data || []);
-      setStats(statsRes.data);
-    }).finally(() => setLoading(false));
+    invoicesApi.list({ direction: tab, status: statusFilter || undefined, search: search || undefined })
+      .then(res => setInvoices(res.data.data || []))
+      .catch(() => setInvoices([]))
+      .finally(() => setLoading(false));
+    invoicesApi.stats(now.getMonth() + 1, now.getFullYear())
+      .then(res => setStats(res.data))
+      .catch(() => {});
   };
 
   useEffect(() => { fetchData(); }, [tab, search, statusFilter]);
@@ -144,7 +144,15 @@ export default function FacturesPage() {
 
   const openEmiseModal = () => {
     setSelectedBlId(''); setEmiseSignatureId(''); setEmiseError('');
-    blApi.list({ status: 'SIGNED', limit: 200 } as any).then(r => setSignedBls(r.data.data || [])).catch(() => {});
+    // Récupérer BLs livrés OU signés (les deux sont facturables)
+    Promise.all([
+      blApi.list({ status: 'DELIVERED', limit: 200 } as any),
+      blApi.list({ status: 'SIGNED', limit: 200 } as any),
+    ]).then(([d, s]) => {
+      const all = [...(d.data.data || []), ...(s.data.data || [])];
+      const unique = all.filter((bl, i, arr) => arr.findIndex(b => b.id === bl.id) === i);
+      setSignedBls(unique);
+    }).catch(() => {});
     signaturesApi.list().then(r => {
       const sigs = r.data || [];
       setSignatures(sigs);
@@ -731,13 +739,23 @@ export default function FacturesPage() {
           <div onClick={() => setShowEmiseModal(false)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
           <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:460, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', padding:28 }}>
             <h3 style={{ margin:'0 0 6px', fontSize:16, fontWeight:700 }}>Nouvelle facture emise</h3>
-            <p style={{ fontSize:13, color:'#8E5915', marginBottom:20 }}>Sélectionnez un BL signé pour générer la facture.</p>
+            <p style={{ fontSize:13, color:'#8E5915', marginBottom:20 }}>Sélectionnez un BL livré ou signé pour générer la facture.</p>
             <div style={{ marginBottom:16 }}>
-              <label style={lStyle}>Bon de livraison signe *</label>
+              <label style={lStyle}>Bon de livraison *</label>
               <select value={selectedBlId} onChange={e => setSelectedBlId(e.target.value)} style={iStyle}>
-                <option value="">Choisir un BL signe...</option>
-                {signedBls.map(bl => <option key={bl.id} value={bl.id}>{bl.number} - {bl.client?.commercial_name || '-'}</option>)}
+                <option value="">Choisir un BL...</option>
+                {signedBls.length === 0 && <option disabled>Aucun BL livré ou signé disponible</option>}
+                {signedBls.map(bl => (
+                  <option key={bl.id} value={bl.id}>
+                    {bl.number} — {bl.client?.commercial_name || '-'} ({bl.status === 'SIGNED' ? 'Signé' : 'Livré'})
+                  </option>
+                ))}
               </select>
+              {signedBls.length === 0 && (
+                <p style={{ fontSize:11, color:'#D97706', marginTop:6 }}>
+                  ⚠️ Aucun BL disponible. Passez d'abord un BL en statut "Livré" ou "Signé".
+                </p>
+              )}
             </div>
             {signatures.length > 0 && (
               <div style={{ marginBottom:20 }}>

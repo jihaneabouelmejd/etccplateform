@@ -92,8 +92,16 @@ export class InvoicesService {
         quantity: Number(l.quantity),
         unit_price: Number(l.unit_price),
       }));
+    } else if (bl.lines && bl.lines.length > 0) {
+      // Fallback : utiliser les lignes du BL (sans prix → à renseigner manuellement)
+      lines = bl.lines.map((l: any) => ({
+        description: l.description,
+        quantity: Number(l.quantity),
+        unit_price: 0,
+      }));
     } else {
-      throw new BadRequestException('Aucune ligne fournie et pas de devis source trouvé');
+      // Dernier recours : ligne générique
+      lines = [{ description: 'Prestations selon BL ' + bl.number, quantity: 1, unit_price: 0 }];
     }
 
     const number = await this.generateNumber('ISSUED');
