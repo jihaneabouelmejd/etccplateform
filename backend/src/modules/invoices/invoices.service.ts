@@ -292,6 +292,7 @@ export class InvoicesService {
     notes?: string;
     signature_id?: string | null;
     issue_date?: Date;
+    number?: string;
   }) {
     const invoice = await this.findOne(id);
 
@@ -318,6 +319,7 @@ export class InvoicesService {
       return tx.invoice.update({
         where: { id },
         data: {
+          ...(input.number && { number: input.number }),
           ...(input.issue_date && { issue_date: input.issue_date }),
           ...(input.due_date && { due_date: input.due_date }),
           ...(input.payment_terms !== undefined && { payment_terms: input.payment_terms }),

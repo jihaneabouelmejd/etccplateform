@@ -56,7 +56,7 @@ export default function DevisPage() {
   const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   // Form state
-  const [form, setForm] = useState({ client_id: '', project_id: '', object: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '' });
+  const [form, setForm] = useState({ client_id: '', project_id: '', object: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
   const [lines, setLines] = useState<Line[]>([{ desc: '', qty: 1, pu: 0 }]);
   const [signatures, setSignatures] = useState<any[]>([]);
 
@@ -114,7 +114,7 @@ export default function DevisPage() {
 
   const openCreate = () => {
     setEditTarget(null);
-    setForm({ client_id: '', project_id: '', object: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '' });
+    setForm({ client_id: '', project_id: '', object: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
     setLines([{ desc: '', qty: 1, pu: 0 }]);
     setSaveError('');
     setShowForm(true);
@@ -133,6 +133,8 @@ export default function DevisPage() {
       payment_terms: full.payment_terms || '',
       notes: full.notes || '',
       signature_id: full.signature_id || '',
+      number: full.number || '',
+      issue_date: full.issue_date ? full.issue_date.split('T')[0] : '',
     });
     setLines((full.lines || []).map((l: any) => ({ desc: l.description, qty: Number(l.quantity), pu: Number(l.unit_price) })));
     setSaveError('');
@@ -152,6 +154,8 @@ export default function DevisPage() {
       payment_terms: form.payment_terms || undefined,
       notes: form.notes || undefined,
       signature_id: form.signature_id || undefined,
+      number: form.number || undefined,
+      issue_date: form.issue_date || undefined,
       lines: lines.filter(l => l.desc).map(l => ({ description: l.desc, quantity: l.qty, unit_price: l.pu })),
     };
     try {
@@ -441,6 +445,18 @@ export default function DevisPage() {
             </div>
             <form onSubmit={handleSave}>
               <div className="p-6 space-y-5">
+                {editTarget && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label style={labelStyle}>Numéro du devis</label>
+                      <input value={form.number} onChange={e => setForm({...form, number:e.target.value})} style={inputStyle} placeholder="DEV-2026-0001" />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Date d'émission</label>
+                      <input type="date" value={form.issue_date} onChange={e => setForm({...form, issue_date:e.target.value})} style={inputStyle} />
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label style={labelStyle}>Client *</label>

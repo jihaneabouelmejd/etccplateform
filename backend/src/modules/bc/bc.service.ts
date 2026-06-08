@@ -151,6 +151,17 @@ export class BCService {
     return bc;
   }
 
+  async update(id: string, input: { number?: string; issue_date?: string }) {
+    await this.findOne(id);
+    return this.prisma.bonCommande.update({
+      where: { id },
+      data: {
+        ...(input.number && { number: input.number }),
+        ...(input.issue_date && { issue_date: new Date(input.issue_date) }),
+      },
+    });
+  }
+
   async updateStatus(id: string, status: BCStatus) {
     return this.prisma.bonCommande.update({ where: { id }, data: { status } });
   }

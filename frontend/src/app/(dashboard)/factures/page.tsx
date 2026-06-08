@@ -77,7 +77,7 @@ export default function FacturesPage() {
 
   // Edit invoice modal
   const [editTarget, setEditTarget] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ issue_date: '', due_date: '', payment_terms: '', notes: '', discount_rate: 0, signature_id: '' });
+  const [editForm, setEditForm] = useState({ issue_date: '', due_date: '', payment_terms: '', notes: '', discount_rate: 0, signature_id: '', number: '' });
   const [editLines, setEditLines] = useState<Array<{ desc: string; qty: number; pu: number }>>([]);
   const [editSigs, setEditSigs] = useState<any[]>([]);
   const [editSaving, setEditSaving] = useState(false);
@@ -308,6 +308,7 @@ export default function FacturesPage() {
       notes: full.notes || '',
       discount_rate: Number(full.discount_rate) || 0,
       signature_id: full.signature_id || '',
+      number: full.number || '',
     });
     setEditLines((full.lines || []).map((l: any) => ({ desc: l.description, qty: Number(l.quantity), pu: Number(l.unit_price) })));
     setEditError('');
@@ -326,6 +327,7 @@ export default function FacturesPage() {
         notes: editForm.notes || undefined,
         discount_rate: editForm.discount_rate,
         signature_id: editForm.signature_id || null,
+        number: editForm.number || undefined,
         lines: editLines.filter(l => l.desc).map(l => ({ description: l.desc, quantity: l.qty, unit_price: l.pu })),
       });
       fetchData();
@@ -1010,6 +1012,12 @@ export default function FacturesPage() {
               <button onClick={() => setEditTarget(null)} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'#8E5915' }}>×</button>
             </div>
             <form onSubmit={handleEditSave} style={{ padding:24 }}>
+              {/* Numéro */}
+              <div style={{ marginBottom:16 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Numéro de facture</label>
+                <input value={editForm.number} onChange={e => setEditForm({...editForm, number:e.target.value})} placeholder="FAC-2026-001"
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' as const, fontFamily:'monospace' }} />
+              </div>
               {/* Dates */}
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
                 <div>

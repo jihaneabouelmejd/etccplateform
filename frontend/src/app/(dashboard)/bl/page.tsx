@@ -74,6 +74,24 @@ export default function BLPage() {
   const [savingScan, setSavingScan] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Edit numéro/date ─────────────────────────────────────────────────────
+  const [editTarget, setEditTarget]     = useState<any>(null);
+  const [editNumber, setEditNumber]     = useState('');
+  const [editDate, setEditDate]         = useState('');
+  const [editSaving, setEditSaving]     = useState(false);
+
+  const openEdit = (bl: any) => { setEditTarget(bl); setEditNumber(bl.number || ''); setEditDate(bl.issue_date ? bl.issue_date.split('T')[0] : ''); };
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    setEditSaving(true);
+    try {
+      await blApi.update(editTarget.id, { number: editNumber, issue_date: editDate });
+      fetchData();
+      setEditTarget(null);
+    } finally { setEditSaving(false); }
+  };
+
   // BL en attente (imports employés)
   const [pendingBls, setPendingBls]     = useState<any[]>([]);
   const [assignTarget, setAssignTarget] = useState<any>(null);
@@ -393,6 +411,12 @@ export default function BLPage() {
                         {bl.client_signature_url ? 'BL signe' : 'Importer signe'}
                       </button>
                     )}
+                    {canDel && (
+                      <button onClick={() => openEdit(bl)} title="Modifier numéro/date"
+                        className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all text-[11px] font-bold">
+                        ✏️
+                      </button>
+                    )}
                     {/* Supprimer (tout sauf INVOICED) */}
                     {canDel && (
                       <button onClick={() => setDeleteTarget(bl)} title="Supprimer définitivement"
@@ -640,6 +664,34 @@ export default function BLPage() {
                 {savingScan ? 'Enregistrement...' : 'Enregistrer'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== POPUP : Edit numéro/date BL ===== */}
+      {editTarget && (
+        <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div onClick={() => setEditTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }} />
+          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:14, width:380, padding:28, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+            <h3 style={{ margin:'0 0 20px', fontSize:15, fontWeight:700, color:'#1A141A' }}>✏️ Modifier {editTarget.number}</h3>
+            <form onSubmit={handleEditSave}>
+              <div style={{ marginBottom:14 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Numéro</label>
+                <input value={editNumber} onChange={e => setEditNumber(e.target.value)}
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' as const, fontFamily:'monospace' }} />
+              </div>
+              <div style={{ marginBottom:20 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Date d'émission</label>
+                <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' as const }} />
+              </div>
+              <div style={{ display:'flex', gap:10 }}>
+                <button type="button" onClick={() => setEditTarget(null)} style={{ flex:1, padding:'9px', borderRadius:8, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:13, fontWeight:600, cursor:'pointer' }}>Annuler</button>
+                <button type="submit" disabled={editSaving} style={{ flex:2, padding:'9px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#F4B315,#E59312)', color:'white', fontSize:13, fontWeight:700, cursor:'pointer', opacity:editSaving?0.7:1 }}>
+                  {editSaving ? 'Enregistrement...' : 'Enregistrer'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

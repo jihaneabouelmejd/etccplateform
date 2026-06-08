@@ -459,11 +459,40 @@
     body { background: white; }
     .page { box-shadow: none; margin: 0; width: 100%; }
     @page { margin: 0; size: A4; }
+    .edit-bar { display: none !important; }
+    [contenteditable="true"] { border-bottom: none !important; background: none !important; }
+  }
+
+  /* ─── ÉDITION INLINE ─── */
+  .edit-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+    background: #1A1A1A; color: #F5C842;
+    padding: 7px 20px; font-family: 'Outfit', sans-serif;
+    font-size: 13px; display: flex; align-items: center; gap: 10px;
+  }
+  .edit-bar strong { font-weight: 600; }
+  .edit-bar span { opacity: 0.65; font-size: 12px; }
+  [contenteditable="true"] {
+    outline: none;
+    border-bottom: 2px dashed #F5C842;
+    padding-bottom: 1px;
+    cursor: text;
+    min-width: 20px;
+  }
+  [contenteditable="true"]:focus {
+    background: rgba(245,200,66,0.12);
+    border-radius: 3px;
   }
 </style>
 </head>
 <body>
-<div class="page">
+
+<div class="edit-bar">
+  ✏️ <strong>Mode édition</strong>
+  <span>Cliquez sur le numéro ou la date pour les modifier — disparaît à l'impression</span>
+</div>
+
+<div class="page" style="margin-top:36px">
 
   <!-- ══ HEADER ══ -->
   <header class="header">
@@ -474,7 +503,7 @@
       </div>
       <div class="doc-identity">
         <span class="doc-label">Bon de livraison</span>
-        <div class="doc-number">#BL-2024-201</div>
+        <div class="doc-number" contenteditable="true" title="Cliquez pour modifier le numéro">#BL-2024-201</div>
       </div>
     </div>
 
@@ -524,7 +553,7 @@
   <div class="meta-row">
     <div class="meta-cell">
       <span class="meta-label">Date d'expédition</span>
-      <div class="meta-value">22 novembre 2024</div>
+      <div class="meta-value" contenteditable="true" title="Cliquez pour modifier la date">22 novembre 2024</div>
     </div>
     <div class="meta-cell">
       <span class="meta-label">Livraison prévue</span>

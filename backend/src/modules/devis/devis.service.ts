@@ -204,6 +204,8 @@ export class DevisService {
           payment_terms: input.payment_terms !== undefined ? input.payment_terms : devis.payment_terms,
           notes: input.notes !== undefined ? input.notes : devis.notes,
           signature_id: input.signature_id !== undefined ? (input.signature_id || null) : devis.signature_id,
+          ...(input.number ? { number: input.number } : {}),
+          ...(input.issue_date ? { issue_date: new Date(input.issue_date as any) } : {}),
           ...totals,
           ...(input.lines ? {
             lines: {

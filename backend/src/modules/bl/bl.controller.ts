@@ -47,6 +47,12 @@ export class BLController {
   @Roles(Role.ADMIN, Role.GERANT)
   findOne(@Param('id') id: string) { return this.bl.findOne(id); }
 
+  @Patch(':id')
+  @Roles(Role.ADMIN, Role.GERANT)
+  update(@Param('id') id: string, @Body() data: { number?: string; issue_date?: string }) {
+    return this.bl.update(id, data);
+  }
+
   @Patch(':id/status')
   @Roles(Role.ADMIN, Role.GERANT)
   updateStatus(@Param('id') id: string, @Body('status') status: BLStatus) {

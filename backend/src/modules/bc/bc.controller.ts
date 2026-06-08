@@ -47,6 +47,12 @@ export class BCController {
   @Roles(Role.ADMIN, Role.GERANT)
   findOne(@Param('id') id: string) { return this.bc.findOne(id); }
 
+  @Patch(':id')
+  @Roles(Role.ADMIN, Role.GERANT)
+  update(@Param('id') id: string, @Body() data: { number?: string; issue_date?: string }) {
+    return this.bc.update(id, data);
+  }
+
   @Patch(':id/status')
   @Roles(Role.ADMIN, Role.GERANT)
   updateStatus(@Param('id') id: string, @Body('status') status: BCStatus) {
