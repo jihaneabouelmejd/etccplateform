@@ -20,6 +20,7 @@ import { DettesModule } from './modules/dettes/dettes.module';
 import { RapprochementModule } from './modules/rapprochement/rapprochement.module';
 import { AlertesModule } from './modules/alertes/alertes.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { AgendaModule } from './modules/agenda/agenda.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { UploadModule } from './modules/upload/upload.module';
     AlertesModule,
     PDFModule,
     UploadModule,
+    AgendaModule,
   ],
 })
 export class AppModule {}

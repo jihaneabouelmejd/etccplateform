@@ -49,7 +49,7 @@ const menuSections = [
   {
     label: 'Outils',
     items: [
-      { href: '/calendrier', label: 'Calendrier', icon: Calendar },
+      { href: '/agenda', label: 'Agenda', icon: Calendar },
       { href: '/rapports', label: 'Rapports', icon: BarChart3 },
     ],
   },

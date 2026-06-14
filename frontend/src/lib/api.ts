@@ -241,3 +241,17 @@ export const pdfMergeApi = {
   merge: (items: { type: 'devis' | 'bl' | 'invoice' | 'bc'; id: string }[], lang?: string) =>
     api.post('/pdf/merge', { items, lang: lang || 'FR' }, { responseType: 'blob' }),
 };
+
+export const agendaApi = {
+  get: (month: number, year: number) => api.get('/agenda', { params: { month, year } }),
+  // Objectifs
+  createObjectif: (data: any) => api.post('/agenda/objectifs', data),
+  getObjectifs: (params?: any) => api.get('/agenda/objectifs', { params }),
+  updateObjectif: (id: string, data: any) => api.patch(`/agenda/objectifs/${id}`, data),
+  deleteObjectif: (id: string) => api.delete(`/agenda/objectifs/${id}`),
+  // Google Calendar
+  googleStatus: () => api.get('/agenda/google/status'),
+  getGoogleAuthUrl: () => api.get('/agenda/google/auth-url-with-state'),
+  disconnectGoogle: () => api.delete('/agenda/google/disconnect'),
+  syncToGoogle: () => api.post('/agenda/google/sync'),
+};

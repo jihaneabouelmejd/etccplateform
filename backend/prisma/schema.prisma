@@ -263,7 +263,9 @@ model User {
   audit_logs          AuditLog[]
   refresh_tokens      RefreshToken[]
   notifications       Notification[]
-  
+  objectifs           Objectif[]
+  google_token        UserGoogleToken?
+
   @@index([username])
   @@index([email])
   @@map("users")
@@ -441,7 +443,8 @@ model Project {
   dettes          Dette[]
   stock_movements StockMovement[]
   photos          ProjectPhoto[]
-  
+  objectifs       Objectif[]
+
   @@index([client_id])
   @@index([status])
   @@map("projects")
@@ -1171,4 +1174,49 @@ model PaiementDette {
 
   @@index([dette_id])
   @@map("paiements_dettes")
+}
+
+// ============================================================================
+// AGENDA & OBJECTIFS
+// ============================================================================
+
+model Objectif {
+  id          String    @id @default(uuid())
+  title       String
+  description String?   @db.Text
+
+  // null = objectif personnel, non-null = lié à un chantier
+  project_id  String?
+  user_id     String
+
+  start_date  DateTime?
+  end_date    DateTime?
+  progress    Int       @default(0)  // 0-100
+  completed   Boolean   @default(false)
+  completed_at DateTime?
+
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  project     Project?  @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  creator     User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([project_id])
+  @@map("objectifs")
+}
+
+model UserGoogleToken {
+  id            String   @id @default(uuid())
+  user_id       String   @unique
+  access_token  String   @db.Text
+  refresh_token String?  @db.Text
+  expiry_date   BigInt?
+  scope         String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_google_tokens")
 }
