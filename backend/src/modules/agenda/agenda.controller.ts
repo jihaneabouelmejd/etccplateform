@@ -185,25 +185,32 @@ export class AgendaController {
     const tasks = await this.agendaService.getTasksForSync(userId, role);
     let synced = 0;
     let errors = 0;
+    const errorDetails: string[] = [];
 
     for (const task of tasks) {
-      const eventId = await this.googleCalendar.syncTaskToCalendar(tokens, {
-        id: task.id,
-        title: task.title,
-        description: task.description || undefined,
-        due_date: task.due_date!,
-        project: task.project,
-        google_event_id: task.google_event_id,
-      });
+      try {
+        const eventId = await this.googleCalendar.syncTaskToCalendar(tokens, {
+          id: task.id,
+          title: task.title,
+          description: task.description || undefined,
+          due_date: task.due_date!,
+          project: task.project,
+          google_event_id: task.google_event_id,
+        });
 
-      if (eventId) {
-        await this.agendaService.updateTaskGoogleEventId(task.id, eventId);
-        synced++;
-      } else {
+        if (eventId) {
+          await this.agendaService.updateTaskGoogleEventId(task.id, eventId);
+          synced++;
+        } else {
+          errors++;
+          errorDetails.push(`Task ${task.title}: sync returned null`);
+        }
+      } catch (err: any) {
         errors++;
+        errorDetails.push(`Task ${task.title}: ${err?.message || String(err)}`);
       }
     }
 
-    return { success: true, synced, errors, total: tasks.length };
+    return { success: true, synced, errors, total: tasks.length, errorDetails };
   }
 }

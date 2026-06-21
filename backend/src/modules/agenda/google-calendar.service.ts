@@ -109,9 +109,10 @@ export class GoogleCalendarService {
         });
         return res.data.id;
       }
-    } catch (err) {
-      this.logger.warn(`Failed to sync task ${task.id}: ${err.message}`);
-      return null;
+    } catch (err: any) {
+      const msg = err?.response?.data?.error?.message || err?.message || String(err);
+      this.logger.warn(`Failed to sync task ${task.id}: ${msg}`);
+      throw new Error(msg);
     }
   }
 
