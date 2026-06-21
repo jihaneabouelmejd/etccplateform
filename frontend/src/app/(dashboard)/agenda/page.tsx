@@ -5,9 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import {
   ChevronLeft, ChevronRight, CalendarDays, Target, Plus, Trash2,
   CheckCircle2, Circle, RefreshCw, Link2, Link2Off, AlertCircle,
-  Pencil, X, Check,
+  Pencil, X, Check, Users, Clock,
 } from 'lucide-react';
-import { agendaApi, projectsApi } from '@/lib/api';
+import { agendaApi, projectsApi, assignableUsersApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -28,8 +28,23 @@ const STATUS_LABEL: Record<string,string> = {
   TODO: 'À faire', IN_PROGRESS: 'En cours', BLOCKED: 'Bloqué', DONE: 'Terminé',
 };
 
+// Palette de couleurs pour les utilisateurs
+const USER_COLORS = [
+  '#EBB800','#3B82F6','#10B981','#8B5CF6','#F59E0B',
+  '#EC4899','#06B6D4','#84CC16','#F97316','#6366F1',
+];
+
+function getUserColor(userId: string, allUsers: any[]) {
+  const idx = allUsers.findIndex(u => u.id === userId);
+  return USER_COLORS[idx % USER_COLORS.length] || '#9CA3AF';
+}
+
 function isoDate(d: Date) {
   return d.toISOString().split('T')[0];
+}
+
+function formatTime(t: string) {
+  return t ? t.slice(0, 5) : '';
 }
 
 // ─── styles ───────────────────────────────────────────────────────────────────
@@ -157,20 +172,22 @@ function ObjectifForm({
 export default function AgendaPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   const today = new Date();
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [year, setYear] = useState(today.getFullYear());
   const [selectedDate, setSelectedDate] = useState<string>(isoDate(today));
+  const [filterUserId, setFilterUserId] = useState<string>('');
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [objectifs, setObjectifs] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [googleConfigured, setGoogleConfigured] = useState(false);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<any>(null);
 
   const [showObjectifForm, setShowObjectifForm] = useState(false);
   const [editObjectif, setEditObjectif] = useState<any | null>(null);
@@ -207,6 +224,15 @@ export default function AgendaPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Load users for filter (admin only)
+  useEffect(() => {
+    if (isAdmin) {
+      assignableUsersApi.list().then(r => {
+        setAllUsers(Array.isArray(r.data) ? r.data : []);
+      }).catch(() => {});
+    }
+  }, [isAdmin]);
+
   // Build calendar grid
   const firstDay = new Date(year, month - 1, 1);
   const lastDay = new Date(year, month, 0);
@@ -219,14 +245,29 @@ export default function AgendaPage() {
   ];
   while (cells.length % 7 !== 0) cells.push(null);
 
+  // Filter tasks by selected user
+  const filteredTasks = filterUserId
+    ? tasks.filter(t => t.assignments?.some((a: any) => a.user?.id === filterUserId || a.user_id === filterUserId))
+    : tasks;
+
   // Tasks grouped by date
   const tasksByDate: Record<string, any[]> = {};
-  tasks.forEach(t => {
+  filteredTasks.forEach(t => {
     if (t.due_date) {
       const d = t.due_date.slice(0, 10);
       if (!tasksByDate[d]) tasksByDate[d] = [];
       tasksByDate[d].push(t);
     }
+  });
+
+  // Sort tasks within each day by start_time
+  Object.keys(tasksByDate).forEach(d => {
+    tasksByDate[d].sort((a, b) => {
+      if (!a.start_time && !b.start_time) return 0;
+      if (!a.start_time) return 1;
+      if (!b.start_time) return -1;
+      return a.start_time.localeCompare(b.start_time);
+    });
   });
 
   // Tasks for selected date
@@ -258,10 +299,8 @@ export default function AgendaPage() {
 
   const handleSync = async () => {
     setSyncing(true);
-    setSyncResult(null);
     try {
       const res = await agendaApi.syncToGoogle();
-      setSyncResult(res.data);
       setNotification({
         type: 'success',
         msg: `${res.data.synced} tâche(s) synchronisée(s) vers Google Agenda.`,
@@ -304,10 +343,27 @@ export default function AgendaPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <CalendarDays size={22} color="#C68B00" />
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1A141A', margin: 0 }}>Agenda</h1>
+          <span style={{ fontSize: 12, color: '#9CA3AF', background: '#F3F4F6', padding: '2px 8px', borderRadius: 12 }}>
+            {filteredTasks.length} tâche{filteredTasks.length !== 1 ? 's' : ''}
+          </span>
         </div>
 
-        {/* Google Calendar button */}
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {/* Filter by user (admin only) */}
+          {isAdmin && allUsers.length > 0 && (
+            <select
+              value={filterUserId}
+              onChange={e => setFilterUserId(e.target.value)}
+              style={{ padding:'7px 10px', borderRadius:8, border:'1.5px solid #EDDEC1', fontSize:12, color:'#A33C00', background:'white', cursor:'pointer' }}
+            >
+              <option value="">👥 Toute l'équipe</option>
+              {allUsers.map(u => (
+                <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+              ))}
+            </select>
+          )}
+
+          {/* Google Calendar button */}
           {googleConnected ? (
             <>
               <button
@@ -355,12 +411,12 @@ export default function AgendaPage() {
         }}>
           <AlertCircle size={15} />
           <span>
-            Pour activer la sync Google Agenda, ajoutez <b>GOOGLE_CLIENT_ID</b> et <b>GOOGLE_CLIENT_SECRET</b> dans le fichier <b>.env</b> du backend (Google Cloud Console → APIs &amp; Services → Credentials).
+            Pour activer la sync Google Agenda, ajoutez <b>GOOGLE_CLIENT_ID</b> et <b>GOOGLE_CLIENT_SECRET</b> dans le fichier <b>.env</b> du backend.
           </span>
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20 }}>
         {/* ── LEFT: Calendar ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={card}>
@@ -400,7 +456,7 @@ export default function AgendaPage() {
                     key={i}
                     onClick={() => setSelectedDate(dateStr)}
                     style={{
-                      minHeight: 70, padding: '6px 5px', borderRadius: 8, cursor: 'pointer',
+                      minHeight: 72, padding: '6px 5px', borderRadius: 8, cursor: 'pointer',
                       border: isSelected ? '2px solid #EBB800' : '1.5px solid transparent',
                       background: isSelected ? '#FFFBF0' : isToday ? '#FFF8E0' : 'transparent',
                       transition: 'all 0.15s',
@@ -415,18 +471,22 @@ export default function AgendaPage() {
                     }}>
                       {day}
                     </div>
-                    {dayTasks.slice(0, 3).map(t => (
-                      <div key={t.id} style={{
-                        fontSize: 10, fontWeight: 600, padding: '1px 4px', borderRadius: 4,
-                        marginBottom: 1, whiteSpace: 'nowrap', overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        background: STATUS_COLOR[t.status] + '22',
-                        color: STATUS_COLOR[t.status],
-                        border: `1px solid ${STATUS_COLOR[t.status]}44`,
-                      }}>
-                        {t.title}
-                      </div>
-                    ))}
+                    {dayTasks.slice(0, 3).map(t => {
+                      const assigneeId = t.assignments?.[0]?.user?.id;
+                      const color = assigneeId ? getUserColor(assigneeId, allUsers) : STATUS_COLOR[t.status];
+                      return (
+                        <div key={t.id} style={{
+                          fontSize: 10, fontWeight: 600, padding: '1px 4px', borderRadius: 4,
+                          marginBottom: 1, whiteSpace: 'nowrap', overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          background: color + '22',
+                          color: color,
+                          border: `1px solid ${color}44`,
+                        }}>
+                          {t.start_time ? `${formatTime(t.start_time)} ` : ''}{t.title}
+                        </div>
+                      );
+                    })}
                     {dayTasks.length > 3 && (
                       <div style={{ fontSize: 9, color: '#9CA3AF', paddingLeft: 4 }}>
                         +{dayTasks.length - 3} autres
@@ -440,54 +500,160 @@ export default function AgendaPage() {
 
           {/* Selected day tasks */}
           <div style={card}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1A141A', margin: '0 0 12px' }}>
-              Tâches du {new Date(selectedDate + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1A141A', margin: 0 }}>
+                📅 {new Date(selectedDate + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </h3>
+              <span style={{ fontSize: 12, color: '#9CA3AF', background: '#F3F4F6', padding: '2px 8px', borderRadius: 10 }}>
+                {selectedTasks.length} tâche{selectedTasks.length !== 1 ? 's' : ''}
+              </span>
+            </div>
             {selectedTasks.length === 0 ? (
               <p style={{ color: '#9CA3AF', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>
                 Aucune tâche prévue ce jour
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {selectedTasks.map(t => (
-                  <div key={t.id} style={{
-                    padding: '10px 14px', borderRadius: 10,
-                    border: `1.5px solid ${STATUS_COLOR[t.status]}44`,
-                    background: STATUS_COLOR[t.status] + '0D',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: '#1A141A' }}>{t.title}</span>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
-                        background: STATUS_COLOR[t.status] + '22', color: STATUS_COLOR[t.status],
-                      }}>
-                        {STATUS_LABEL[t.status]}
-                      </span>
+                {selectedTasks.map(t => {
+                  const assigneeId = t.assignments?.[0]?.user?.id;
+                  const accentColor = assigneeId ? getUserColor(assigneeId, allUsers) : STATUS_COLOR[t.status];
+                  return (
+                    <div key={t.id} style={{
+                      padding: '12px 14px', borderRadius: 10,
+                      border: `1.5px solid ${accentColor}33`,
+                      background: accentColor + '0A',
+                      borderLeft: `4px solid ${accentColor}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <span style={{ fontSize: 14, fontWeight: 700, color: '#1A141A' }}>{t.title}</span>
+                          {/* Time badge */}
+                          {t.start_time && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                              <Clock size={11} color="#6B7280" />
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#374151' }}>
+                                {formatTime(t.start_time)}{t.end_time ? ` → ${formatTime(t.end_time)}` : ''}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
+                          background: STATUS_COLOR[t.status] + '22', color: STATUS_COLOR[t.status],
+                          flexShrink: 0,
+                        }}>
+                          {STATUS_LABEL[t.status]}
+                        </span>
+                      </div>
+                      {t.project && (
+                        <div style={{ fontSize: 11, color: '#A33C00', marginTop: 5 }}>
+                          🏗 {t.project.code} · {t.project.name}
+                        </div>
+                      )}
+                      {t.assignments?.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+                          <div style={{ display: 'flex', gap: -4 }}>
+                            {t.assignments.slice(0, 4).map((a: any, i: number) => {
+                              const color = getUserColor(a.user?.id, allUsers);
+                              const initials = `${a.user?.first_name?.[0] || ''}${a.user?.last_name?.[0] || ''}`;
+                              return (
+                                <div key={a.user?.id || i} title={`${a.user?.first_name} ${a.user?.last_name}`} style={{
+                                  width: 22, height: 22, borderRadius: '50%', background: color,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: 9, fontWeight: 700, color: 'white',
+                                  border: '2px solid white', marginRight: -6,
+                                }}>
+                                  {initials}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <span style={{ fontSize: 11, color: '#6B7280', marginLeft: 10 }}>
+                            {t.assignments.map((a: any) => `${a.user?.first_name} ${a.user?.last_name}`).join(', ')}
+                          </span>
+                        </div>
+                      )}
+                      {t.google_event_id && (
+                        <div style={{ fontSize: 10, color: '#10B981', marginTop: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Link2 size={10} /> Sync Google Agenda
+                        </div>
+                      )}
+                      {/* Progress bar */}
+                      {t.progress > 0 && (
+                        <div style={{ marginTop: 8 }}>
+                          <div style={{ height: 4, background: '#F3E8D0', borderRadius: 4 }}>
+                            <div style={{ width: `${t.progress}%`, height: '100%', background: accentColor, borderRadius: 4 }} />
+                          </div>
+                          <span style={{ fontSize: 10, color: '#6B7280' }}>{t.progress}%</span>
+                        </div>
+                      )}
                     </div>
-                    {t.project && (
-                      <div style={{ fontSize: 11, color: '#A33C00', marginTop: 3 }}>
-                        📁 {t.project.code} · {t.project.name}
-                      </div>
-                    )}
-                    {t.assignments?.length > 0 && (
-                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 3 }}>
-                        👤 {t.assignments.map((a: any) => `${a.user?.first_name} ${a.user?.last_name}`).join(', ')}
-                      </div>
-                    )}
-                    {t.google_event_id && (
-                      <div style={{ fontSize: 10, color: '#10B981', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Link2 size={10} /> Sync Google Agenda
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
 
-        {/* ── RIGHT: Objectifs ── */}
+        {/* ── RIGHT: Sidebar ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+          {/* Team Legend (admin only) */}
+          {isAdmin && allUsers.length > 0 && (
+            <div style={{ ...card, padding: '14px 18px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <Users size={14} color="#C68B00" />
+                <p style={{ fontSize: 11, fontWeight: 700, color: '#A33C00', textTransform: 'uppercase', letterSpacing: 0.5, margin: 0 }}>
+                  Équipe
+                </p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {allUsers.map(u => {
+                  const color = getUserColor(u.id, allUsers);
+                  const userTaskCount = tasks.filter(t =>
+                    t.assignments?.some((a: any) => a.user?.id === u.id || a.user_id === u.id)
+                  ).length;
+                  return (
+                    <button
+                      key={u.id}
+                      onClick={() => setFilterUserId(prev => prev === u.id ? '' : u.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px',
+                        borderRadius: 7, border: `1.5px solid ${filterUserId === u.id ? color : 'transparent'}`,
+                        background: filterUserId === u.id ? color + '15' : 'transparent',
+                        cursor: 'pointer', textAlign: 'left',
+                      }}
+                    >
+                      <div style={{
+                        width: 26, height: 26, borderRadius: '50%', background: color,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 10, fontWeight: 700, color: 'white', flexShrink: 0,
+                      }}>
+                        {u.first_name?.[0]}{u.last_name?.[0]}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: '#1A141A' }}>{u.first_name} {u.last_name}</div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF' }}>{userTaskCount} tâche{userTaskCount !== 1 ? 's' : ''} ce mois</div>
+                      </div>
+                      {filterUserId === u.id && (
+                        <span style={{ fontSize: 10, color: color, fontWeight: 700 }}>✓</span>
+                      )}
+                    </button>
+                  );
+                })}
+                {filterUserId && (
+                  <button
+                    onClick={() => setFilterUserId('')}
+                    style={{ fontSize: 11, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '3px 8px' }}
+                  >
+                    ✕ Voir toute l'équipe
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Objectifs */}
           <div style={card}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -583,7 +749,7 @@ export default function AgendaPage() {
           {/* Legend */}
           <div style={{ ...card, padding: '14px 18px' }}>
             <p style={{ fontSize: 11, fontWeight: 700, color: '#A33C00', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>
-              Légende des tâches
+              Statuts des tâches
             </p>
             {Object.entries(STATUS_LABEL).map(([key, label]) => (
               <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -591,9 +757,14 @@ export default function AgendaPage() {
                 <span style={{ fontSize: 12, color: '#3D2B1F' }}>{label}</span>
               </div>
             ))}
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #EDDEC1', fontSize: 11, color: '#9CA3AF' }}>
+              💡 Les tâches créées dans « Tâches » apparaissent automatiquement ici dès qu'une date est assignée.
+            </div>
           </div>
         </div>
       </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -654,7 +825,6 @@ function ObjectifCard({ obj, editObjectif, setEditObjectif, onToggle, onDelete, 
             Échéance : {new Date(obj.end_date).toLocaleDateString('fr-FR')}
           </span>
         )}
-        {/* Progress bar */}
         {!obj.completed && obj.progress > 0 && (
           <div style={{ marginTop: 4, height: 4, background: '#F3E8D0', borderRadius: 4 }}>
             <div style={{ width: `${obj.progress}%`, height: '100%', background: '#EBB800', borderRadius: 4 }} />

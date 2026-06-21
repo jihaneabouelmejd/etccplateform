@@ -475,8 +475,10 @@ model Task {
   priority        Int              @default(0)
   
   due_date        DateTime?
+  start_time      String?           // "HH:MM" format
+  end_time        String?           // "HH:MM" format
   completed_at    DateTime?
-  
+
   // Google Calendar sync
   google_event_id String?
   

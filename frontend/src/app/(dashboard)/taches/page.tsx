@@ -30,7 +30,7 @@ function isAdminRole(role: string) { return role === 'ADMIN' || role === 'GERANT
 
 const emptyForm = {
   title: '', project_id: '', assignee_ids: [] as string[],
-  priority: 1, due_date: '', status: 'TODO',
+  priority: 1, due_date: '', start_time: '', end_time: '', status: 'TODO',
   description: '', blocker: '', progress: 0,
 };
 
@@ -44,6 +44,8 @@ function mapTask(t: any) {
     priority: t.priority >= 2 ? 'HIGH' : t.priority === 1 ? 'MED' : 'LOW',
     priorityNum: t.priority || 1,
     due: t.due_date ? t.due_date.slice(0, 10) : '',
+    start_time: t.start_time || '',
+    end_time: t.end_time || '',
     status: t.status,
     description: t.description || '',
     progress: t.progress || 0,
@@ -161,6 +163,8 @@ export default function TachesPage() {
       assignee_ids: (task.assignees?.map((u: any) => u?.id).filter((id: any) => typeof id === 'string' && id.length > 0)) || [],
       priority:     task.priorityNum ?? 1,
       due_date:     task.due || '',
+      start_time:   task.start_time || '',
+      end_time:     task.end_time || '',
       status:       task.status,
       description:  task.description || '',
       blocker:      task.blocker || '',
@@ -206,6 +210,8 @@ export default function TachesPage() {
       assignee_ids: form.assignee_ids.filter((id): id is string => typeof id === 'string' && id.length > 0),
       priority:     Number(form.priority),
       due_date:     form.due_date || undefined,
+      start_time:   form.start_time || null,
+      end_time:     form.end_time || null,
       status:       form.status,
       description:  form.description || undefined,
       progress:     Number(form.progress),
@@ -405,7 +411,7 @@ export default function TachesPage() {
                     <div className="flex justify-between items-center">
                       <span className={cn('badge border text-[9px]', priorityConfig[task.priority])}>{task.priority}</span>
                       <div className="flex items-center gap-1.5">
-                        {task.due && <span className="text-[10px] text-honey-caramel">📅 {task.due}</span>}
+                        {task.due && <span className="text-[10px] text-honey-caramel">📅 {task.due}{task.start_time ? ` · ${task.start_time}` : ''}</span>}
                         {renderAssignees(task.assignees)}
                       </div>
                     </div>
@@ -607,6 +613,16 @@ export default function TachesPage() {
                 <div>
                   <label style={labelStyle}>Date d'échéance</label>
                   <input type="date" disabled={saving} value={form.due_date} onChange={e => setForm({...form, due_date:e.target.value})} style={{ ...inputStyle, opacity: saving ? 0.7 : 1 }} />
+                </div>
+
+                {/* Heures */}
+                <div>
+                  <label style={labelStyle}>Heure début</label>
+                  <input type="time" disabled={saving} value={form.start_time} onChange={e => setForm({...form, start_time:e.target.value})} style={{ ...inputStyle, opacity: saving ? 0.7 : 1 }} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Heure fin</label>
+                  <input type="time" disabled={saving} value={form.end_time} onChange={e => setForm({...form, end_time:e.target.value})} style={{ ...inputStyle, opacity: saving ? 0.7 : 1 }} />
                 </div>
 
                 {/* Avancement */}

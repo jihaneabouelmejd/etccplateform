@@ -50,6 +50,8 @@ export class GoogleCalendarService {
     title: string;
     description?: string;
     due_date: Date;
+    start_time?: string | null;
+    end_time?: string | null;
     project?: { name: string; code: string } | null;
     google_event_id?: string | null;
   }): Promise<string | null> {
@@ -63,14 +65,27 @@ export class GoogleCalendarService {
       const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
 
       const dueDate = new Date(task.due_date);
-      const nextDay = new Date(dueDate);
-      nextDay.setDate(nextDay.getDate() + 1);
+      const dateStr = dueDate.toISOString().split('T')[0];
+
+      // Use dateTime (with hours) if start_time is provided, otherwise all-day event
+      let startEntry: any;
+      let endEntry: any;
+      if (task.start_time) {
+        const endTime = task.end_time || task.start_time;
+        startEntry = { dateTime: `${dateStr}T${task.start_time}:00`, timeZone: 'Africa/Casablanca' };
+        endEntry   = { dateTime: `${dateStr}T${endTime}:00`, timeZone: 'Africa/Casablanca' };
+      } else {
+        const nextDay = new Date(dueDate);
+        nextDay.setDate(nextDay.getDate() + 1);
+        startEntry = { date: dateStr };
+        endEntry   = { date: nextDay.toISOString().split('T')[0] };
+      }
 
       const event = {
         summary: `${task.project?.code ? `[${task.project.code}] ` : ''}${task.title}`,
         description: task.description || (task.project ? `Chantier: ${task.project.name}` : ''),
-        start: { date: dueDate.toISOString().split('T')[0] },
-        end: { date: nextDay.toISOString().split('T')[0] },
+        start: startEntry,
+        end: endEntry,
         source: {
           title: 'ETCC Platform',
           url: `${this.config.get('FRONTEND_URL') || 'http://localhost:3000'}/taches`,

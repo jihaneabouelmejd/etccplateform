@@ -11,6 +11,8 @@ export class TasksService {
     title: string;
     description?: string;
     due_date?: Date;
+    start_time?: string;
+    end_time?: string;
     priority?: number;
     assignee_ids?: string[];
   }, createdBy: string) {
@@ -20,6 +22,8 @@ export class TasksService {
         title: data.title,
         description: data.description || undefined,
         due_date: data.due_date ? new Date(data.due_date) : undefined,
+        start_time: (data as any).start_time || null,
+        end_time: (data as any).end_time || null,
         priority: Math.round(Number(data.priority)) || 0,
         status: (data as any).status || 'TODO',
         progress: Math.round(Number((data as any).progress)) || 0,
@@ -147,6 +151,8 @@ export class TasksService {
     title?: string;
     description?: string;
     due_date?: string | Date | null;
+    start_time?: string | null;
+    end_time?: string | null;
     priority?: number;
     status?: TaskStatus;
     progress?: number;
@@ -159,6 +165,8 @@ export class TasksService {
     if (data.priority    !== undefined) updateData.priority    = Math.round(Number(data.priority));
     if (data.status      !== undefined) updateData.status      = data.status;
     if (data.progress    !== undefined) updateData.progress    = Math.round(Number(data.progress));
+    if (data.start_time  !== undefined) updateData.start_time  = data.start_time || null;
+    if (data.end_time    !== undefined) updateData.end_time    = data.end_time || null;
 
     // due_date: empty string → null (clear the date), ISO string → Date
     if (data.due_date !== undefined) {
