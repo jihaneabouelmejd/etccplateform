@@ -26,9 +26,6 @@ export class TasksController {
     @CurrentUser('role') role: string,
   ) {
     try {
-      if (!data?.project_id) {
-        throw new (require('@nestjs/common').BadRequestException)('project_id est requis');
-      }
       if (!data?.title) {
         throw new (require('@nestjs/common').BadRequestException)('title est requis');
       }

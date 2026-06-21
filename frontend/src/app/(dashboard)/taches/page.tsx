@@ -192,11 +192,6 @@ export default function TachesPage() {
 
     setFormError('');
 
-    if (!form.project_id) {
-      setFormError('Veuillez sélectionner un chantier.');
-      return;
-    }
-
     // ② Mark as saving BEFORE the first await so any concurrent call is blocked
     savingRef.current = true;
     setSaving(true);

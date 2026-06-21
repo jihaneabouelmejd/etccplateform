@@ -7,7 +7,7 @@ export class TasksService {
   constructor(private prisma: PrismaService) {}
 
   async create(data: {
-    project_id: string;
+    project_id?: string;
     title: string;
     description?: string;
     due_date?: Date;
@@ -18,7 +18,7 @@ export class TasksService {
   }, createdBy: string) {
     const task = await this.prisma.task.create({
       data: {
-        project_id: data.project_id,
+        project_id: data.project_id || null,
         title: data.title,
         description: data.description || undefined,
         due_date: data.due_date ? new Date(data.due_date) : undefined,
