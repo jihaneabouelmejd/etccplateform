@@ -26,6 +26,7 @@ const menuItems = [
   { href: '/comptabilite-interne', key: 'menu.compta_interne', emoji: '📊', roles: ['ADMIN', 'GERANT'] },
   { href: '/rapprochement',        key: 'menu.rapprochement',  emoji: '🏦', roles: ['ADMIN', 'GERANT', 'COMPTABLE'] },
   { href: '/alertes',              key: 'menu.alertes',        emoji: '⚠️', roles: ['ADMIN', 'GERANT'] },
+  { href: '/agenda',               key: 'menu.agenda',         emoji: '📅', roles: ['ADMIN', 'GERANT', 'EMPLOYE'] },
   { href: '/corbeille',            key: 'menu.corbeille',      emoji: '🗑️', roles: ['ADMIN', 'GERANT'] },
   { href: '/parametres',           key: 'menu.parametres',     emoji: '⚙️', roles: ['ADMIN', 'GERANT'] },
 ];
