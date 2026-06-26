@@ -74,7 +74,7 @@ export default function Sidebar() {
         return ['/', '/taches', '/stock', '/depenses'].includes(item.href);
       }
       if (user?.role === 'COMPTABLE') {
-        return ['/', '/factures', '/depenses', '/alertes', '/rapports', '/fournisseurs'].includes(item.href);
+        return ['/', '/factures', '/depenses', '/alertes', '/rapports', '/fournisseurs', '/benefices'].includes(item.href);
       }
       return true;
     }),
