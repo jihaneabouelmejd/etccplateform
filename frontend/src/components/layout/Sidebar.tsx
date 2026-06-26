@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Building2, ListTodo, Users, Package,
   UserCog, FileText, ClipboardList, Truck, Receipt,
   Combine, Boxes, Clock, Landmark, AlertTriangle,
-  Calendar, BarChart3, Settings,
+  Calendar, BarChart3, Settings, TrendingUp,
 } from 'lucide-react';
 
 const menuSections = [
@@ -43,7 +43,8 @@ const menuSections = [
     items: [
       { href: '/stock', label: 'Stock', icon: Boxes, badge: '2' },
       { href: '/depenses', label: 'Dépenses', icon: Clock },
-{ href: '/alertes', label: 'Alertes', icon: AlertTriangle },
+      { href: '/benefices', label: 'Bénéfices', icon: TrendingUp },
+      { href: '/alertes', label: 'Alertes', icon: AlertTriangle },
     ],
   },
   {
