@@ -22,6 +22,7 @@ const menuItems = [
   { href: '/merge',                key: 'menu.merge',          emoji: '🔗', roles: ['ADMIN', 'GERANT'] },
   { href: '/stock',                key: 'menu.stock',          emoji: '📦', roles: ['ADMIN', 'GERANT'] },
   { href: '/depenses',             key: 'menu.depenses',       emoji: '💰', roles: ['ADMIN', 'GERANT', 'EMPLOYE'] },
+  { href: '/benefices',            key: 'menu.benefices',      emoji: '📈', roles: ['ADMIN', 'GERANT', 'COMPTABLE'] },
   { href: '/comptabilite',         key: 'menu.comptabilite',   emoji: '📒', roles: ['ADMIN', 'GERANT', 'COMPTABLE'] },
   { href: '/comptabilite-interne', key: 'menu.compta_interne', emoji: '📊', roles: ['ADMIN', 'GERANT'] },
   { href: '/rapprochement',        key: 'menu.rapprochement',  emoji: '🏦', roles: ['ADMIN', 'GERANT', 'COMPTABLE'] },
