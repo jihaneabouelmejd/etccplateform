@@ -9,7 +9,7 @@ nixPkgs = ["nodejs_22"]
 cmds = ["npm install --legacy-peer-deps"]
 
 [phases.build]
-cmds = ["rm -rf .next/cache", "NEXT_TELEMETRY_DISABLED=1 npm run build"]
+cmds = ["NEXT_TELEMETRY_DISABLED=1 npm run build"]
 
 [start]
 cmd = "npm start"
