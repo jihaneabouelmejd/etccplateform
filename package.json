@@ -6,6 +6,6 @@
     "start": "cd frontend && npm start"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20.9.0"
   }
 }
