@@ -102,33 +102,37 @@ export default function BeneficesPage() {
     return expenses.filter(e => e.prestation_id === pid).reduce((s, e) => s + Number(e.amount), 0);
   }
 
-  // Dépenses liées à un devis validé : on cherche par prestation_nom === devis.object
-  // ou par prestation (localStorage) dont le nom === devis.object
-  function expForDevis(d: any): number {
-    const name = (d.object || '').trim().toLowerCase();
-    if (!name) return 0;
-    return expenses.filter(e => {
-      if (e.prestation_nom && e.prestation_nom.trim().toLowerCase() === name) return true;
-      if (e.prestation_id) {
-        const p = prestations.find((p: any) => p.id === e.prestation_id);
-        return p?.nom?.trim().toLowerCase() === name;
-      }
-      return false;
-    }).reduce((s, e) => s + Number(e.amount), 0);
-  }
+  // Dépenses liées à un devis validé :
+  // 1) via prestation.devis_id === devis.id (lien fort)
+  // 2) via prestation_nom === devis.object (lien par nom, fallback)
+  function getExpensesForDevis(d: any): any[] {
+    // Prestations liées à ce devis via devis_id
+    const linkedPrestIds = prestations
+      .filter((p: any) => p.devis_id && p.devis_id === d.id)
+      .map((p: any) => p.id);
 
-  // Détail des dépenses pour un devis
-  function expDetailForDevis(d: any): any[] {
     const name = (d.object || '').trim().toLowerCase();
-    if (!name) return [];
+
     return expenses.filter(e => {
-      if (e.prestation_nom && e.prestation_nom.trim().toLowerCase() === name) return true;
-      if (e.prestation_id) {
+      // Lien fort : prestation_id correspond à une prestation liée au devis
+      if (e.prestation_id && linkedPrestIds.includes(e.prestation_id)) return true;
+      // Lien par nom : prestation_nom === devis.object
+      if (name && e.prestation_nom && e.prestation_nom.trim().toLowerCase() === name) return true;
+      // Lien par nom via localStorage prestation
+      if (name && e.prestation_id) {
         const p = prestations.find((p: any) => p.id === e.prestation_id);
-        return p?.nom?.trim().toLowerCase() === name;
+        if (p?.nom?.trim().toLowerCase() === name) return true;
       }
       return false;
     });
+  }
+
+  function expForDevis(d: any): number {
+    return getExpensesForDevis(d).reduce((s, e) => s + Number(e.amount), 0);
+  }
+
+  function expDetailForDevis(d: any): any[] {
+    return getExpensesForDevis(d);
   }
 
   // KPI par période: revenus = devis validés dans la période, dépenses = dépenses dans la période
