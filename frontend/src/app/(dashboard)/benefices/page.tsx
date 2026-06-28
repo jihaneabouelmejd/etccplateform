@@ -102,6 +102,35 @@ export default function BeneficesPage() {
     return expenses.filter(e => e.prestation_id === pid).reduce((s, e) => s + Number(e.amount), 0);
   }
 
+  // Dépenses liées à un devis validé : on cherche par prestation_nom === devis.object
+  // ou par prestation (localStorage) dont le nom === devis.object
+  function expForDevis(d: any): number {
+    const name = (d.object || '').trim().toLowerCase();
+    if (!name) return 0;
+    return expenses.filter(e => {
+      if (e.prestation_nom && e.prestation_nom.trim().toLowerCase() === name) return true;
+      if (e.prestation_id) {
+        const p = prestations.find((p: any) => p.id === e.prestation_id);
+        return p?.nom?.trim().toLowerCase() === name;
+      }
+      return false;
+    }).reduce((s, e) => s + Number(e.amount), 0);
+  }
+
+  // Détail des dépenses pour un devis
+  function expDetailForDevis(d: any): any[] {
+    const name = (d.object || '').trim().toLowerCase();
+    if (!name) return [];
+    return expenses.filter(e => {
+      if (e.prestation_nom && e.prestation_nom.trim().toLowerCase() === name) return true;
+      if (e.prestation_id) {
+        const p = prestations.find((p: any) => p.id === e.prestation_id);
+        return p?.nom?.trim().toLowerCase() === name;
+      }
+      return false;
+    });
+  }
+
   // KPI par période: revenus = devis validés dans la période, dépenses = dépenses dans la période
   function kpi(unit: 'week' | 'month' | 'year') {
     const rev = devis
@@ -128,9 +157,9 @@ export default function BeneficesPage() {
   });
 
   /* ─── devis validés ─── */
+  // Recette = total_ttc du devis, Dépenses = dépenses liées à la même prestation (par nom)
   const devisRows = devis.map(d => {
-    // Dépenses liées via project
-    const dep = d.project_id ? expForProject(d.project_id) : 0;
+    const dep = expForDevis(d);
     return { ...d, depenses: dep, benefice: Number(d.total_ttc) - dep };
   });
 
@@ -330,7 +359,7 @@ export default function BeneficesPage() {
               )}
               {devisRows.map(d => {
                 const isExpanded = expandedRow === `dv-${d.id}`;
-                const depDetail = d.project_id ? expenses.filter(e => e.project_id === d.project_id) : [];
+                const depDetail = expDetailForDevis(d);
                 return (
                   <>
                     <tr key={d.id} style={{ cursor: depDetail.length > 0 ? 'pointer' : 'default', background: isExpanded ? '#FDF9F3' : 'transparent' }}
