@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react';
-import { projectsApi, devisApi, depensesApi } from '@/lib/api';
+import { projectsApi, devisApi, depensesApi, prestationsApi } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 
 /* ─── helpers ─── */
 function getPrestations(): any[] {
-  try { return JSON.parse(localStorage.getItem('etcc_prestations') || '[]'); } catch { return []; }
+  try { return JSON.parse(localStorage.getItem('etcc_prestations') || '[]'); } catch { return []; } // legacy fallback
 }
 
 function startOf(unit: 'week' | 'month' | 'year'): Date {
@@ -78,16 +78,16 @@ export default function BeneficesPage() {
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   useEffect(() => {
-    setPrestations(getPrestations());
     Promise.all([
       projectsApi.list({ limit: 200 }),
       devisApi.list({ status: 'VALIDATED', limit: 200 }),
       depensesApi.list({ status: 'APPROVED', limit: 500 }),
-    ]).then(([pRes, dRes, eRes]) => {
+      prestationsApi.list(),
+    ]).then(([pRes, dRes, eRes, prRes]) => {
       setProjects(Array.isArray(pRes.data) ? pRes.data : (pRes.data?.data || []));
       setDevis(Array.isArray(dRes.data) ? dRes.data : (dRes.data?.data || []));
-      const expList = Array.isArray(eRes.data) ? eRes.data : (eRes.data?.data || []);
-      setExpenses(expList);
+      setExpenses(Array.isArray(eRes.data) ? eRes.data : (eRes.data?.data || []));
+      setPrestations(Array.isArray(prRes.data) ? prRes.data : []);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 

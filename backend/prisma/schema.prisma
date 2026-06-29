@@ -264,6 +264,7 @@ model User {
   refresh_tokens      RefreshToken[]
   notifications       Notification[]
   objectifs           Objectif[]
+  prestations         Prestation[]
   google_token        UserGoogleToken?
 
   @@index([username])
@@ -648,7 +649,8 @@ model Devis {
   signature       Signature?  @relation(fields: [signature_id], references: [id])
   lines           DevisLine[]
   bcs             BonCommande[]
-  
+  prestations     Prestation[]
+
   @@index([client_id])
   @@index([status])
   @@index([number])
@@ -1206,6 +1208,35 @@ model Objectif {
   @@index([user_id])
   @@index([project_id])
   @@map("objectifs")
+}
+
+enum PrestationStatut {
+  EN_COURS
+  TERMINEE
+  ANNULEE
+}
+
+model Prestation {
+  id          String           @id @default(uuid())
+  nom         String
+  client      String
+  montant     Decimal          @db.Decimal(12, 2)
+  date_debut  DateTime?
+  date_fin    DateTime?
+  description String?          @db.Text
+  statut      PrestationStatut @default(EN_COURS)
+  devis_id    String?
+
+  created_by  String
+  created_at  DateTime         @default(now())
+  updated_at  DateTime         @updatedAt
+
+  creator     User             @relation(fields: [created_by], references: [id], onDelete: Cascade)
+  devis       Devis?           @relation(fields: [devis_id], references: [id], onDelete: SetNull)
+
+  @@index([created_by])
+  @@index([devis_id])
+  @@map("prestations")
 }
 
 model UserGoogleToken {

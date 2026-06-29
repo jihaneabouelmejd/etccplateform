@@ -255,3 +255,11 @@ export const agendaApi = {
   disconnectGoogle: () => api.delete('/agenda/google/disconnect'),
   syncToGoogle: () => api.post('/agenda/google/sync'),
 };
+
+export const prestationsApi = {
+  list: (params?: { statut?: string; search?: string }) => api.get('/prestations', { params }),
+  get:    (id: string)         => api.get(`/prestations/${id}`),
+  create: (data: any)          => api.post('/prestations', data),
+  update: (id: string, data: any) => api.patch(`/prestations/${id}`, data),
+  delete: (id: string)         => api.delete(`/prestations/${id}`),
+};

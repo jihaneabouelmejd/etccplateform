@@ -21,6 +21,7 @@ import { RapprochementModule } from './modules/rapprochement/rapprochement.modul
 import { AlertesModule } from './modules/alertes/alertes.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { AgendaModule } from './modules/agenda/agenda.module';
+import { PrestationsModule } from './modules/prestations/prestations.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { AgendaModule } from './modules/agenda/agenda.module';
     PDFModule,
     UploadModule,
     AgendaModule,
+    PrestationsModule,
   ],
 })
 export class AppModule {}

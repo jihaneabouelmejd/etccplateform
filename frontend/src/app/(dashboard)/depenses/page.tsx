@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Check, X, Camera, Pencil, Trash2, FileText, Download, Users, AlertCircle, ChevronDown, ChevronRight } from 'lucide-react';
-import api from '@/lib/api';
-import { dettesApi } from '@/lib/api';
+import api, { dettesApi, prestationsApi } from '@/lib/api';
 import { formatDate, formatCurrency, cn } from '@/lib/utils';
 import { useLanguage } from '@/lib/i18n';
 import FileViewerModal from '@/components/ui/FileViewerModal';
@@ -66,7 +65,7 @@ const CAT_COLORS: Record<string, string> = {
 
 function getUser() { try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch { return {}; } }
 function isManager() { const r = getUser().role; return r === 'ADMIN' || r === 'GERANT'; }
-function getPrestations() { try { return JSON.parse(localStorage.getItem('etcc_prestations') || '[]'); } catch { return []; } }
+function getPrestations() { try { return JSON.parse(localStorage.getItem('etcc_prestations') || '[]'); } catch { return []; } } // legacy fallback
 
 export default function DepensesPage() {
   const { t } = useLanguage();
@@ -142,7 +141,7 @@ export default function DepensesPage() {
   useEffect(() => {
     const mgr = isManager();
     setCanApp(mgr); setIsMgr(mgr);
-    setPrestations(getPrestations());
+    prestationsApi.list().then(r => setPrestations(Array.isArray(r.data) ? r.data : [])).catch(() => setPrestations(getPrestations()));
     if (!mgr && tab === 'dettes') setTab('depenses');
   }, []);
 

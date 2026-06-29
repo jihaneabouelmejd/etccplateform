@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { projectsApi, clientsApi, devisApi } from '@/lib/api';
+import { projectsApi, clientsApi, devisApi, prestationsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 
@@ -17,23 +17,21 @@ interface Client { id: string; commercial_name: string; }
 interface Prestation {
   id: string; nom: string; client: string; montant: number;
   date_debut: string; date_fin: string; description: string;
-  statut: 'EN_COURS' | 'TERMINE' | 'ANNULE';
+  statut: 'EN_COURS' | 'TERMINEE' | 'ANNULEE';
   devis_id?: string;
 }
 
 const PREST_STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  EN_COURS: { label: 'En cours',  color: '#1565C0', bg: '#E3F2FD' },
-  TERMINE:  { label: 'Terminé',   color: '#2E7D32', bg: '#E8F5E9' },
-  ANNULE:   { label: 'Annule',    color: '#B71C1C', bg: '#FFEBEE' },
+  EN_COURS: { label: 'En cours', color: '#1565C0', bg: '#E3F2FD' },
+  TERMINEE: { label: 'Terminée', color: '#2E7D32', bg: '#E8F5E9' },
+  ANNULEE:  { label: 'Annulée',  color: '#B71C1C', bg: '#FFEBEE' },
 };
 
 const emptyPrestation: Omit<Prestation, 'id'> = { nom: '', client: '', montant: 0, date_debut: '', date_fin: '', description: '', statut: 'EN_COURS', devis_id: '' };
 
-function loadPrestations(): Prestation[] {
+// localStorage helpers kept for backward-compat migration (read-once to import old data)
+function migrateOldPrestations(): Prestation[] {
   try { const s = localStorage.getItem('etcc_prestations'); return s ? JSON.parse(s) : []; } catch { return []; }
-}
-function savePrestations(list: Prestation[]) {
-  try { localStorage.setItem('etcc_prestations', JSON.stringify(list)); } catch {}
 }
 
 /* --- config --- */
@@ -88,7 +86,12 @@ export default function ChantiersPage() {
   const [clientMode, setClientMode] = useState<'list' | 'autre'>('list');
   const [clientCustom, setClientCustom] = useState('');
 
-  useEffect(() => { setPrestations(loadPrestations()); }, []);
+  useEffect(() => {
+    prestationsApi.list().then(r => {
+      const list = Array.isArray(r.data) ? r.data : [];
+      setPrestations(list);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     devisApi.list({ status: 'VALIDATED', limit: 200 }).then(r => {
@@ -97,23 +100,28 @@ export default function ChantiersPage() {
     }).catch(() => {});
   }, []);
 
-  const savePrest = (e: React.FormEvent) => {
+  const savePrest = async (e: React.FormEvent) => {
     e.preventDefault();
-    let updated: Prestation[];
-    if (editPrest) {
-      updated = prestations.map(p => p.id === editPrest.id ? { ...editPrest, ...prestForm } : p);
-    } else {
-      updated = [...prestations, { ...prestForm, id: Date.now().toString() }];
-    }
-    savePrestations(updated); setPrestations(updated);
+    try {
+      if (editPrest) {
+        const r = await prestationsApi.update(editPrest.id, prestForm);
+        setPrestations(prev => prev.map(p => p.id === editPrest.id ? r.data : p));
+      } else {
+        const r = await prestationsApi.create(prestForm);
+        setPrestations(prev => [r.data, ...prev]);
+      }
+    } catch (err) { console.error(err); }
     setShowPrestForm(false); setEditPrest(null); setPrestForm({ ...emptyPrestation });
     setPrestSource('manuel'); setClientMode('list'); setClientCustom('');
   };
 
-  const confirmDeletePrest = () => {
+  const confirmDeletePrest = async () => {
     if (!deletePrest) return;
-    const updated = prestations.filter(p => p.id !== deletePrest.id);
-    savePrestations(updated); setPrestations(updated); setDeletePrest(null);
+    try {
+      await prestationsApi.delete(deletePrest.id);
+      setPrestations(prev => prev.filter(p => p.id !== deletePrest.id));
+    } catch (err) { console.error(err); }
+    setDeletePrest(null);
   };
 
   const openEditPrest = (p: Prestation) => {
