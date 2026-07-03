@@ -383,7 +383,7 @@ export default function BLPage() {
                   <p className="font-mono font-semibold text-honey-dark">{bl.number}</p>
                   {bl.client_signature_url && (
                     <a
-                      href={bl.client_signature_url.startsWith('http') ? bl.client_signature_url : `http://localhost:4000${bl.client_signature_url}`}
+                      href={bl.client_signature_url.startsWith('http') ? bl.client_signature_url : `${process.env.NEXT_PUBLIC_API_URL || ''}${bl.client_signature_url}`}
                       target="_blank" rel="noopener noreferrer"
                       className="text-[10px] text-purple-600 font-semibold flex items-center gap-1 mt-0.5 hover:text-purple-800">
                       📎 BL signé (voir)
