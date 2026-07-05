@@ -45,6 +45,7 @@ export default function BLPage() {
   const [search, setSearch]       = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading]     = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [deleting, setDeleting]   = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState('');
@@ -119,8 +120,13 @@ export default function BLPage() {
 
   const fetchData = () => {
     setLoading(true);
+    setFetchError('');
     blApi.list({ search, status: statusFilter || undefined })
       .then((r) => setBls(r.data.data || []))
+      .catch((e: any) => {
+        setBls([]);
+        setFetchError(e?.response?.data?.message || 'Erreur lors du chargement des BL. Réessayez.');
+      })
       .finally(() => setLoading(false));
   };
 
@@ -136,9 +142,13 @@ export default function BLPage() {
   }, []);
 
   const fetchPendingBls = () => {
-    depensesApi.list({}).then((r: any) => {
+    // ⚠ Filtrer status=PENDING côté serveur + limite large : sinon avec le
+    // défaut (page 1 / limit 50 sur TOUTES les dépenses), un BL-IMPORT plus
+    // ancien que les 50 dernières dépenses de la société tombe hors page et
+    // n'apparaît jamais dans la file d'attente de l'admin.
+    depensesApi.list({ status: 'PENDING', limit: 500 }).then((r: any) => {
       const all: any[] = r.data?.data || r.data || [];
-      setPendingBls(all.filter((d: any) => d.description?.startsWith('[BL-IMPORT]') && d.status === 'PENDING'));
+      setPendingBls(all.filter((d: any) => d.description?.startsWith('[BL-IMPORT]')));
     }).catch(() => {});
   };
 
@@ -284,6 +294,15 @@ export default function BLPage() {
         </button>
       </div>
 
+      {fetchError && (
+        <div style={{ background:'#FEF2F2', border:'1.5px solid #FECACA', color:'#B91C1C', borderRadius:10, padding:'10px 16px', fontSize:13, fontWeight:600, marginBottom:14, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+          <span>⚠️ {fetchError}</span>
+          <button onClick={fetchData} style={{ background:'none', border:'none', color:'#B91C1C', fontWeight:700, textDecoration:'underline', cursor:'pointer', fontSize:12 }}>
+            Réessayer
+          </button>
+        </div>
+      )}
+
       {/* ══ BL EN ATTENTE DE VALIDATION (employés) ══ */}
       {canDel && pendingBls.length > 0 && (
         <div style={{ background: '#FFFBF0', border: '1.5px solid #F5C842', borderRadius: 14, padding: '16px 20px', marginBottom: 20 }}>
@@ -382,12 +401,12 @@ export default function BLPage() {
                 <td className="px-4 py-3">
                   <p className="font-mono font-semibold text-honey-dark">{bl.number}</p>
                   {bl.client_signature_url && (
-                    <a
-                      href={bl.client_signature_url.startsWith('http') ? bl.client_signature_url : `${process.env.NEXT_PUBLIC_API_URL || ''}${bl.client_signature_url}`}
-                      target="_blank" rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => setViewPendingUrl(bl.client_signature_url)}
                       className="text-[10px] text-purple-600 font-semibold flex items-center gap-1 mt-0.5 hover:text-purple-800">
                       📎 BL signé (voir)
-                    </a>
+                    </button>
                   )}
                 </td>
                 <td className="px-4 py-3 text-honey-dark">{bl.client?.commercial_name}</td>

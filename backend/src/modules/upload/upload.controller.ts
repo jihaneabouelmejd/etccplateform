@@ -467,18 +467,28 @@ export class UploadController implements OnModuleInit {
     // ── Build Cloudinary REST API download URL with manual SHA1 signature ─────
     // Uses api.cloudinary.com — works regardless of CDN delivery restrictions.
     // Signature algorithm: SHA1(sorted_params_string + api_secret)
+    //
+    // IMPORTANT: Cloudinary's /download endpoint defaults the `type` param to
+    // "private" when it's absent from the signed request. All files uploaded by
+    // this app use `type: 'upload'` (see uploadBufferToCloudinary), so omitting
+    // `type` here made every download lookup search for a "private" resource
+    // that doesn't exist → 404, even though the file is really on Cloudinary
+    // (confirmed: direct CDN fetch returns 401 "restricted", not 404 "missing").
+    // Explicitly signing type=upload fixes the mismatch.
     const buildApiUrl = (publicId: string, resourceType: string): string | null => {
       if (!USE_CLOUDINARY) return null;
       try {
         const timestamp = Math.floor(Date.now() / 1000);
+        const type = 'upload';
         // params to sign: sorted alphabetically, joined as key=value&...
-        const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}`;
+        const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}&type=${type}`;
         const signature = require('crypto')
           .createHash('sha1')
           .update(paramsToSign + CLOUD_SECRET)
           .digest('hex');
         const qs = new URLSearchParams({
           public_id: publicId,
+          type,
           api_key: CLOUD_KEY,
           timestamp: String(timestamp),
           signature,
@@ -493,13 +503,17 @@ export class UploadController implements OnModuleInit {
     };
 
     // ── Stream helper with redirect following (max 5 hops) ───────────────────
-    const stream = (fetchUrl: string, hops = 0): Promise<void> => {
-      this.logger.log(`[Proxy] Fetching (hop ${hops}): ${fetchUrl.substring(0, 100)}`);
+    // isFinal=false → on error, do NOT write to the client; just resolve with the
+    // status code so the caller can retry a different URL (e.g. fallback to the
+    // direct CDN URL if the signed API download fails).
+    // isFinal=true  → on error, this is the last resort: write the error JSON.
+    const stream = (fetchUrl: string, isFinal: boolean, hops = 0): Promise<number | 'ok'> => {
+      this.logger.log(`[Proxy] Fetching (hop ${hops}, final=${isFinal}): ${fetchUrl.substring(0, 100)}`);
       const https = require('https');
       const http = require('http');
       const lib = fetchUrl.startsWith('https') ? https : http;
 
-      return new Promise<void>((resolve) => {
+      return new Promise<number | 'ok'>((resolve) => {
         const req = lib.get(fetchUrl, (response: any) => {
           const sc = response.statusCode as number;
           this.logger.log(`[Proxy] Status: ${sc}`);
@@ -509,7 +523,7 @@ export class UploadController implements OnModuleInit {
             response.resume();
             const location = response.headers['location'] as string | undefined;
             if (location) {
-              stream(location, hops + 1).then(resolve);
+              stream(location, isFinal, hops + 1).then(resolve);
               return;
             }
           }
@@ -517,10 +531,10 @@ export class UploadController implements OnModuleInit {
           // ── Error ──────────────────────────────────────────────────────────
           if (sc >= 400) {
             this.logger.error(`[Proxy] Error ${sc} at ${fetchUrl.substring(0, 80)}`);
-            if (!res.headersSent) {
+            if (isFinal && !res.headersSent) {
               (res as any).status(sc).json({ message: `Fichier non accessible (${sc})` });
             }
-            resolve();
+            resolve(sc);
             return;
           }
 
@@ -532,36 +546,44 @@ export class UploadController implements OnModuleInit {
             }
           }
           response.pipe(res);
-          response.on('end', resolve);
+          response.on('end', () => resolve('ok'));
           response.on('error', (err: any) => {
             this.logger.error(`[Proxy] Stream error: ${err.message}`);
-            resolve();
+            resolve('ok'); // headers already sent — nothing more we can do
           });
         });
 
         req.on('error', (err: any) => {
           this.logger.error(`[Proxy] Request error: ${err.message}`);
-          if (!res.headersSent) (res as any).status(500).json({ message: err.message });
-          resolve();
+          if (isFinal && !res.headersSent) (res as any).status(500).json({ message: err.message });
+          resolve(500);
         });
 
         req.setTimeout(20000, () => {
           req.destroy();
-          if (!res.headersSent) (res as any).status(504).json({ message: 'Timeout' });
-          resolve();
+          if (isFinal && !res.headersSent) (res as any).status(504).json({ message: 'Timeout' });
+          resolve(504);
         });
       });
     };
 
-    // ── Strategy: always use Cloudinary REST API with credentials ────────────
-    // This bypasses all CDN delivery restrictions (strict mode, authenticated type, etc.)
+    // ── Strategy: try the signed Cloudinary REST API first (bypasses CDN
+    // delivery restrictions like strict mode / authenticated type). If that
+    // fails for any reason (stale/rotated Cloudinary credentials, signature
+    // edge-case, etc.), fall back to the direct CDN URL instead of giving up —
+    // this was previously an all-or-nothing attempt with no fallback, which
+    // could turn a recoverable failure into a permanent "Fichier non accessible".
     const info = extractInfo(targetUrl);
     if (info && USE_CLOUDINARY) {
       const apiUrl = buildApiUrl(info.publicId, info.resourceType);
-      if (apiUrl) return stream(apiUrl);
+      if (apiUrl) {
+        const result = await stream(apiUrl, false);
+        if (result === 'ok') return;
+        this.logger.warn(`[Proxy] Signed API download failed (${result}) — retrying via direct CDN URL`);
+      }
     }
 
     // Fallback: direct CDN fetch (works if resource is fully public)
-    return stream(targetUrl);
+    await stream(targetUrl, true);
   }
 }

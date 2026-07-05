@@ -50,6 +50,7 @@ export default function BCPage() {
   const [search, setSearch]               = useState('');
   const [statusFilter, setStatusFilter]   = useState('');
   const [loading, setLoading]             = useState(true);
+  const [fetchError, setFetchError]       = useState('');
 
   // ── Modal "Générer depuis devis" ─────────────────────────────────────────
   const [showDevisModal, setShowDevisModal]   = useState(false);
@@ -108,8 +109,13 @@ export default function BCPage() {
   // ── Fetch ────────────────────────────────────────────────────────────────
   const fetchData = useCallback(() => {
     setLoading(true);
+    setFetchError('');
     bcApi.list({ search, status: statusFilter || undefined })
       .then((r) => setBcs(r.data.data || []))
+      .catch((e: any) => {
+        setBcs([]);
+        setFetchError(e?.response?.data?.message || 'Erreur lors du chargement des BC. Réessayez.');
+      })
       .finally(() => setLoading(false));
   }, [search, statusFilter]);
 
@@ -309,6 +315,15 @@ export default function BCPage() {
           </button>
         </div>
       </div>
+
+      {fetchError && (
+        <div style={{ background:'#FEF2F2', border:'1.5px solid #FECACA', color:'#B91C1C', borderRadius:10, padding:'10px 16px', fontSize:13, fontWeight:600, marginBottom:14, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+          <span>⚠️ {fetchError}</span>
+          <button onClick={fetchData} style={{ background:'none', border:'none', color:'#B91C1C', fontWeight:700, textDecoration:'underline', cursor:'pointer', fontSize:12 }}>
+            Réessayer
+          </button>
+        </div>
+      )}
 
       <div className="card">
         <div className="flex gap-3 mb-4 flex-wrap">
