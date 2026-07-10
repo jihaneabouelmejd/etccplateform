@@ -5,6 +5,7 @@ import { Plus, Trash2, Download, FileText, Truck, Receipt, ShoppingCart, ArrowUp
 import { devisApi, blApi, invoicesApi, bcApi, pdfMergeApi } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import PDFButton from '@/components/ui/PDFButton';
 
 type DocType = 'devis' | 'bl' | 'invoice' | 'bc';
 
@@ -49,11 +50,15 @@ export default function MergePage() {
     }).finally(() => setLoading(false));
   }, []);
 
+  // Fusion : ne proposer que les documents importés en externe (pas ceux générés par la plateforme depuis un devis)
+  const externalBc = bcList.filter(b => b.source && b.source !== 'INTERNAL');
+  const externalBl = blList.filter(b => !b.devis_id && (!b.bc_id || !b.bc?.devis_id));
+
   const getOptions = () => {
     if (addType === 'devis')   return devisList.map(d => ({ id: d.id, label: `${d.number} – ${d.client?.commercial_name || ''}` }));
-    if (addType === 'bl')      return blList.map(b    => ({ id: b.id, label: `${b.number} – ${b.client?.commercial_name || ''}` }));
+    if (addType === 'bl')      return externalBl.map(b => ({ id: b.id, label: `${b.number} – ${b.client?.commercial_name || ''}` }));
     if (addType === 'invoice') return invoiceList.map(i => ({ id: i.id, label: `${i.number} – ${i.client?.commercial_name || ''}` }));
-    if (addType === 'bc')      return bcList.map(b    => ({ id: b.id, label: `${b.number} – ${b.client?.commercial_name || ''}` }));
+    if (addType === 'bc')      return externalBc.map(b => ({ id: b.id, label: `${b.number} – ${b.client?.commercial_name || ''}` }));
     return [];
   };
 
@@ -184,6 +189,7 @@ export default function MergePage() {
                       <p className={cn('text-xs font-bold uppercase tracking-wide', cfg.color)}>{cfg.label}</p>
                       <p className="text-sm font-semibold text-honey-dark truncate">{item.label}</p>
                     </div>
+                    <PDFButton docType={item.type} docId={item.id} docNumber={item.number} variant="inline" />
                     <span style={{ fontSize:11, color:'#A33C00', fontWeight:700, background:'rgba(255,255,255,0.6)', borderRadius:4, padding:'2px 7px' }}>#{idx+1}</span>
                     <button onClick={() => removeItem(idx)}
                       className="w-7 h-7 rounded-md border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-all flex-shrink-0">
