@@ -56,7 +56,7 @@ export default function DevisPage() {
   const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   // Form state
-  const [form, setForm] = useState({ client_id: '', project_id: '', object: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
+  const [form, setForm] = useState({ client_id: '', project_id: '', object: '', site: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
   const [lines, setLines] = useState<Line[]>([{ desc: '', qty: 1, pu: 0 }]);
   const [signatures, setSignatures] = useState<any[]>([]);
 
@@ -114,7 +114,7 @@ export default function DevisPage() {
 
   const openCreate = () => {
     setEditTarget(null);
-    setForm({ client_id: '', project_id: '', object: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
+    setForm({ client_id: '', project_id: '', object: '', site: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
     setLines([{ desc: '', qty: 1, pu: 0 }]);
     setSaveError('');
     setShowForm(true);
@@ -129,6 +129,7 @@ export default function DevisPage() {
       client_id: full.client_id,
       project_id: full.project_id || '',
       object: full.object || '',
+      site: full.site || '',
       discount_rate: Number(full.discount_rate) || 0,
       payment_terms: full.payment_terms || '',
       notes: full.notes || '',
@@ -150,6 +151,7 @@ export default function DevisPage() {
       client_id: form.client_id,
       project_id: form.project_id || undefined,
       object: form.object || undefined,
+      site: form.site || undefined,
       discount_rate: form.discount_rate || 0,
       payment_terms: form.payment_terms || undefined,
       notes: form.notes || undefined,
@@ -335,7 +337,10 @@ export default function DevisPage() {
                       </div>
                     </td>
                     <td className="px-3 py-3 text-sm text-honey-dark">{d.client?.commercial_name}</td>
-                    <td className="px-3 py-3 text-sm text-honey-caramel max-w-[180px] truncate">{d.object || '—'}</td>
+                    <td className="px-3 py-3 text-sm text-honey-caramel max-w-[180px] truncate">
+                      {d.object || '—'}
+                      {d.site && <span className="block text-[10px] text-honey-orange truncate">{d.site}</span>}
+                    </td>
                     <td className="px-3 py-3 font-mono text-sm font-bold text-honey-dark">{formatCurrency(Number(d.total_ttc))} MAD</td>
                     <td className="px-3 py-3 text-xs text-honey-caramel">{new Date(d.created_at).toLocaleDateString('fr-FR')}</td>
                     <td className="px-3 py-3"><span className={statusCfg[d.status]?.cls}>{statusCfg[d.status]?.label}</span></td>
@@ -475,6 +480,10 @@ export default function DevisPage() {
                   <div className="col-span-2">
                     <label style={labelStyle}>Objet</label>
                     <input value={form.object} onChange={e => setForm({...form, object:e.target.value})} placeholder="Objet du devis..." style={inputStyle} />
+                  </div>
+                  <div className="col-span-2">
+                    <label style={labelStyle}>Site (chantier)</label>
+                    <input value={form.site} onChange={e => setForm({...form, site:e.target.value})} placeholder="Ex: Villa Dar Bouazza, Appartement Maarif..." style={inputStyle} />
                   </div>
                   <div className="col-span-2">
                     <label style={labelStyle}>Conditions de paiement</label>

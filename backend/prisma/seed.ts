@@ -154,6 +154,7 @@ async function main() {
       contact_person: 'Directeur Technique',
       phone: '+212 5 22 22 22 22',
       email: 'contact@atlas-sa.ma',
+      address: 'Zone Industrielle Ain Sebaa, Casablanca',
       city: 'Casablanca',
       reliability_score: 92,
     },

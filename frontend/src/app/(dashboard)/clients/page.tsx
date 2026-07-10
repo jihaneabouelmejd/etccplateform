@@ -13,7 +13,7 @@ const btnSecondary = { padding:'9px 18px', borderRadius:8, border:'1.5px solid #
 const btnPrimary = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#F4B315,#E59312)', color:'#1A141A', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 const btnDanger = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EF4444,#DC2626)', color:'white', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 
-const emptyForm = { commercial_name: '', legal_name: '', ice: '', contact_person: '', phone: '', email: '' };
+const emptyForm = { commercial_name: '', legal_name: '', ice: '', contact_person: '', phone: '', email: '', address: '' };
 
 export default function ClientsPage() {
   const { t, dir } = useLanguage();
@@ -45,7 +45,7 @@ export default function ClientsPage() {
 
   const openCreate = () => { setForm(emptyForm); setFormError(''); setEditTarget(null); setShowForm(true); };
   const openEdit = (c: any) => {
-    setForm({ commercial_name: c.commercial_name || '', legal_name: c.legal_name || '', ice: c.ice || '', contact_person: c.contact_person || '', phone: c.phone || '', email: c.email || '' });
+    setForm({ commercial_name: c.commercial_name || '', legal_name: c.legal_name || '', ice: c.ice || '', contact_person: c.contact_person || '', phone: c.phone || '', email: c.email || '', address: c.address || '' });
     setFormError(''); setEditTarget(c); setShowForm(true);
   };
 
@@ -60,6 +60,7 @@ export default function ClientsPage() {
         contact_person: form.contact_person || undefined,
         phone: form.phone || undefined,
         email: form.email || undefined,
+        address: form.address,
       };
       if (editTarget) {
         await clientsApi.update(editTarget.id, payload);
@@ -143,6 +144,7 @@ export default function ClientsPage() {
                     <div>
                       <p className="font-medium text-honey-dark">{c.commercial_name}</p>
                       {c.legal_name && <p className="text-[11px] text-honey-caramel">{c.legal_name}</p>}
+                      {c.address && <p className="text-[11px] text-honey-caramel/70">{c.address}</p>}
                     </div>
                   </div>
                 </td>
@@ -233,6 +235,11 @@ export default function ClientsPage() {
                   <label style={labelStyle}>Email</label>
                   <input type="email" value={form.email} onChange={e => setForm({...form, email:e.target.value})}
                     placeholder="contact@client.ma" style={inputStyle} />
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={labelStyle}>Adresse du client *</label>
+                  <textarea required rows={3} value={form.address} onChange={e => setForm({...form, address:e.target.value})}
+                    placeholder="Adresse complète du client" style={{...inputStyle, resize:'vertical' as const}} />
                 </div>
               </div>
               {formError && (

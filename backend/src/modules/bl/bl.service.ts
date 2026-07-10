@@ -40,6 +40,22 @@ export class BLService {
   }
 
   /**
+   * Réutilise le même numéro de séquence que le document source (ex: DEV-2026-0089 -> BL-2026-0089).
+   * Retombe sur un numéro indépendant en cas de collision.
+   */
+  private async deriveNumberFromSource(sourceNumber: string): Promise<string> {
+    const parts = sourceNumber.split('-');
+    if (parts.length >= 3) {
+      const year = parts[1];
+      const seq = parts[parts.length - 1];
+      const candidate = `BL-${year}-${seq}`;
+      const exists = await this.prisma.bonLivraison.findUnique({ where: { number: candidate } });
+      if (!exists) return candidate;
+    }
+    return this.generateNumber();
+  }
+
+  /**
    * Creer un BL directement depuis un devis valide (sans BC)
    */
   async createFromDevis(devisId: string, createdBy: string, signatureIdOverride?: string) {
@@ -84,13 +100,34 @@ export class BLService {
     }
 
     // Verifier BC si fourni
+    const bc = input.bc_id
+      ? await this.prisma.bonCommande.findUnique({ where: { id: input.bc_id }, include: { devis: true } })
+      : null;
     if (input.bc_id) {
-      const bc = await this.prisma.bonCommande.findUnique({ where: { id: input.bc_id } });
       if (!bc) throw new NotFoundException('BC non trouve');
       if (bc.status === 'CANCELLED') throw new BadRequestException('Ce BC a ete annule');
     }
 
-    const number = input.custom_number || await this.generateNumber();
+    // Le BL reprend le numéro de séquence et le site du document source (devis, sinon BC)
+    let sourceNumber: string | undefined;
+    let siteValue: string | undefined;
+    if (input.devis_id) {
+      const devis = await this.prisma.devis.findUnique({ where: { id: input.devis_id } });
+      if (devis) {
+        sourceNumber = devis.number;
+        siteValue = (devis as any).site ?? undefined;
+      }
+    } else if (bc) {
+      if ((bc as any).devis) {
+        sourceNumber = (bc as any).devis.number;
+        siteValue = (bc as any).devis.site ?? undefined;
+      } else {
+        sourceNumber = bc.number;
+        siteValue = (bc as any).site ?? undefined;
+      }
+    }
+
+    const number = input.custom_number || (sourceNumber ? await this.deriveNumberFromSource(sourceNumber) : await this.generateNumber());
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Verifier le stock disponible
@@ -114,6 +151,7 @@ export class BLService {
           number,
           bc_id: input.bc_id ?? undefined,
           devis_id: input.devis_id,
+          site: siteValue,
           client_id: input.client_id,
           project_id: input.project_id,
           created_by: createdBy,

@@ -19,6 +19,22 @@ export class BCService {
   }
 
   /**
+   * Réutilise le même numéro de séquence que le document source (ex: DEV-2026-0089 -> BC-2026-0089).
+   * Retombe sur un numéro indépendant en cas de collision.
+   */
+  private async deriveNumberFromSource(sourceNumber: string): Promise<string> {
+    const parts = sourceNumber.split('-');
+    if (parts.length >= 3) {
+      const year = parts[1];
+      const seq = parts[parts.length - 1];
+      const candidate = `BC-${year}-${seq}`;
+      const exists = await this.prisma.bonCommande.findUnique({ where: { number: candidate } });
+      if (!exists) return candidate;
+    }
+    return this.generateNumber();
+  }
+
+  /**
    * Créer un BC depuis un devis validé
    */
   async createFromDevis(devisId: string, createdBy: string, signatureId?: string) {
@@ -31,7 +47,7 @@ export class BCService {
       throw new BadRequestException('Le devis doit être validé pour générer un BC');
     }
 
-    const number = await this.generateNumber();
+    const number = await this.deriveNumberFromSource(devis.number);
     // Inherit signature from devis if none explicitly chosen
     const resolvedSigId = signatureId || (devis as any).signature_id || undefined;
 
@@ -40,6 +56,7 @@ export class BCService {
         number,
         source: 'INTERNAL',
         devis_id: devisId,
+        site: (devis as any).site,
         client_id: devis.client_id,
         project_id: devis.project_id,
         created_by: createdBy,

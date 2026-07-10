@@ -209,6 +209,7 @@ export function devisTemplate(data: DevisTemplateInput): string {
     <div class="ms">${data.validity_days} jours</div>
   </div>
   ${data.object ? `<div class="mc"><span class="ml">Réf. projet</span><div class="mv" style="font-size:12px;">${data.object}</div></div>` : ''}
+  ${data.site ? `<div class="mc"><span class="ml">Site / Chantier</span><div class="mv" style="font-size:12px;">${data.site}</div></div>` : ''}
 </div>
 
 <div class="parties">

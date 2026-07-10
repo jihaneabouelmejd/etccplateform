@@ -164,6 +164,7 @@ export function blTemplate(data: BLTemplateInput): string {
   </div>
   ${refs ? `<div class="mc"><span class="ml">Références</span><div class="mv" style="font-size:11px;">${refs}</div></div>` : ''}
   ${data.project_name ? `<div class="mc"><span class="ml">Projet</span><div class="mv" style="font-size:12px;">${data.project_name}</div></div>` : ''}
+  ${data.site ? `<div class="mc"><span class="ml">Site / Chantier</span><div class="mv" style="font-size:12px;">${data.site}</div></div>` : ''}
 </div>
 
 <div class="parties">

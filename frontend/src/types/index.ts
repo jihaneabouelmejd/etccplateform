@@ -29,7 +29,7 @@ export interface Client {
   contact_person?: string;
   phone?: string;
   email?: string;
-  address?: string;
+  address: string;
   city?: string;
   reliability_score?: number;
   is_active: boolean;
@@ -70,6 +70,7 @@ export interface Devis {
   client_id: string;
   project_id?: string;
   object?: string;
+  site?: string;
   total_ht_brut: number;
   discount_rate: number;
   discount_amount: number;
@@ -96,6 +97,7 @@ export interface Invoice {
   number: string;
   direction: 'ISSUED' | 'RECEIVED';
   source: 'INTERNAL' | 'SCANNED';
+  site?: string;
   total_ht_brut: number;
   discount_rate: number;
   total_ht_net: number;

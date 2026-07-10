@@ -41,6 +41,7 @@ export class PDFController {
       validity_days: devis.validity_days,
       expires_at: devis.expires_at?.toISOString() || '',
       object: devis.object || undefined,
+      site: (devis as any).site || undefined,
       client: {
         commercial_name: devis.client.commercial_name,
         ice: devis.client.ice || undefined,
@@ -98,6 +99,7 @@ export class PDFController {
       status: bc.status,
       source: bc.source,
       devis_number: bc.devis?.number || undefined,
+      site: bc.site || undefined,
       signature_url: bc.signature?.image_url || undefined,
       client: {
         commercial_name: bc.client.commercial_name,
@@ -145,6 +147,7 @@ export class PDFController {
       number: bl.number,
       bc_number: bl.bc?.number || undefined,
       devis_number: bl.bc?.devis?.number || undefined,
+      site: (bl as any).site || undefined,
       issue_date: bl.issue_date.toISOString(),
       delivery_date: bl.delivery_date?.toISOString() || undefined,
       client: {
@@ -203,6 +206,7 @@ export class PDFController {
         number: invoice.number,
         bl_number: invoice.bl?.number || undefined,
         bc_number: invoice.bc?.number || undefined,
+        site: (invoice as any).site || undefined,
         issue_date: invoice.issue_date.toISOString(),
         due_date: invoice.due_date?.toISOString() || undefined,
         client: {
@@ -415,6 +419,7 @@ export class PDFController {
           status: bcData.status,
           source: bcData.source,
           devis_number: bcData.devis?.number || undefined,
+          site: bcData.site || undefined,
           signature_url: bcData.signature?.image_url || undefined,
           client: {
             commercial_name: bcData.client.commercial_name,

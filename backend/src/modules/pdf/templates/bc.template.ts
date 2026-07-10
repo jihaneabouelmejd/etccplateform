@@ -171,6 +171,7 @@ export function bcTemplate(data: BCTemplateInput): string {
     <div class="mv">${data.expected_delivery ? fmtDate(data.expected_delivery, data.lang) : '—'}</div>
   </div>
   ${data.devis_number ? `<div class="mc"><span class="ml">Devis de référence</span><div class="mv">${data.devis_number}</div></div>` : ''}
+  ${data.site ? `<div class="mc"><span class="ml">Site / Chantier</span><div class="mv">${data.site}</div></div>` : ''}
   <div class="mc">
     <span class="ml">Statut</span>
     <div class="mv">${data.status || 'OPEN'}</div>

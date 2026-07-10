@@ -326,9 +326,9 @@ model Client {
   contact_person  String?
   phone           String?
   email           String?
-  address         String?
+  address         String
   city            String?
-  
+
   // Score (calculé)
   reliability_score Int?   @default(50) // 0-100
   
@@ -618,7 +618,8 @@ model Devis {
   
   // Contenu
   object          String?
-  
+  site            String?     // Chantier / site des travaux (optionnel)
+
   // Montants
   total_ht_brut   Decimal     @db.Decimal(12, 2)   // Avant réduction
   discount_rate   Decimal     @default(0) @db.Decimal(5, 2) // En %
@@ -678,6 +679,7 @@ model BonCommande {
   // Source
   source          BCSource
   devis_id        String?        // Si INTERNAL
+  site            String?        // Chantier / site des travaux (hérité du devis)
   imported_file_url String?      // Si IMPORTED_OCR/MANUAL
   ocr_raw_data    Json?          // Données brutes OCR
   
@@ -742,6 +744,7 @@ model BonLivraison {
   // Références (CHAIN)
   bc_id           String?      // Optionnel — peut venir direct d'un devis
   devis_id        String?      // Pour traçabilité
+  site            String?      // Chantier / site des travaux (hérité du devis)
   
   // Relations
   client_id       String
@@ -814,7 +817,8 @@ model Invoice {
   bl_id           String?
   bc_id           String?
   devis_id        String?
-  
+  site            String?          // Chantier / site des travaux (hérité du devis)
+
   // Fournisseur (si RECEIVED)
   fournisseur_id  String?
   scanned_file_url String?        // Facture scannée

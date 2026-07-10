@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -14,10 +14,13 @@ export class ClientsService {
     contact_person?: string;
     phone?: string;
     email?: string;
-    address?: string;
+    address: string;
     city?: string;
     internal_notes?: string;
   }) {
+    if (!data.address || !data.address.trim()) {
+      throw new BadRequestException("L'adresse du client est obligatoire");
+    }
     return this.prisma.client.create({ data });
   }
 
@@ -67,6 +70,9 @@ export class ClientsService {
 
   async update(id: string, data: any) {
     await this.findOne(id);
+    if (data.address !== undefined && !data.address.trim()) {
+      throw new BadRequestException("L'adresse du client est obligatoire");
+    }
     return this.prisma.client.update({ where: { id }, data });
   }
 

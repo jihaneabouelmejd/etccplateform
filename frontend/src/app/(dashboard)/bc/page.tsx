@@ -125,7 +125,7 @@ export default function BCPage() {
     clientsApi.list({ limit: 500 }).then(r => setClients(r.data.data || [])).catch(() => {});
     signaturesApi.list().then(r => setSignatures(r.data || [])).catch(() => {});
     // Charger tous les devis pour le sélecteur import
-    devisApi.list({ limit: 500 }).then(r => setAllDevis(r.data.data || [])).catch(() => {});
+    devisApi.list({ status: 'VALIDATED', limit: 500 }).then(r => setAllDevis(r.data.data || [])).catch(() => {});
   }, []);
 
   // ── Ouverture modal "Générer depuis devis" ───────────────────────────────

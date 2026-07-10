@@ -13,6 +13,7 @@ interface CreateDevisInput {
   project_id?: string;
   signature_id?: string;
   object?: string;
+  site?: string;
   discount_rate?: number;
   validity_days?: number;
   payment_terms?: string;
@@ -90,6 +91,7 @@ export class DevisService {
         created_by: createdBy,
         signature_id: input.signature_id,
         object: input.object,
+        site: input.site,
         validity_days: validityDays,
         expires_at: expiresAt,
         payment_terms: input.payment_terms,
@@ -203,6 +205,7 @@ export class DevisService {
           client_id: input.client_id ?? devis.client_id,
           project_id: input.project_id !== undefined ? input.project_id : devis.project_id,
           object: input.object !== undefined ? input.object : devis.object,
+          site: input.site !== undefined ? input.site : (devis as any).site,
           payment_terms: input.payment_terms !== undefined ? input.payment_terms : devis.payment_terms,
           notes: input.notes !== undefined ? input.notes : devis.notes,
           signature_id: input.signature_id !== undefined ? (input.signature_id || null) : devis.signature_id,
@@ -275,6 +278,7 @@ export class DevisService {
         project_id: original.project_id,
         created_by: createdBy,
         object: `${original.object} (copie)`,
+        site: (original as any).site,
         validity_days: original.validity_days,
         payment_terms: original.payment_terms,
         notes: original.notes,

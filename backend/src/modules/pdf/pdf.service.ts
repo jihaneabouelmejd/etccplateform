@@ -14,6 +14,7 @@ export interface DevisPDFData {
   validity_days: number;
   expires_at: string;
   object?: string;
+  site?: string;
   client: {
     commercial_name: string;
     ice?: string;
@@ -41,6 +42,7 @@ export interface BLPDFData {
   number: string;
   bc_number?: string;
   devis_number?: string;
+  site?: string;
   issue_date: string;
   delivery_date?: string;
   client: { commercial_name: string; ice?: string; address?: string; city?: string };
@@ -57,6 +59,7 @@ export interface InvoicePDFData {
   bl_number?: string;
   bc_number?: string;
   devis_number?: string;
+  site?: string;
   issue_date: string;
   due_date?: string;
   client: {
@@ -91,6 +94,7 @@ export interface BCPDFData {
   status?: string;
   source?: string;
   devis_number?: string;
+  site?: string;
   client: {
     commercial_name: string;
     ice?: string;

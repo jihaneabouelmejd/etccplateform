@@ -36,6 +36,22 @@ export class InvoicesService {
     return `${prefix}-${seq.toString().padStart(4, '0')}`;
   }
 
+  /**
+   * Réutilise le même numéro de séquence que le document source (ex: DEV-2026-0089 -> FAC-2026-0089).
+   * Retombe sur un numéro indépendant en cas de collision.
+   */
+  private async deriveNumberFromSource(sourceNumber: string): Promise<string> {
+    const parts = sourceNumber.split('-');
+    if (parts.length >= 3) {
+      const year = parts[1];
+      const seq = parts[parts.length - 1];
+      const candidate = `FAC-${year}-${seq}`;
+      const exists = await this.prisma.invoice.findUnique({ where: { number: candidate } });
+      if (!exists) return candidate;
+    }
+    return this.generateNumber('ISSUED');
+  }
+
   private computeTotals(lines: InvoiceLineInput[], discountRate: number, tvaRate = 20) {
     const totalHtBrut = lines.reduce((s, l) => s + l.quantity * l.unit_price, 0);
     const discountAmount = Math.round(totalHtBrut * (discountRate / 100) * 100) / 100;
@@ -104,7 +120,9 @@ export class InvoicesService {
       lines = [{ description: 'Prestations selon BL ' + bl.number, quantity: 1, unit_price: 0 }];
     }
 
-    const number = await this.generateNumber('ISSUED');
+    const sourceNumber = devis?.number || bl.number;
+    const number = await this.deriveNumberFromSource(sourceNumber);
+    const siteValue = (devis as any)?.site ?? (bl as any).site ?? undefined;
     const discountRate = input.discount_rate ?? (devis ? Number(devis.discount_rate) : 0);
     const totals = this.computeTotals(lines, discountRate);
     const acompte = input.acompte_amount || 0;
@@ -121,6 +139,7 @@ export class InvoicesService {
           bl_id: input.bl_id,
           bc_id: bl.bc_id,
           devis_id: bl.devis_id,
+          site: siteValue,
           client_id: bl.client_id,
           project_id: bl.project_id,
           created_by: createdBy,

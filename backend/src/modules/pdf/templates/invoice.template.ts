@@ -171,6 +171,7 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
   </div>
   ${data.due_date ? `<div class="mc"><span class="ml">Échéance</span><div class="mv">${fmtDate(data.due_date, data.lang)}</div></div>` : ''}
   ${refs ? `<div class="mc"><span class="ml">Références</span><div class="mv" style="font-size:11px;">${refs}</div></div>` : ''}
+  ${data.site ? `<div class="mc"><span class="ml">Site / Chantier</span><div class="mv" style="font-size:12px;">${data.site}</div></div>` : ''}
 </div>
 
 <div class="parties">
