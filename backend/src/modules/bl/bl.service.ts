@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { BLStatus } from '@prisma/client';
+import { BLStatus, BLSource } from '@prisma/client';
 
 interface BLLineInput {
   description: string;
@@ -92,6 +92,48 @@ export class BLService {
   }
 
   /**
+   * Importer un BL reçu en externe (scan OCR ou saisie manuelle) — ne touche pas au stock,
+   * n'est jamais lié à un devis/BC de la plateforme (source IMPORTED_OCR / IMPORTED_MANUAL).
+   */
+  async importBL(data: {
+    client_id: string;
+    project_id?: string;
+    source: BLSource;
+    imported_file_url?: string;
+    ocr_raw_data?: any;
+    notes?: string;
+    lines: { description: string; quantity: number }[];
+  }, createdBy: string) {
+    if (!data.lines || data.lines.length === 0) {
+      throw new BadRequestException('Un BL doit avoir au moins une ligne');
+    }
+    const number = await this.generateNumber();
+
+    return this.prisma.bonLivraison.create({
+      data: {
+        number,
+        source: data.source,
+        client_id: data.client_id,
+        project_id: data.project_id,
+        created_by: createdBy,
+        imported_file_url: data.imported_file_url,
+        ocr_raw_data: data.ocr_raw_data,
+        notes: data.notes,
+        status: 'DELIVERED',
+        delivered_at: new Date(),
+        lines: {
+          create: data.lines.map((l, i) => ({
+            description: l.description,
+            quantity: l.quantity,
+            order: i,
+          })),
+        },
+      } as any,
+      include: { lines: true, client: { select: { commercial_name: true } } },
+    });
+  }
+
+  /**
    * Creer un BL avec decrementation stock automatique
    */
   async create(input: CreateBLInput, createdBy: string) {
@@ -149,6 +191,7 @@ export class BLService {
       const bl = await tx.bonLivraison.create({
         data: {
           number,
+          source: 'INTERNAL',
           bc_id: input.bc_id ?? undefined,
           devis_id: input.devis_id,
           site: siteValue,

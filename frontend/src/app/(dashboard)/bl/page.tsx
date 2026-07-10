@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, ArrowRight, Camera, Upload, X, Eye } from 'lucide-react';
+import { Plus, Search, Trash2, ArrowRight, Camera, Upload, X, Eye, PlusCircle, File, FileImage, Download } from 'lucide-react';
 import FileViewerModal from '@/components/ui/FileViewerModal';
-import { blApi, bcApi, devisApi, invoicesApi, uploadApi, signaturesApi, depensesApi } from '@/lib/api';
+import api, { blApi, bcApi, devisApi, invoicesApi, uploadApi, signaturesApi, depensesApi, clientsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { formatDate, cn } from '@/lib/utils';
 import PDFButton from '@/components/ui/PDFButton';
@@ -75,6 +75,21 @@ export default function BLPage() {
   const [savingScan, setSavingScan] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Modal "Importer BL externe" ──────────────────────────────────────────
+  const [clients, setClients]                   = useState<any[]>([]);
+  const [showBlImportModal, setShowBlImportModal] = useState(false);
+  const [blImportMode, setBlImportMode]          = useState<'manual' | 'file'>('file');
+  const [blImportClientId, setBlImportClientId]  = useState('');
+  const [blImportLines, setBlImportLines]        = useState<{ description: string; quantity: string }[]>([{ description: '', quantity: '1' }]);
+  const [blImporting, setBlImporting]            = useState(false);
+  const [blImportError, setBlImportError]        = useState('');
+  const [blImportFile, setBlImportFile]          = useState<File | null>(null);
+  const [blImportFileUrl, setBlImportFileUrl]    = useState('');
+  const [blUploadingFile, setBlUploadingFile]    = useState(false);
+  const [blImportPreviewUrl, setBlImportPreviewUrl] = useState<string | null>(null);
+  const blFileInputRef   = useRef<HTMLInputElement>(null);
+  const blUploadAbortRef = useRef<AbortController | null>(null);
+
   // ── Edit BL complet ──────────────────────────────────────────────────────
   const [editTarget, setEditTarget]     = useState<any>(null);
   const [editForm, setEditForm]         = useState({ number:'', issue_date:'', delivery_date:'', delivered_by:'', delivery_address:'', notes:'', signature_id:'' });
@@ -137,9 +152,82 @@ export default function BLPage() {
       .then(r => setBcs((r.data.data || []).filter((b: any) => b.status !== 'CANCELLED')))
       .catch(() => {});
     signaturesApi.list().then(r => setSignatures(r.data || [])).catch(() => {});
+    clientsApi.list({ limit: 500 }).then(r => setClients(r.data.data || [])).catch(() => {});
     // Charger les BL en attente (imports employés)
     if (canDel) fetchPendingBls();
   }, []);
+
+  // ── "Importer BL externe" : ouverture + handlers ─────────────────────────
+  const openBlImportModal = () => {
+    if (blUploadAbortRef.current) { blUploadAbortRef.current.abort(); blUploadAbortRef.current = null; }
+    setBlImportClientId('');
+    setBlImportLines([{ description: '', quantity: '1' }]);
+    setBlImportError('');
+    setBlImportFile(null);
+    setBlImportFileUrl('');
+    setBlUploadingFile(false);
+    setBlImportMode('file');
+    setShowBlImportModal(true);
+  };
+
+  const handleBlFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (blUploadAbortRef.current) blUploadAbortRef.current.abort();
+    const controller = new AbortController();
+    blUploadAbortRef.current = controller;
+    setBlImportFile(file);
+    setBlImportFileUrl('');
+    setBlUploadingFile(true);
+    setBlImportError('');
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await api.post('/upload', fd, { signal: controller.signal });
+      if (!controller.signal.aborted) setBlImportFileUrl(res.data.url || '');
+    } catch (err: any) {
+      if (err?.code === 'ERR_CANCELED' || err?.name === 'AbortError') return;
+      const msg = err?.response?.data?.message || err?.message || 'Erreur upload';
+      setBlImportError(Array.isArray(msg) ? msg.join(', ') : String(msg));
+    } finally {
+      if (!controller.signal.aborted) setBlUploadingFile(false);
+    }
+  };
+
+  const updateBlImportLine = (idx: number, field: 'description' | 'quantity', val: string) =>
+    setBlImportLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: val } : l));
+
+  const handleBlImport = async () => {
+    if (!blImportClientId) { setBlImportError('Sélectionnez un client'); return; }
+    if (blImportMode === 'file' && !blImportFileUrl) {
+      setBlImportError('Veuillez téléverser un fichier PDF ou image'); return;
+    }
+    if (blImportMode === 'manual') {
+      const valid = blImportLines.filter(l => l.description.trim());
+      if (!valid.length) { setBlImportError('Ajoutez au moins une ligne avec une description'); return; }
+    }
+
+    setBlImporting(true); setBlImportError('');
+    try {
+      const lines = blImportMode === 'file'
+        ? [{ description: blImportFile?.name || 'Document importé', quantity: 1 }]
+        : blImportLines.filter(l => l.description.trim()).map(l => ({
+            description: l.description.trim(),
+            quantity: parseFloat(l.quantity) || 1,
+          }));
+
+      await blApi.import({
+        client_id:         blImportClientId,
+        source:            blImportMode === 'file' ? 'IMPORTED_OCR' : 'IMPORTED_MANUAL',
+        imported_file_url: blImportMode === 'file' ? blImportFileUrl : undefined,
+        lines,
+      });
+      fetchData(); setShowBlImportModal(false);
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      setBlImportError(Array.isArray(msg) ? msg.join(', ') : (msg || "Erreur lors de l'import"));
+    } finally { setBlImporting(false); }
+  };
 
   const fetchPendingBls = () => {
     // ⚠ Filtrer status=PENDING côté serveur + limite large : sinon avec le
@@ -289,9 +377,14 @@ export default function BLPage() {
           <h1 className="text-[22px] font-bold text-honey-dark font-display tracking-tight">Bons de livraison</h1>
           <p className="text-sm text-honey-caramel mt-0.5">Livraisons sans prix - stock décrémente automatiquement</p>
         </div>
-        <button onClick={() => { setShowForm(true); setSaveError(''); setBlSource('bc'); setSelectedDevisId(''); setBlLines([{desc:'',qty:1}]); devisApi.list({ status:'VALIDATED', limit:200 }).then(r => setValidatedDevis(r.data.data||[])).catch(()=>{}); }} className="btn-primary text-sm flex items-center gap-1.5">
-          <Plus size={13} /> Nouveau BL
-        </button>
+        <div className="flex gap-2">
+          <button onClick={openBlImportModal} className="btn-secondary text-sm flex items-center gap-1.5">
+            <Upload size={13} /> Importer BL externe
+          </button>
+          <button onClick={() => { setShowForm(true); setSaveError(''); setBlSource('bc'); setSelectedDevisId(''); setBlLines([{desc:'',qty:1}]); devisApi.list({ status:'VALIDATED', limit:200 }).then(r => setValidatedDevis(r.data.data||[])).catch(()=>{}); }} className="btn-primary text-sm flex items-center gap-1.5">
+            <Plus size={13} /> Nouveau BL
+          </button>
+        </div>
       </div>
 
       {fetchError && (
@@ -705,6 +798,152 @@ export default function BLPage() {
         </div>
       )}
 
+      {/* ════════════════════════════════════════════════════════════════════
+          MODAL : Importer BL externe
+      ════════════════════════════════════════════════════════════════════ */}
+      {showBlImportModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div onClick={() => setShowBlImportModal(false)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
+          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:16, width:'100%', maxWidth:600, margin:'0 16px', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', padding:28, maxHeight:'92vh', overflowY:'auto' }}>
+
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:20 }}>
+              <div>
+                <h3 style={{ margin:0, fontSize:16, fontWeight:700, color:'#1A141A' }}>📤 Importer un BL externe</h3>
+                <p style={{ margin:'4px 0 0', fontSize:12, color:'#8E5915' }}>Importez un BL client reçu en dehors de la plateforme — PDF, image ou saisie manuelle</p>
+              </div>
+              <button onClick={() => setShowBlImportModal(false)}
+                style={{ width:32, height:32, borderRadius:8, border:'1.5px solid #E8D4B0', background:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#8E5915' }}>
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Mode toggle */}
+            <div style={{ display:'flex', gap:8, marginBottom:20, background:'#FFF8EE', padding:4, borderRadius:10 }}>
+              {([['file','📄 PDF / Image'],['manual','✍️ Saisie manuelle']] as [string, string][]).map(([mode, label]) => (
+                <button key={mode} type="button"
+                  onClick={() => { setBlImportMode(mode as any); setBlImportError(''); }}
+                  style={{ flex:1, padding:'8px 0', borderRadius:8, border:'none', background: blImportMode===mode ? 'white' : 'transparent', color: blImportMode===mode ? '#1A141A' : '#8E5915', fontSize:13, fontWeight:700, cursor:'pointer', boxShadow: blImportMode===mode ? '0 1px 4px rgba(0,0,0,0.08)' : 'none' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Client */}
+            <div style={{ marginBottom:18 }}>
+              <label style={labelStyle}>Client *</label>
+              <select value={blImportClientId} onChange={e => setBlImportClientId(e.target.value)} style={inputStyle}>
+                <option value="">Choisir un client...</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.commercial_name}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* ── Mode fichier ─────────────────────────────────────────── */}
+            {blImportMode === 'file' && (
+              <div style={{ marginBottom:18 }}>
+                <label style={labelStyle}>Fichier PDF ou Image *</label>
+                <input ref={blFileInputRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic"
+                  onChange={handleBlFileSelect} style={{ display:'none' }} />
+                {!blImportFile ? (
+                  <div onClick={() => blFileInputRef.current?.click()}
+                    style={{ border:'2px dashed #E8D4B0', borderRadius:10, padding:'28px 20px', textAlign:'center', cursor:'pointer', background:'#FFF8EE' }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor='#E59312')}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor='#E8D4B0')}>
+                    <div style={{ fontSize:32, marginBottom:8 }}>📄</div>
+                    <p style={{ margin:0, fontSize:14, fontWeight:600, color:'#1A141A' }}>Cliquer pour sélectionner</p>
+                    <p style={{ margin:'4px 0 0', fontSize:12, color:'#8E5915' }}>PDF, JPG, PNG, WEBP acceptés</p>
+                  </div>
+                ) : (
+                  <div style={{ border:'1.5px solid #E8D4B0', borderRadius:10, padding:'14px 16px', background:'#FFF8EE', display:'flex', alignItems:'center', gap:12 }}>
+                    <div style={{ width:40, height:40, borderRadius:8, background:'linear-gradient(135deg,#F4B315,#E59312)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      {blImportFile.type === 'application/pdf' ? <File size={20} color="white" /> : <FileImage size={20} color="white" />}
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ margin:0, fontSize:13, fontWeight:600, color:'#1A141A', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{blImportFile.name}</p>
+                      <p style={{ margin:'2px 0 0', fontSize:11, color:'#8E5915' }}>
+                        {blUploadingFile ? '⏳ Téléversement...' : blImportFileUrl ? '✅ Fichier prêt' : '❌ Erreur upload'}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => {
+                      if (blUploadAbortRef.current) { blUploadAbortRef.current.abort(); blUploadAbortRef.current = null; }
+                      setBlImportFile(null); setBlImportFileUrl(''); setBlUploadingFile(false);
+                      if (blFileInputRef.current) blFileInputRef.current.value = '';
+                    }} style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', flexShrink:0 }}>
+                      <X size={13} />
+                    </button>
+                  </div>
+                )}
+
+                {/* Aperçu + téléchargement si fichier prêt */}
+                {blImportFileUrl && (
+                  <div style={{ marginTop:10, display:'flex', gap:8 }}>
+                    <button type="button" onClick={() => setBlImportPreviewUrl(blImportFileUrl)}
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, border:'1.5px solid #3B82F6', background:'white', color:'#1D4ED8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                      <Eye size={13} /> Aperçu
+                    </button>
+                    <a href={blImportFileUrl.includes('/upload/') ? blImportFileUrl.replace('/upload/', '/upload/fl_attachment/') : blImportFileUrl}
+                      target="_blank" rel="noreferrer"
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#3B82F6,#1D4ED8)', color:'white', fontSize:12, fontWeight:700, textDecoration:'none' }}>
+                      <Download size={13} /> Télécharger
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Mode manuel : Lignes ─────────────────────────────────── */}
+            {blImportMode === 'manual' && (
+              <div style={{ marginBottom:18 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                  <label style={{ ...labelStyle, marginBottom:0 }}>Lignes du BL *</label>
+                  <button onClick={() => setBlImportLines(p => [...p, { description:'', quantity:'1' }])}
+                    style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:6, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                    <PlusCircle size={13} /> Ajouter
+                  </button>
+                </div>
+                <div style={{ border:'1px solid #E8D4B0', borderRadius:10, overflow:'hidden' }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 36px', background:'#FFF8EE', padding:'8px 12px', borderBottom:'1px solid #E8D4B0' }}>
+                    {['Description','Qté',''].map((h, i) => (
+                      <span key={i} style={{ fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5 }}>{h}</span>
+                    ))}
+                  </div>
+                  {blImportLines.map((line, idx) => (
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 36px', padding:'8px 12px', borderBottom: idx < blImportLines.length-1 ? '1px solid #E8D4B0' : 'none', alignItems:'center' }}>
+                      <input placeholder="Description..." value={line.description}
+                        onChange={e => updateBlImportLine(idx, 'description', e.target.value)}
+                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                      <input type="number" min="0.01" step="0.01" placeholder="1" value={line.quantity}
+                        onChange={e => updateBlImportLine(idx, 'quantity', e.target.value)}
+                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                      <button onClick={() => { if (blImportLines.length > 1) setBlImportLines(p => p.filter((_,i) => i !== idx)); }}
+                        disabled={blImportLines.length === 1}
+                        style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: blImportLines.length===1 ? 0.3 : 1 }}>
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {blImportError && (
+              <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:16, fontSize:12, color:'#D32F2F' }}>
+                ⚠️ {blImportError}
+              </div>
+            )}
+
+            <div style={{ display:'flex', gap:10, paddingTop:4 }}>
+              <button onClick={() => setShowBlImportModal(false)} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
+              <button onClick={handleBlImport} disabled={blImporting || blUploadingFile}
+                style={{ ...btnPrimary, flex:2, opacity:(blImporting || blUploadingFile) ? 0.6 : 1, display:'flex', alignItems:'center', justifyContent:'center', gap:6 }}>
+                {blUploadingFile ? '⏳ Upload en cours...' : blImporting ? '⏳ Import...' : '📤 Importer le BL'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== POPUP : Edit BL complet ===== */}
       {editTarget && (
         <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'flex-start', justifyContent:'center', paddingTop:40, paddingBottom:24, overflowY:'auto' }}>
@@ -855,6 +1094,13 @@ export default function BLPage() {
         url={viewPendingUrl}
         title="Document BL"
         onClose={() => setViewPendingUrl(null)}
+      />
+
+      {/* FileViewer pour aperçu import BL externe */}
+      <FileViewerModal
+        url={blImportPreviewUrl}
+        title="Aperçu du document"
+        onClose={() => setBlImportPreviewUrl(null)}
       />
     </div>
   );

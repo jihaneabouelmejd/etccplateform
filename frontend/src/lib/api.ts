@@ -152,6 +152,7 @@ export const blApi = {
   update: (id: string, data: any) => api.patch(`/bl/${id}`, data),
   updateStatus: (id: string, status: string) => api.patch(`/bl/${id}/status`, { status }),
   saveSignedScan: (id: string, signed_scan_url: string) => api.patch(`/bl/${id}/signed-scan`, { signed_scan_url }),
+  import: (data: any) => api.post('/bl/import', data),
   delete: (id: string) => api.delete(`/bl/${id}`),
   restore: (id: string) => api.patch(`/bl/${id}/restore`),
   hardDelete: (id: string) => api.delete(`/bl/${id}/hard`),

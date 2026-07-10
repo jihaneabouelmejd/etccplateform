@@ -30,6 +30,12 @@ export class BLController {
     return this.bl.createFromDevis(devisId, userId, signatureId || undefined);
   }
 
+  @Post('import')
+  @Roles(Role.ADMIN, Role.GERANT)
+  importBL(@Body() data: any, @CurrentUser('id') userId: string) {
+    return this.bl.importBL(data, userId);
+  }
+
   @Get()
   @Roles(Role.ADMIN, Role.GERANT, Role.EMPLOYE)
   findAll(

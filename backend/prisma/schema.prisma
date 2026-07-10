@@ -58,6 +58,12 @@ enum BCSource {
   IMPORTED_MANUAL
 }
 
+enum BLSource {
+  INTERNAL       // Créé depuis un devis / BC validé (généré par la plateforme)
+  IMPORTED_OCR   // Importé en externe (scan PDF)
+  IMPORTED_MANUAL
+}
+
 enum BCStatus {
   OPEN
   PARTIALLY_DELIVERED
@@ -745,7 +751,12 @@ model BonLivraison {
   bc_id           String?      // Optionnel — peut venir direct d'un devis
   devis_id        String?      // Pour traçabilité
   site            String?      // Chantier / site des travaux (hérité du devis)
-  
+
+  // Source
+  source          BLSource     @default(INTERNAL)
+  imported_file_url String?    // Si IMPORTED_OCR/MANUAL
+  ocr_raw_data    Json?        // Données brutes OCR
+
   // Relations
   client_id       String
   project_id      String?
