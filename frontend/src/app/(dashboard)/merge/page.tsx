@@ -50,9 +50,11 @@ export default function MergePage() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // Fusion : ne proposer que les documents importés en externe (pas ceux générés par la plateforme depuis un devis)
+  // Fusion : BC → ne proposer que les BC importés en externe (pas ceux générés par la plateforme depuis un devis)
   const externalBc = bcList.filter(b => b.source && b.source !== 'INTERNAL');
-  const externalBl = blList.filter(b => !b.devis_id && (!b.bc_id || !b.bc?.devis_id));
+  // BL : il n'existe pas (encore) de notion d'"import externe" pour les BL dans le modèle de données
+  // (aucun champ source, aucun endpoint d'import BL) — tous les BL sont donc listés ici.
+  const externalBl = blList;
 
   const getOptions = () => {
     if (addType === 'devis')   return devisList.map(d => ({ id: d.id, label: `${d.number} – ${d.client?.commercial_name || ''}` }));

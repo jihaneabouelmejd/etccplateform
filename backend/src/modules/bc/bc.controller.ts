@@ -36,11 +36,12 @@ export class BCController {
     @Query('status') status?: BCStatus,
     @Query('search') search?: string,
     @Query('page') page?: number,
+    @Query('limit') limit?: number,
     @CurrentUser('id') userId?: string,
     @CurrentUser('role') role?: string,
   ) {
     const createdBy = (role === Role.ADMIN || role === Role.GERANT) ? undefined : userId;
-    return this.bc.findAll({ status, search, page, created_by: createdBy });
+    return this.bc.findAll({ status, search, page, limit, created_by: createdBy });
   }
 
   @Get(':id')

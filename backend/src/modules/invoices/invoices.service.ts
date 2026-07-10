@@ -248,10 +248,11 @@ export class InvoicesService {
     year?: number;
     search?: string;
     page?: number;
+    limit?: number;
     created_by?: string;
   }) {
     const page = params?.page || 1;
-    const limit = 50;
+    const limit = Math.min(Number(params?.limit) || 50, 500);
     const where: any = {};
 
     if (params?.created_by) where.created_by = params.created_by;

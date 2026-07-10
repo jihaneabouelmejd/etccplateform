@@ -35,11 +35,12 @@ export class InvoicesController {
     @Query('year') year?: number,
     @Query('search') search?: string,
     @Query('page') page?: number,
+    @Query('limit') limit?: number,
     @CurrentUser('id') userId?: string,
     @CurrentUser('role') role?: string,
   ) {
     const createdBy = (role === Role.ADMIN || role === Role.GERANT || role === Role.COMPTABLE) ? undefined : userId;
-    return this.invoices.findAll({ direction, status, month, year, search, page, created_by: createdBy });
+    return this.invoices.findAll({ direction, status, month, year, search, page, limit, created_by: createdBy });
   }
 
   @Get('stats')
