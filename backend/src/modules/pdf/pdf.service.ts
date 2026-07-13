@@ -156,6 +156,85 @@ export class PDFService {
     }
   }
 
+  /**
+   * Télécharge un fichier (URL Cloudinary ou locale) et le renvoie tel quel
+   * sous forme de Buffer, en suivant les redirections HTTP.
+   */
+  private async fetchUrlBuffer(
+    url: string,
+    hops = 0,
+  ): Promise<{ buffer: Buffer; contentType: string } | null> {
+    if (hops > 5) return null;
+    try {
+      const https = url.startsWith('https') ? require('https') : require('http');
+      return await new Promise((resolve) => {
+        https.get(url, (res: any) => {
+          const sc = res.statusCode;
+          if ([301, 302, 303, 307, 308].includes(sc) && res.headers.location) {
+            res.resume();
+            this.fetchUrlBuffer(res.headers.location, hops + 1).then(resolve);
+            return;
+          }
+          if (sc !== 200) { res.resume(); resolve(null); return; }
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk: Buffer) => chunks.push(chunk));
+          res.on('end', () => resolve({ buffer: Buffer.concat(chunks), contentType: res.headers['content-type'] || '' }));
+          res.on('error', () => resolve(null));
+        }).on('error', () => resolve(null));
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Pour un BC/BL importé depuis l'extérieur (source IMPORTED_OCR / IMPORTED_MANUAL),
+   * le document réel à afficher/fusionner est le fichier que le client a téléversé
+   * (imported_file_url) — PAS un gabarit ETCC généré à partir des lignes en BDD
+   * (qui ne contiennent souvent qu'un nom de fichier placeholder).
+   * Cette méthode télécharge ce fichier et le renvoie en PDF :
+   *  - si c'est déjà un PDF → renvoyé tel quel
+   *  - si c'est une image (jpg/png/...) → encapsulée dans une page PDF A4
+   * Renvoie null si le téléchargement échoue (l'appelant doit alors fallback
+   * sur le gabarit généré, pour ne jamais bloquer l'utilisateur).
+   */
+  async fetchImportedFileAsPdf(url: string): Promise<Buffer | null> {
+    if (!url) return null;
+    const result = await this.fetchUrlBuffer(url);
+    if (!result || !result.buffer || result.buffer.length === 0) return null;
+    const { buffer, contentType } = result;
+
+    const urlPath = url.split('?')[0].toLowerCase();
+    const isPdf = contentType.includes('pdf') || urlPath.endsWith('.pdf') || url.includes('/raw/');
+    if (isPdf) return buffer;
+
+    // Image → page PDF A4 avec l'image centrée
+    try {
+      const { PDFDocument } = await import('pdf-lib');
+      const pdfDoc = await PDFDocument.create();
+      let image: any;
+      const isPng = contentType.includes('png') || urlPath.endsWith('.png');
+      try {
+        image = isPng ? await pdfDoc.embedPng(buffer) : await pdfDoc.embedJpg(buffer);
+      } catch {
+        // Type mal détecté — on tente l'autre format
+        image = isPng ? await pdfDoc.embedJpg(buffer) : await pdfDoc.embedPng(buffer);
+      }
+      const pageW = 595.28;
+      const pageH = 841.89;
+      const margin = 20;
+      const scale = Math.min((pageW - margin * 2) / image.width, (pageH - margin * 2) / image.height, 1);
+      const w = image.width * scale;
+      const h = image.height * scale;
+      const page = pdfDoc.addPage([pageW, pageH]);
+      page.drawImage(image, { x: (pageW - w) / 2, y: (pageH - h) / 2, width: w, height: h });
+      return Buffer.from(await pdfDoc.save());
+    } catch (err: any) {
+      this.logger.error(`[fetchImportedFileAsPdf] Conversion image→PDF échouée: ${err.message}`);
+      return null;
+    }
+  }
+
   private async generateFromHTML(html: string): Promise<Buffer> {
     let browser: any;
     try {

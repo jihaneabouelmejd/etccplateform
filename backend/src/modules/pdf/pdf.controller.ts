@@ -92,6 +92,17 @@ export class PDFController {
       } as any,
     }) as any;
     if (!bc) throw new NotFoundException('Bon de commande non trouvé');
+
+    // BC importé de l'extérieur → renvoyer le fichier réel téléversé, pas un gabarit généré
+    if (bc.source && bc.source !== 'INTERNAL' && bc.imported_file_url) {
+      const importedPdf = await this.pdfService.fetchImportedFileAsPdf(bc.imported_file_url);
+      if (importedPdf) {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${bc.number}.pdf"`);
+        return res.send(importedPdf);
+      }
+    }
+
     const pdfBuffer = await this.pdfService.generateBCPDF({
       number: bc.number,
       issue_date: bc.issue_date.toISOString(),
@@ -143,6 +154,17 @@ export class PDFController {
       },
     });
     if (!bl) throw new NotFoundException('BL non trouvé');
+
+    // BL importé de l'extérieur → renvoyer le fichier réel téléversé, pas un gabarit généré
+    if ((bl as any).source && (bl as any).source !== 'INTERNAL' && (bl as any).imported_file_url) {
+      const importedPdf = await this.pdfService.fetchImportedFileAsPdf((bl as any).imported_file_url);
+      if (importedPdf) {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${bl.number}.pdf"`);
+        return res.send(importedPdf);
+      }
+    }
+
     const pdfBuffer = await this.pdfService.generateBLPDF({
       number: bl.number,
       bc_number: bl.bc?.number || undefined,
@@ -258,7 +280,7 @@ export class PDFController {
     const pdfBuffers: Buffer[] = [];
 
     for (const item of body.items) {
-      let buf: Buffer;
+      let buf: Buffer | null;
 
       if (item.type === 'devis') {
         const devis = await this.prisma.devis.findUnique({
@@ -317,25 +339,33 @@ export class PDFController {
           },
         });
         if (!bl) throw new NotFoundException(`BL ${item.id} non trouvé`);
-        buf = await this.pdfService.generateBLPDF({
-          number: bl.number,
-          bc_number: bl.bc?.number || undefined,
-          devis_number: bl.bc?.devis?.number || undefined,
-          issue_date: bl.issue_date.toISOString(),
-          delivery_date: bl.delivery_date?.toISOString() || undefined,
-          client: {
-            commercial_name: bl.client.commercial_name,
-            ice: bl.client.ice || undefined,
-            address: bl.client.address || undefined,
-            city: bl.client.city || undefined,
-          },
-          project_name: bl.project?.name || undefined,
-          lines: bl.lines.map((l) => ({ description: l.description, quantity: Number(l.quantity) })),
-          delivered_by: bl.delivered_by || undefined,
-          delivery_address: bl.delivery_address || undefined,
-          notes: bl.notes || undefined,
-          signature_url: bl.signature?.image_url || undefined,
-        }, lang);
+
+        // BL importé de l'extérieur → utiliser le fichier réel téléversé
+        buf = null as any;
+        if ((bl as any).source && (bl as any).source !== 'INTERNAL' && (bl as any).imported_file_url) {
+          buf = await this.pdfService.fetchImportedFileAsPdf((bl as any).imported_file_url);
+        }
+        if (!buf) {
+          buf = await this.pdfService.generateBLPDF({
+            number: bl.number,
+            bc_number: bl.bc?.number || undefined,
+            devis_number: bl.bc?.devis?.number || undefined,
+            issue_date: bl.issue_date.toISOString(),
+            delivery_date: bl.delivery_date?.toISOString() || undefined,
+            client: {
+              commercial_name: bl.client.commercial_name,
+              ice: bl.client.ice || undefined,
+              address: bl.client.address || undefined,
+              city: bl.client.city || undefined,
+            },
+            project_name: bl.project?.name || undefined,
+            lines: bl.lines.map((l) => ({ description: l.description, quantity: Number(l.quantity) })),
+            delivered_by: bl.delivered_by || undefined,
+            delivery_address: bl.delivery_address || undefined,
+            notes: bl.notes || undefined,
+            signature_url: bl.signature?.image_url || undefined,
+          }, lang);
+        }
 
       } else if (item.type === 'invoice') {
         const invoice = await this.prisma.invoice.findUnique({
@@ -412,39 +442,47 @@ export class PDFController {
         }) as any;
         if (!bc) throw new NotFoundException(`BC ${item.id} non trouvé`);
         const bcData = bc;
-        buf = await this.pdfService.generateBCPDF({
-          number: bcData.number,
-          issue_date: bcData.issue_date.toISOString(),
-          expected_delivery: bcData.expected_delivery?.toISOString() || undefined,
-          status: bcData.status,
-          source: bcData.source,
-          devis_number: bcData.devis?.number || undefined,
-          site: bcData.site || undefined,
-          signature_url: bcData.signature?.image_url || undefined,
-          client: {
-            commercial_name: bcData.client.commercial_name,
-            ice: bcData.client.ice || undefined,
-            rc: bcData.client.rc || undefined,
-            address: bcData.client.address || undefined,
-            city: bcData.client.city || undefined,
-            phone: bcData.client.phone || undefined,
-            email: bcData.client.email || undefined,
-          },
-          lines: (bcData.lines as any[]).map((l) => ({
-            description: l.description,
-            quantity: Number(l.quantity),
-            unit_price: l.unit_price ? Number(l.unit_price) : undefined,
-          })),
-          total_ht: bc.total_ht ? Number(bc.total_ht) : undefined,
-          total_ttc: bc.total_ttc ? Number(bc.total_ttc) : undefined,
-          notes: bc.notes || undefined,
-        }, lang);
+
+        // BC importé de l'extérieur → utiliser le fichier réel téléversé
+        buf = null as any;
+        if (bcData.source && bcData.source !== 'INTERNAL' && bcData.imported_file_url) {
+          buf = await this.pdfService.fetchImportedFileAsPdf(bcData.imported_file_url);
+        }
+        if (!buf) {
+          buf = await this.pdfService.generateBCPDF({
+            number: bcData.number,
+            issue_date: bcData.issue_date.toISOString(),
+            expected_delivery: bcData.expected_delivery?.toISOString() || undefined,
+            status: bcData.status,
+            source: bcData.source,
+            devis_number: bcData.devis?.number || undefined,
+            site: bcData.site || undefined,
+            signature_url: bcData.signature?.image_url || undefined,
+            client: {
+              commercial_name: bcData.client.commercial_name,
+              ice: bcData.client.ice || undefined,
+              rc: bcData.client.rc || undefined,
+              address: bcData.client.address || undefined,
+              city: bcData.client.city || undefined,
+              phone: bcData.client.phone || undefined,
+              email: bcData.client.email || undefined,
+            },
+            lines: (bcData.lines as any[]).map((l) => ({
+              description: l.description,
+              quantity: Number(l.quantity),
+              unit_price: l.unit_price ? Number(l.unit_price) : undefined,
+            })),
+            total_ht: bc.total_ht ? Number(bc.total_ht) : undefined,
+            total_ttc: bc.total_ttc ? Number(bc.total_ttc) : undefined,
+            notes: bc.notes || undefined,
+          }, lang);
+        }
 
       } else {
         throw new BadRequestException('Type de document inconnu');
       }
 
-      pdfBuffers.push(buf);
+      pdfBuffers.push(buf as Buffer);
     }
 
     const { PDFDocument } = await import('pdf-lib');
