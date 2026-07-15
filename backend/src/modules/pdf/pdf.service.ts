@@ -6,6 +6,45 @@ import { blTemplate } from './templates/bl.template';
 import { invoiceTemplate } from './templates/invoice.template';
 import { bcTemplate } from './templates/bc.template';
 
+// ─── Cloudinary (pour télécharger les fichiers importés en signé) ────────────
+// Les fichiers raw/PDF uploadés sur Cloudinary sont soumis à une restriction
+// de sécurité qui bloque leur accès direct (CDN) même en mode "public" →
+// on doit passer par l'API Cloudinary signée pour les récupérer, comme le
+// fait déjà upload.controller.ts pour la prévisualisation.
+const CLOUD_NAME   = (process.env.CLOUDINARY_CLOUD_NAME  || '').trim();
+const CLOUD_KEY    = (process.env.CLOUDINARY_API_KEY     || '').trim();
+const CLOUD_SECRET = (process.env.CLOUDINARY_API_SECRET  || '').trim();
+const USE_CLOUDINARY = !!(CLOUD_NAME && CLOUD_KEY && CLOUD_SECRET);
+
+function extractCloudinaryInfo(url: string): { publicId: string; resourceType: string } | null {
+  const m = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
+  if (!m) return null;
+  return { publicId: m[2], resourceType: m[1] };
+}
+
+function buildCloudinarySignedDownloadUrl(publicId: string, resourceType: string): string | null {
+  if (!USE_CLOUDINARY) return null;
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const type = 'upload';
+    const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}&type=${type}`;
+    const signature = require('crypto')
+      .createHash('sha1')
+      .update(paramsToSign + CLOUD_SECRET)
+      .digest('hex');
+    const qs = new URLSearchParams({
+      public_id: publicId,
+      type,
+      api_key: CLOUD_KEY,
+      timestamp: String(timestamp),
+      signature,
+    });
+    return `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/download?${qs.toString()}`;
+  } catch {
+    return null;
+  }
+}
+
 export type PDFLanguage = 'FR' | 'AR';
 
 export interface DevisPDFData {
@@ -129,17 +168,35 @@ export class PDFService {
   constructor(private companyService: CompanyService) {}
 
   /**
+   * Résout une URL potentiellement relative (ex: uploads locaux servis par ce
+   * même backend quand Cloudinary n'est pas configuré — format
+   * "/api/upload/files/xxx.pdf") en URL absolue utilisable pour un fetch HTTP
+   * côté serveur. Sans ça, un require('http').get() sur un chemin relatif
+   * lève une exception "Invalid URL" silencieusement avalée par le catch
+   * englobant, et l'appelant retombe à tort sur le PDF gabarit généré au lieu
+   * du fichier réellement importé. Les URLs déjà absolues (Cloudinary, etc.)
+   * sont retournées telles quelles.
+   */
+  private resolveUrl(url: string): string {
+    if (!url) return url;
+    if (/^https?:\/\//i.test(url)) return url;
+    const origin = (process.env.APP_URL || 'http://localhost:4000').replace(/\/$/, '');
+    return `${origin}${url.startsWith('/') ? '' : '/'}${url}`;
+  }
+
+  /**
    * Télécharge une image depuis son URL et la convertit en data URI base64.
    * Cela évite que Puppeteer tente de charger des URLs Cloudinary depuis
    * le container Railway (pas de requêtes réseau externes dans le HTML).
    */
   private async imageUrlToBase64(url: string): Promise<string | null> {
     if (!url) return null;
+    const resolved = this.resolveUrl(url);
     try {
       // Dynamic import to avoid issues with ESM/CJS
-      const https = url.startsWith('https') ? require('https') : require('http');
+      const https = resolved.startsWith('https') ? require('https') : require('http');
       return await new Promise<string | null>((resolve) => {
-        https.get(url, (res: any) => {
+        https.get(resolved, (res: any) => {
           if (res.statusCode !== 200) { resolve(null); return; }
           const chunks: Buffer[] = [];
           res.on('data', (chunk: Buffer) => chunks.push(chunk));
@@ -165,14 +222,39 @@ export class PDFService {
     hops = 0,
   ): Promise<{ buffer: Buffer; contentType: string } | null> {
     if (hops > 5) return null;
+
+    // ── Cloudinary raw/PDF resources: le CDN direct renvoie 401 (restriction
+    // de sécurité sur les fichiers raw/PDF/ZIP), même en mode "public" upload.
+    // On tente donc d'abord l'API de téléchargement signée. ────────────────
+    if (url.includes('cloudinary.com') && USE_CLOUDINARY) {
+      const info = extractCloudinaryInfo(url);
+      if (info) {
+        const signedUrl = buildCloudinarySignedDownloadUrl(info.publicId, info.resourceType);
+        if (signedUrl) {
+          const signedResult = await this.fetchRawUrl(signedUrl, hops);
+          if (signedResult) return signedResult;
+          this.logger.warn(`[fetchUrlBuffer] Signed Cloudinary download failed — fallback CDN direct: ${url}`);
+        }
+      }
+    }
+
+    const resolved = this.resolveUrl(url);
+    return this.fetchRawUrl(resolved, hops);
+  }
+
+  private async fetchRawUrl(
+    resolved: string,
+    hops = 0,
+  ): Promise<{ buffer: Buffer; contentType: string } | null> {
+    if (hops > 5) return null;
     try {
-      const https = url.startsWith('https') ? require('https') : require('http');
+      const https = resolved.startsWith('https') ? require('https') : require('http');
       return await new Promise((resolve) => {
-        https.get(url, (res: any) => {
+        https.get(resolved, (res: any) => {
           const sc = res.statusCode;
           if ([301, 302, 303, 307, 308].includes(sc) && res.headers.location) {
             res.resume();
-            this.fetchUrlBuffer(res.headers.location, hops + 1).then(resolve);
+            this.fetchRawUrl(res.headers.location, hops + 1).then(resolve);
             return;
           }
           if (sc !== 200) { res.resume(); resolve(null); return; }
