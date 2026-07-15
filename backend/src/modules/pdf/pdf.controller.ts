@@ -155,9 +155,14 @@ export class PDFController {
     });
     if (!bl) throw new NotFoundException('BL non trouvé');
 
-    // BL importé de l'extérieur → renvoyer le fichier réel téléversé, pas un gabarit généré
-    if ((bl as any).source && (bl as any).source !== 'INTERNAL' && (bl as any).imported_file_url) {
-      const importedPdf = await this.pdfService.fetchImportedFileAsPdf((bl as any).imported_file_url);
+    // BL importé de l'extérieur (fichier réel téléversé) OU BL signé par le client
+    // (scan/photo réel téléversé via "BL signé") → renvoyer ce fichier réel,
+    // pas un gabarit ETCC généré.
+    const blRealFileUrl = ((bl as any).source && (bl as any).source !== 'INTERNAL' && (bl as any).imported_file_url)
+      ? (bl as any).imported_file_url
+      : ((bl as any).client_signature_url || null);
+    if (blRealFileUrl) {
+      const importedPdf = await this.pdfService.fetchImportedFileAsPdf(blRealFileUrl);
       if (importedPdf) {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `inline; filename="${bl.number}.pdf"`);
@@ -340,10 +345,15 @@ export class PDFController {
         });
         if (!bl) throw new NotFoundException(`BL ${item.id} non trouvé`);
 
-        // BL importé de l'extérieur → utiliser le fichier réel téléversé
+        // BL importé de l'extérieur OU BL signé par le client → utiliser le fichier réel téléversé
         buf = null as any;
-        if ((bl as any).source && (bl as any).source !== 'INTERNAL' && (bl as any).imported_file_url) {
-          buf = await this.pdfService.fetchImportedFileAsPdf((bl as any).imported_file_url);
+        {
+          const blMergeRealFileUrl = ((bl as any).source && (bl as any).source !== 'INTERNAL' && (bl as any).imported_file_url)
+            ? (bl as any).imported_file_url
+            : ((bl as any).client_signature_url || null);
+          if (blMergeRealFileUrl) {
+            buf = await this.pdfService.fetchImportedFileAsPdf(blMergeRealFileUrl);
+          }
         }
         if (!buf) {
           buf = await this.pdfService.generateBLPDF({

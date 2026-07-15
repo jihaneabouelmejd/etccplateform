@@ -50,9 +50,11 @@ export default function MergePage() {
     }).finally(() => setLoading(false));
   }, []);
 
-  // Fusion : ne proposer que les documents importés en externe (pas ceux générés par la plateforme depuis un devis/BC)
+  // Fusion : ne proposer que les documents qui ont un fichier réel derrière —
+  // BC/BL importés en externe (pas ceux générés par la plateforme depuis un devis/BC),
+  // ou BL signés par le client (scan/photo réel téléversé via "BL signé").
   const externalBc = bcList.filter(b => b.source && b.source !== 'INTERNAL');
-  const externalBl = blList.filter(b => b.source && b.source !== 'INTERNAL');
+  const externalBl = blList.filter(b => (b.source && b.source !== 'INTERNAL') || b.client_signature_url);
 
   const getOptions = () => {
     if (addType === 'devis')   return devisList.map(d => ({ id: d.id, label: `${d.number} – ${d.client?.commercial_name || ''}` }));
