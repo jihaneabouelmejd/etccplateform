@@ -5,6 +5,8 @@ import { Search, Trash2, ChevronLeft, ChevronRight, FileEdit, X } from 'lucide-r
 import { mailApi } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
 import { card, btnSecondary, btnPrimary, inputStyle, mailColors, formatMailDate } from '@/components/mail/mailUi';
+import { useMailAccounts } from '@/components/mail/useMailAccounts';
+import MailAccountSelect from '@/components/mail/MailAccountSelect';
 
 export default function DraftsPage() {
   const { t } = useLanguage();
@@ -18,22 +20,25 @@ export default function DraftsPage() {
   const [error, setError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
+  const { accounts, selectedId, setSelectedId, loading: loadingAccounts } = useMailAccounts();
 
   const load = useCallback(() => {
+    if (loadingAccounts || (accounts.length > 0 && !selectedId)) return;
     setLoading(true); setError('');
-    mailApi.listFolder('drafts', { page, limit, q: q || undefined })
+    mailApi.listFolder('drafts', { page, limit, q: q || undefined, accountId: selectedId || undefined })
       .then(({ data }) => { setMessages(data.messages || []); setTotal(data.total || 0); })
       .catch((e) => setError(e?.response?.data?.message || "Erreur de connexion à la boîte mail"))
       .finally(() => setLoading(false));
-  }, [page, q]);
+  }, [page, q, selectedId, loadingAccounts, accounts.length]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => { setPage(1); }, [selectedId]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await mailApi.deleteMessage('drafts', deleteTarget.uid);
+      await mailApi.deleteMessage('drafts', deleteTarget.uid, selectedId || undefined);
       setMessages(prev => prev.filter(m => m.uid !== deleteTarget.uid));
       setTotal(n => Math.max(0, n - 1));
       setDeleteTarget(null);
@@ -50,9 +55,12 @@ export default function DraftsPage() {
           <h1 className="text-[22px] font-bold text-honey-dark font-display tracking-tight">📝 {t('menu.messagerie_drafts')}</h1>
           <p className="text-sm text-honey-caramel mt-0.5">{total} brouillon{total > 1 ? 's' : ''}</p>
         </div>
-        <a href="/messagerie/nouveau" style={{ ...btnPrimary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          ✍️ {t('mail.new_message_short')}
-        </a>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <MailAccountSelect accounts={accounts} value={selectedId} onChange={setSelectedId} />
+          <a href={`/messagerie/nouveau${selectedId ? `?accountId=${selectedId}` : ''}`} style={{ ...btnPrimary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            ✍️ {t('mail.new_message_short')}
+          </a>
+        </div>
       </div>
 
       <form
@@ -88,7 +96,7 @@ export default function DraftsPage() {
               style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: '1px solid #F5E6D3' }}
             >
               <a
-                href={`/messagerie/nouveau?draft_uid=${m.uid}`}
+                href={`/messagerie/nouveau?draft_uid=${m.uid}${selectedId ? `&accountId=${selectedId}` : ''}`}
                 style={{ flex: 1, minWidth: 0, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
               >
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#DC2626', background: '#FFF5F5', border: '1px solid #FECACA', borderRadius: 6, padding: '2px 8px', flexShrink: 0 }}>

@@ -47,32 +47,100 @@ export class MailService {
       last_error: null as string | null,
     };
 
-    const account = await this.prisma.mailAccount.upsert({
-      where: { user_id: targetUserId },
-      update: data,
-      create: { user_id: targetUserId, ...data },
+    const existingPrimary = await this.prisma.mailAccount.findFirst({
+      where: { user_id: targetUserId, is_primary: true },
     });
+
+    const account = existingPrimary
+      ? await this.prisma.mailAccount.update({ where: { id: existingPrimary.id }, data })
+      : await this.prisma.mailAccount.create({
+          data: { user_id: targetUserId, is_primary: true, ...data },
+        });
 
     return this.maskAccount(account);
   }
 
   async removeAccountForUser(targetUserId: string) {
-    await this.prisma.mailAccount.deleteMany({ where: { user_id: targetUserId } });
+    await this.prisma.mailAccount.deleteMany({ where: { user_id: targetUserId, is_primary: true } });
     return { success: true };
   }
 
   async getAccountForAdmin(targetUserId: string) {
-    const account = await this.prisma.mailAccount.findUnique({ where: { user_id: targetUserId } });
+    const account = await this.prisma.mailAccount.findFirst({
+      where: { user_id: targetUserId, is_primary: true },
+    });
     if (!account) return null;
     return this.maskAccount(account);
   }
 
   async getMyAccountStatus(userId: string) {
-    const account = await this.prisma.mailAccount.findUnique({ where: { user_id: userId } });
+    const account = await this.prisma.mailAccount.findFirst({
+      where: { user_id: userId, is_primary: true },
+    });
     if (!account) {
       return { configured: false };
     }
     return { configured: true, ...this.maskAccount(account) };
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // Boîtes partagées — un même utilisateur peut avoir, en plus de sa boîte
+  // personnelle, l'accès à une ou plusieurs boîtes partagées (ex: contact@etcc.ma)
+  // ══════════════════════════════════════════════════════════════════════
+
+  async listAccountsForUser(userId: string) {
+    const accounts = await this.prisma.mailAccount.findMany({
+      where: { user_id: userId, is_active: true },
+      orderBy: [{ is_primary: 'desc' }, { created_at: 'asc' }],
+    });
+    return accounts.map((a) => ({ id: a.id, email_address: a.email_address, is_primary: a.is_primary }));
+  }
+
+  async listAccountsForAdmin(targetUserId: string) {
+    const accounts = await this.prisma.mailAccount.findMany({
+      where: { user_id: targetUserId },
+      orderBy: [{ is_primary: 'desc' }, { created_at: 'asc' }],
+    });
+    return accounts.map((a) => ({ id: a.id, ...this.maskAccount(a) }));
+  }
+
+  async addSharedAccount(targetUserId: string, dto: SetMailAccountDto) {
+    const user = await this.prisma.user.findUnique({ where: { id: targetUserId } });
+    if (!user) throw new NotFoundException('Utilisateur introuvable');
+
+    const email = dto.email_address.toLowerCase().trim();
+    const existing = await this.prisma.mailAccount.findFirst({
+      where: { user_id: targetUserId, email_address: email },
+    });
+    if (existing) {
+      throw new BadRequestException('Cette adresse est déjà associée à cet utilisateur.');
+    }
+
+    const account = await this.prisma.mailAccount.create({
+      data: {
+        user_id: targetUserId,
+        is_primary: false,
+        email_address: email,
+        password_enc: encryptMailSecret(dto.password),
+        imap_host: (dto.imap_host || 'imap.hostinger.com').trim(),
+        imap_port: dto.imap_port || 993,
+        smtp_host: (dto.smtp_host || 'smtp.hostinger.com').trim(),
+        smtp_port: dto.smtp_port || 465,
+        is_active: true,
+      },
+    });
+    return { id: account.id, ...this.maskAccount(account) };
+  }
+
+  async removeSharedAccount(targetUserId: string, accountId: string) {
+    await this.prisma.mailAccount.deleteMany({
+      where: { id: accountId, user_id: targetUserId, is_primary: false },
+    });
+    return { success: true };
+  }
+
+  async testAccountById(targetUserId: string, accountId: string) {
+    return this.testConnection(targetUserId, accountId);
   }
 
   private maskAccount(account: any) {
@@ -88,21 +156,25 @@ export class MailService {
     };
   }
 
-  async testConnection(targetUserId: string) {
+  async testConnection(targetUserId: string, accountId?: string) {
     try {
       await this.withClient(targetUserId, async (client) => {
         await client.list();
-      });
+      }, accountId);
+      const account = await this.getAccountOrThrow(targetUserId, accountId);
       await this.prisma.mailAccount.update({
-        where: { user_id: targetUserId },
+        where: { id: account.id },
         data: { last_error: null, last_checked_at: new Date() },
       });
       return { success: true };
     } catch (err: any) {
-      await this.prisma.mailAccount.update({
-        where: { user_id: targetUserId },
-        data: { last_error: err.message?.slice(0, 500), last_checked_at: new Date() },
-      }).catch(() => {});
+      const account = await this.getAccountOrThrow(targetUserId, accountId).catch(() => null);
+      if (account) {
+        await this.prisma.mailAccount.update({
+          where: { id: account.id },
+          data: { last_error: err.message?.slice(0, 500), last_checked_at: new Date() },
+        }).catch(() => {});
+      }
       return { success: false, message: err.message };
     }
   }
@@ -111,8 +183,12 @@ export class MailService {
   // Connexion IMAP (une connexion éphémère par requête — pas de sync locale)
   // ══════════════════════════════════════════════════════════════════════
 
-  private async getAccountOrThrow(userId: string) {
-    const account = await this.prisma.mailAccount.findUnique({ where: { user_id: userId } });
+  private async getAccountOrThrow(userId: string, accountId?: string) {
+    const account = accountId
+      ? await this.prisma.mailAccount.findFirst({ where: { id: accountId, user_id: userId } })
+      : await this.prisma.mailAccount.findFirst({
+          where: { user_id: userId, is_primary: true },
+        });
     if (!account || !account.is_active) {
       throw new NotFoundException(
         "Aucune boîte mail professionnelle n'est configurée pour votre compte. Contactez votre administrateur.",
@@ -124,8 +200,9 @@ export class MailService {
   private async withClient<T>(
     userId: string,
     fn: (client: ImapFlow, account: any) => Promise<T>,
+    accountId?: string,
   ): Promise<T> {
-    const account = await this.getAccountOrThrow(userId);
+    const account = await this.getAccountOrThrow(userId, accountId);
     const client = new ImapFlow({
       host: account.imap_host,
       port: account.imap_port,
@@ -197,7 +274,7 @@ export class MailService {
   async listMessages(
     userId: string,
     kind: MailFolderKind,
-    opts: { page?: number; limit?: number; q?: string },
+    opts: { page?: number; limit?: number; q?: string; accountId?: string },
   ) {
     const page = opts.page && opts.page > 0 ? opts.page : 1;
     const limit = opts.limit && opts.limit > 0 ? Math.min(opts.limit, 100) : 25;
@@ -262,7 +339,7 @@ export class MailService {
       } finally {
         lock.release();
       }
-    });
+    }, opts.accountId);
   }
 
   private hasAttachments(bodyStructure: any): boolean {
@@ -302,7 +379,7 @@ export class MailService {
   // Détail d'un message + pièces jointes
   // ══════════════════════════════════════════════════════════════════════
 
-  async getMessage(userId: string, kind: MailFolderKind, uid: number) {
+  async getMessage(userId: string, kind: MailFolderKind, uid: number, accountId?: string) {
     return this.withClient(userId, async (client) => {
       const path = await this.resolveFolderPath(client, kind);
       const lock = await client.getMailboxLock(path);
@@ -347,10 +424,10 @@ export class MailService {
       } finally {
         lock.release();
       }
-    });
+    }, accountId);
   }
 
-  async getAttachment(userId: string, kind: MailFolderKind, uid: number, index: number) {
+  async getAttachment(userId: string, kind: MailFolderKind, uid: number, index: number, accountId?: string) {
     return this.withClient(userId, async (client) => {
       const path = await this.resolveFolderPath(client, kind);
       const lock = await client.getMailboxLock(path);
@@ -371,7 +448,7 @@ export class MailService {
       } finally {
         lock.release();
       }
-    });
+    }, accountId);
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -432,13 +509,14 @@ export class MailService {
       sourceUid?: number;
       sourceFolder?: MailFolderKind;
       mode?: 'new' | 'reply' | 'reply_all' | 'forward';
+      accountId?: string;
     },
   ) {
     if (!fields.to || !fields.to.trim()) {
       throw new BadRequestException('Destinataire requis');
     }
 
-    const account = await this.getAccountOrThrow(userId);
+    const account = await this.getAccountOrThrow(userId, fields.accountId);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const fromDisplayName = user ? `${user.first_name} ${user.last_name}` : account.email_address;
 
@@ -476,7 +554,7 @@ export class MailService {
           } finally {
             lock.release();
           }
-        });
+        }, fields.accountId);
       } catch {
         // Ne bloque pas l'envoi si le message d'origine n'a pas pu être relu
       }
@@ -512,7 +590,7 @@ export class MailService {
       await this.withClient(userId, async (client) => {
         const sentPath = await this.resolveFolderPath(client, 'sent');
         await client.append(sentPath, rawMessage, ['\\Seen']);
-      });
+      }, fields.accountId);
     } catch (err: any) {
       this.logger.warn(`Copie dans Envoyés échouée pour ${account.email_address}: ${err.message}`);
     }
@@ -535,9 +613,10 @@ export class MailService {
       text?: string;
       attachments?: UploadedAttachment[];
       draftUid?: number;
+      accountId?: string;
     },
   ) {
-    const account = await this.getAccountOrThrow(userId);
+    const account = await this.getAccountOrThrow(userId, fields.accountId);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const fromDisplayName = user ? `${user.first_name} ${user.last_name}` : account.email_address;
 
@@ -570,14 +649,14 @@ export class MailService {
 
       const result = await client.append(draftsPath, rawMessage, ['\\Draft']);
       return { success: true, uid: result ? (result as any).uid : undefined };
-    });
+    }, fields.accountId);
   }
 
   // ══════════════════════════════════════════════════════════════════════
   // Suppression (déplacement vers Corbeille, ou suppression définitive)
   // ══════════════════════════════════════════════════════════════════════
 
-  async deleteMessage(userId: string, kind: MailFolderKind, uid: number) {
+  async deleteMessage(userId: string, kind: MailFolderKind, uid: number, accountId?: string) {
     return this.withClient(userId, async (client) => {
       const path = await this.resolveFolderPath(client, kind);
       const lock = await client.getMailboxLock(path);
@@ -596,7 +675,7 @@ export class MailService {
       } finally {
         lock.release();
       }
-    });
+    }, accountId);
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -604,7 +683,7 @@ export class MailService {
   // ══════════════════════════════════════════════════════════════════════
 
   async getUnreadCount(userId: string): Promise<{ configured: boolean; unread: number }> {
-    const account = await this.prisma.mailAccount.findUnique({ where: { user_id: userId } });
+    const account = await this.prisma.mailAccount.findFirst({ where: { user_id: userId, is_primary: true } });
     if (!account || !account.is_active) return { configured: false, unread: 0 };
     try {
       const unread = await this.withClient(userId, async (client) => {

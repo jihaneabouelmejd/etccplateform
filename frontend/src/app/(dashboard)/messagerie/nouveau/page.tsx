@@ -6,6 +6,8 @@ import { Paperclip, X, Send, Save, Loader2 } from 'lucide-react';
 import { mailApi } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
 import { card, btnSecondary, btnPrimary, inputStyle, labelStyle, mailColors, formatBytes } from '@/components/mail/mailUi';
+import { useMailAccounts } from '@/components/mail/useMailAccounts';
+import MailAccountSelect from '@/components/mail/MailAccountSelect';
 
 type Mode = 'new' | 'reply' | 'reply_all' | 'forward';
 
@@ -18,6 +20,13 @@ function ComposeInner() {
   const sourceUid = params.get('uid') ? parseInt(params.get('uid') as string, 10) : undefined;
   const sourceFolder = params.get('folder') || undefined;
   const draftUid = params.get('draft_uid') ? parseInt(params.get('draft_uid') as string, 10) : undefined;
+  const accountIdParam = params.get('accountId') || undefined;
+
+  const { accounts, selectedId, setSelectedId, loading: loadingAccounts } = useMailAccounts();
+  useEffect(() => {
+    if (accountIdParam) setSelectedId(accountIdParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountIdParam]);
 
   const [to, setTo] = useState('');
   const [cc, setCc] = useState('');
@@ -37,7 +46,7 @@ function ComposeInner() {
   useEffect(() => {
     if (!draftUid) return;
     setLoadingSource(true);
-    mailApi.getMessage('drafts', draftUid)
+    mailApi.getMessage('drafts', draftUid, accountIdParam)
       .then(({ data }) => {
         setTo(data.to || ''); setCc(data.cc || ''); setSubject(data.subject === '(sans objet)' ? '' : data.subject || '');
         setText(data.text || '');
@@ -51,7 +60,7 @@ function ComposeInner() {
   useEffect(() => {
     if (!sourceUid || !sourceFolder || mode === 'new' || draftUid) return;
     setLoadingSource(true);
-    mailApi.getMessage(sourceFolder, sourceUid)
+    mailApi.getMessage(sourceFolder, sourceUid, accountIdParam)
       .then(({ data }) => {
         const quoteHeader = `\n\n---------- Message original ----------\nDe : ${data.from}\nDate : ${data.date ? new Date(data.date).toLocaleString('fr-FR') : ''}\nObjet : ${data.subject}\n\n${data.text || ''}`;
         if (mode === 'reply') {
@@ -83,6 +92,7 @@ function ComposeInner() {
 
   const buildFormData = () => {
     const fd = new FormData();
+    if (selectedId) fd.append('account_id', selectedId);
     if (to) fd.append('to', to);
     if (cc) fd.append('cc', cc);
     if (bcc) fd.append('bcc', bcc);
@@ -106,7 +116,7 @@ function ComposeInner() {
       await mailApi.send(fd);
       // Si c'était un brouillon envoyé, le supprimer
       if (draftUid) {
-        try { await mailApi.deleteMessage('drafts', draftUid); } catch { /* noop */ }
+        try { await mailApi.deleteMessage('drafts', draftUid, selectedId || undefined); } catch { /* noop */ }
       }
       setSuccess('Message envoyé avec succès');
       setTimeout(() => router.push('/messagerie/envoyes'), 800);
@@ -156,6 +166,12 @@ function ComposeInner() {
           </div>
         ) : (
           <>
+            {accounts.length > 1 && (
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>De</label>
+                <MailAccountSelect accounts={accounts} value={selectedId} onChange={setSelectedId} />
+              </div>
+            )}
             <div style={{ marginBottom: 14 }}>
               <label style={labelStyle}>{t('mail.to')}</label>
               <input value={to} onChange={e => setTo(e.target.value)} placeholder="destinataire@exemple.com, autre@exemple.com" style={inputStyle} />

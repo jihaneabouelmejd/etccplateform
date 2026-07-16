@@ -5,6 +5,8 @@ import { Search, Trash2, Reply, ReplyAll, Forward, Paperclip, ChevronLeft, Chevr
 import { mailApi } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
 import { card, btnSecondary, btnPrimary, inputStyle, mailColors, formatMailDate, formatBytes, extractName } from './mailUi';
+import { useMailAccounts } from './useMailAccounts';
+import MailAccountSelect from './MailAccountSelect';
 
 interface MailFolderViewProps {
   kind: 'inbox' | 'sent' | 'trash';
@@ -27,21 +29,23 @@ export default function MailFolderView({ kind, title, icon }: MailFolderViewProp
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+  const { accounts, selectedId, setSelectedId, loading: loadingAccounts } = useMailAccounts();
 
   const load = useCallback(() => {
+    if (loadingAccounts || (accounts.length > 0 && !selectedId)) return;
     setLoading(true); setError('');
-    mailApi.listFolder(kind, { page, limit, q: q || undefined })
+    mailApi.listFolder(kind, { page, limit, q: q || undefined, accountId: selectedId || undefined })
       .then(({ data }) => { setMessages(data.messages || []); setTotal(data.total || 0); })
       .catch((e) => setError(e?.response?.data?.message || "Erreur de connexion à la boîte mail"))
       .finally(() => setLoading(false));
-  }, [kind, page, q]);
+  }, [kind, page, q, selectedId, loadingAccounts, accounts.length]);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); setQ(''); setQInput(''); setSelectedUid(null); setDetail(null); }, [kind]);
+  useEffect(() => { setPage(1); setQ(''); setQInput(''); setSelectedUid(null); setDetail(null); }, [kind, selectedId]);
 
   const openMessage = (uid: number) => {
     setSelectedUid(uid); setLoadingDetail(true); setDetail(null);
-    mailApi.getMessage(kind, uid)
+    mailApi.getMessage(kind, uid, selectedId || undefined)
       .then(({ data }) => {
         setDetail(data);
         setMessages(prev => prev.map(m => (m.uid === uid ? { ...m, seen: true } : m)));
@@ -54,7 +58,7 @@ export default function MailFolderView({ kind, title, icon }: MailFolderViewProp
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      await mailApi.deleteMessage(kind, deleteTarget.uid);
+      await mailApi.deleteMessage(kind, deleteTarget.uid, selectedId || undefined);
       setMessages(prev => prev.filter(m => m.uid !== deleteTarget.uid));
       setTotal(n => Math.max(0, n - 1));
       if (selectedUid === deleteTarget.uid) { setSelectedUid(null); setDetail(null); }
@@ -65,7 +69,7 @@ export default function MailFolderView({ kind, title, icon }: MailFolderViewProp
 
   const downloadAttachment = async (uid: number, index: number, filename: string) => {
     try {
-      const res = await mailApi.downloadAttachment(kind, uid, index);
+      const res = await mailApi.downloadAttachment(kind, uid, index, selectedId || undefined);
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url; a.download = filename; document.body.appendChild(a); a.click();
@@ -75,7 +79,7 @@ export default function MailFolderView({ kind, title, icon }: MailFolderViewProp
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const composeUrl = (mode: 'reply' | 'reply_all' | 'forward', uid: number) =>
-    `/messagerie/nouveau?mode=${mode}&uid=${uid}&folder=${kind}`;
+    `/messagerie/nouveau?mode=${mode}&uid=${uid}&folder=${kind}${selectedId ? `&accountId=${selectedId}` : ''}`;
 
   return (
     <div>
@@ -84,11 +88,12 @@ export default function MailFolderView({ kind, title, icon }: MailFolderViewProp
           <h1 className="text-[22px] font-bold text-honey-dark font-display tracking-tight">{icon} {title}</h1>
           <p className="text-sm text-honey-caramel mt-0.5">{total} message{total > 1 ? 's' : ''}</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <MailAccountSelect accounts={accounts} value={selectedId} onChange={setSelectedId} />
           <button onClick={load} style={btnSecondary} title="Actualiser">
             <RefreshCw size={13} />
           </button>
-          <a href="/messagerie/nouveau" style={{ ...btnPrimary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <a href={`/messagerie/nouveau${selectedId ? `?accountId=${selectedId}` : ''}`} style={{ ...btnPrimary, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             ✍️ {t('mail.new_message_short')}
           </a>
         </div>

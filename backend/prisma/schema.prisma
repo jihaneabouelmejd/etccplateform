@@ -272,22 +272,25 @@ model User {
   objectifs           Objectif[]
   prestations         Prestation[]
   google_token        UserGoogleToken?
-  mail_account        MailAccount?
+  mail_accounts       MailAccount[]
 
   @@index([username])
   @@index([email])
   @@map("users")
 }
 
-/// Compte email professionnel Hostinger (IMAP/SMTP) associé à un utilisateur.
+/// Compte(s) email professionnel(s) Hostinger (IMAP/SMTP) associé(s) à un utilisateur.
 /// Identifiants saisis une seule fois par l'Admin/Gérant dans la fiche employé —
 /// l'utilisateur n'a jamais à les ressaisir. Le mot de passe est chiffré (AES-256-GCM).
+/// Un utilisateur a une boîte "principale" (is_primary=true, ex: sa propre adresse) et
+/// éventuellement des boîtes "partagées" en plus (ex: contact@etcc.ma consultée par plusieurs employés).
 model MailAccount {
   id              String    @id @default(uuid())
-  user_id         String    @unique
+  user_id         String
 
   email_address   String    // adresse Hostinger, ex: ahmed@etcc.ma
   password_enc    String    @db.Text // mot de passe chiffré (IV:authTag:cipherText en base64)
+  is_primary      Boolean   @default(true) // boîte personnelle (true) vs boîte partagée ajoutée en plus (false)
 
   imap_host       String    @default("imap.hostinger.com")
   imap_port       Int       @default(993)
@@ -303,6 +306,7 @@ model MailAccount {
 
   user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@unique([user_id, email_address])
   @@map("mail_accounts")
 }
 

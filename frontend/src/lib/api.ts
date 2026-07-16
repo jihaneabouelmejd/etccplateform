@@ -267,14 +267,19 @@ export const prestationsApi = {
 
 export const mailApi = {
   // Dossiers / messages
-  listFolder: (kind: string, params?: { page?: number; limit?: number; q?: string }) =>
+  listFolder: (kind: string, params?: { page?: number; limit?: number; q?: string; accountId?: string }) =>
     api.get(`/mail/folder/${kind}`, { params }),
-  getMessage: (kind: string, uid: number) => api.get(`/mail/folder/${kind}/${uid}`),
-  deleteMessage: (kind: string, uid: number) => api.delete(`/mail/folder/${kind}/${uid}`),
+  getMessage: (kind: string, uid: number, accountId?: string) =>
+    api.get(`/mail/folder/${kind}/${uid}`, { params: accountId ? { accountId } : undefined }),
+  deleteMessage: (kind: string, uid: number, accountId?: string) =>
+    api.delete(`/mail/folder/${kind}/${uid}`, { params: accountId ? { accountId } : undefined }),
   attachmentUrl: (kind: string, uid: number, index: number) =>
     `/api/mail/folder/${kind}/${uid}/attachments/${index}`,
-  downloadAttachment: (kind: string, uid: number, index: number) =>
-    api.get(`/mail/folder/${kind}/${uid}/attachments/${index}`, { responseType: 'blob' }),
+  downloadAttachment: (kind: string, uid: number, index: number, accountId?: string) =>
+    api.get(`/mail/folder/${kind}/${uid}/attachments/${index}`, {
+      responseType: 'blob',
+      params: accountId ? { accountId } : undefined,
+    }),
   // Composition
   send: (formData: FormData) =>
     api.post('/mail/send', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -282,9 +287,17 @@ export const mailApi = {
     api.post('/mail/draft', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
   // Notifications
   unreadCount: () => api.get('/mail/unread-count'),
-  // Compte (utilisateur)
+  // Compte (utilisateur) — boîte principale
   myAccount: () => api.get('/mail/account/me'),
-  // Compte (admin/gérant)
+  // Boîtes mail multiples (principale + partagées)
+  myAccounts: () => api.get('/mail/accounts/me'),
+  adminListAccounts: (userId: string) => api.get(`/mail/accounts/${userId}`),
+  adminAddSharedAccount: (userId: string, data: any) => api.post(`/mail/accounts/${userId}`, data),
+  adminRemoveSharedAccount: (userId: string, accountId: string) =>
+    api.delete(`/mail/accounts/${userId}/${accountId}`),
+  adminTestSharedAccount: (userId: string, accountId: string) =>
+    api.post(`/mail/accounts/${userId}/${accountId}/test`),
+  // Compte (admin/gérant) — boîte principale
   adminGetAccount: (userId: string) => api.get(`/mail/account/${userId}`),
   adminSetAccount: (userId: string, data: any) => api.put(`/mail/account/${userId}`, data),
   adminRemoveAccount: (userId: string) => api.delete(`/mail/account/${userId}`),

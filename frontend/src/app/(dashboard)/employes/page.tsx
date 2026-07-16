@@ -53,6 +53,17 @@ export default function EmployesPage() {
   const [mailError, setMailError] = useState('');
   const [mailTestResult, setMailTestResult] = useState<{ success: boolean; message?: string } | null>(null);
 
+  // Boîtes mail partagées (ex : contact@etcc.ma) — en plus de la boîte personnelle
+  const emptySharedForm = { email_address: '', password: '', imap_host: 'imap.hostinger.com', imap_port: 993, smtp_host: 'smtp.hostinger.com', smtp_port: 465 };
+  const [sharedAccounts, setSharedAccounts] = useState<any[]>([]);
+  const [sharedLoading, setSharedLoading] = useState(false);
+  const [sharedForm, setSharedForm] = useState(emptySharedForm);
+  const [sharedAdding, setSharedAdding] = useState(false);
+  const [sharedError, setSharedError] = useState('');
+  const [sharedRemovingId, setSharedRemovingId] = useState<string | null>(null);
+  const [sharedTestingId, setSharedTestingId] = useState<string | null>(null);
+  const [sharedTestResults, setSharedTestResults] = useState<Record<string, { success: boolean; message?: string }>>({});
+
   // Reset password
   const [resetTarget, setResetTarget] = useState<any>(null);
   const [newPassword, setNewPassword] = useState('');
@@ -131,6 +142,67 @@ export default function EmployesPage() {
       })
       .catch(() => setMailConfigured(false))
       .finally(() => setMailLoading(false));
+
+    // Charger les boîtes mail partagées
+    setSharedAccounts([]); setSharedForm(emptySharedForm); setSharedError(''); setSharedTestResults({});
+    setSharedLoading(true);
+    mailApi.adminListAccounts(u.id)
+      .then(({ data }) => setSharedAccounts((data || []).filter((a: any) => !a.is_primary)))
+      .catch(() => setSharedAccounts([]))
+      .finally(() => setSharedLoading(false));
+  };
+
+  const refreshSharedAccounts = (userId: string) => {
+    mailApi.adminListAccounts(userId)
+      .then(({ data }) => setSharedAccounts((data || []).filter((a: any) => !a.is_primary)))
+      .catch(() => {});
+  };
+
+  const handleAddSharedAccount = async () => {
+    if (!editTarget) return;
+    setSharedError('');
+    if (!sharedForm.email_address.trim() || !sharedForm.password.trim()) {
+      setSharedError('Adresse email et mot de passe requis'); return;
+    }
+    setSharedAdding(true);
+    try {
+      await mailApi.adminAddSharedAccount(editTarget.id, {
+        email_address: sharedForm.email_address,
+        password: sharedForm.password,
+        imap_host: sharedForm.imap_host || 'imap.hostinger.com',
+        imap_port: Number(sharedForm.imap_port) || 993,
+        smtp_host: sharedForm.smtp_host || 'smtp.hostinger.com',
+        smtp_port: Number(sharedForm.smtp_port) || 465,
+      });
+      setSharedForm(emptySharedForm);
+      refreshSharedAccounts(editTarget.id);
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      setSharedError(Array.isArray(msg) ? msg.join(', ') : (msg || "Erreur lors de l'ajout"));
+    } finally { setSharedAdding(false); }
+  };
+
+  const handleRemoveSharedAccount = async (accountId: string) => {
+    if (!editTarget) return;
+    if (!confirm('Retirer cette boîte mail partagée ?')) return;
+    setSharedRemovingId(accountId);
+    try {
+      await mailApi.adminRemoveSharedAccount(editTarget.id, accountId);
+      setSharedAccounts(prev => prev.filter(a => a.id !== accountId));
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Erreur lors de la suppression');
+    } finally { setSharedRemovingId(null); }
+  };
+
+  const handleTestSharedAccount = async (accountId: string) => {
+    if (!editTarget) return;
+    setSharedTestingId(accountId);
+    try {
+      const { data } = await mailApi.adminTestSharedAccount(editTarget.id, accountId);
+      setSharedTestResults(prev => ({ ...prev, [accountId]: data }));
+    } catch (e: any) {
+      setSharedTestResults(prev => ({ ...prev, [accountId]: { success: false, message: e?.response?.data?.message || 'Erreur' } }));
+    } finally { setSharedTestingId(null); }
   };
 
   const handleSaveMailAccount = async () => {
@@ -488,6 +560,65 @@ export default function EmployesPage() {
                         </>
                       )}
                     </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Boîtes mail partagées (ex : contact@etcc.ma) */}
+            {canMng && (
+              <div style={{ margin:'0 24px 24px', padding:18, borderRadius:12, border:'1px solid #F5E6D3', background:'#FFFDF5' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+                  <Mail size={15} color="#8E5915" />
+                  <h3 style={{ margin:0, fontSize:13.5, fontWeight:800, color:'#1A141A' }}>Boîtes mail partagées</h3>
+                </div>
+
+                {sharedLoading ? (
+                  <p style={{ fontSize:12.5, color:'#B8A090' }}>Chargement...</p>
+                ) : (
+                  <>
+                    {sharedAccounts.length > 0 && (
+                      <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
+                        {sharedAccounts.map((a) => (
+                          <div key={a.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:'1px solid #E8D4B0', background:'white' }}>
+                            <span style={{ flex:1, fontSize:12.5, fontWeight:700, color:'#1A141A' }}>{a.email_address}</span>
+                            {sharedTestResults[a.id] && (
+                              <span style={{ fontSize:10.5, fontWeight:700, color: sharedTestResults[a.id].success ? '#16A34A' : '#DC2626' }}>
+                                {sharedTestResults[a.id].success ? '✓ Connecté' : `✗ ${sharedTestResults[a.id].message || 'Échec'}`}
+                              </span>
+                            )}
+                            <button type="button" onClick={() => handleTestSharedAccount(a.id)} disabled={sharedTestingId === a.id}
+                              style={{ ...btnSecondary, padding:'5px 10px', fontSize:11, display:'inline-flex', alignItems:'center', gap:4 }}>
+                              <RefreshCw size={11} /> {sharedTestingId === a.id ? '...' : 'Tester'}
+                            </button>
+                            <button type="button" onClick={() => handleRemoveSharedAccount(a.id)} disabled={sharedRemovingId === a.id}
+                              style={{ padding:'5px 10px', borderRadius:8, border:'1.5px solid #FECACA', background:'#FFF5F5', color:'#DC2626', fontSize:11, fontWeight:600, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:4 }}>
+                              <XCircle size={11} /> {sharedRemovingId === a.id ? '...' : 'Retirer'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+                      <div>
+                        <label style={labelStyle}>Adresse email *</label>
+                        <input type="email" value={sharedForm.email_address} onChange={e => setSharedForm({...sharedForm, email_address:e.target.value})} placeholder="contact@etcc.ma" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Mot de passe *</label>
+                        <input type="password" value={sharedForm.password} onChange={e => setSharedForm({...sharedForm, password:e.target.value})} placeholder="••••••••" style={{...inputStyle, fontFamily:'monospace'}} />
+                      </div>
+                    </div>
+
+                    {sharedError && (
+                      <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:12, fontSize:12, color:'#D32F2F' }}>⚠️ {sharedError}</div>
+                    )}
+
+                    <button type="button" onClick={handleAddSharedAccount} disabled={sharedAdding}
+                      style={{ ...btnSecondary, display:'inline-flex', alignItems:'center', gap:6, opacity:sharedAdding?0.7:1 }}>
+                      {sharedAdding ? '...' : '+ Ajouter une boîte partagée'}
+                    </button>
                   </>
                 )}
               </div>

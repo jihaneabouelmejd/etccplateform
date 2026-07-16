@@ -85,6 +85,50 @@ export class MailController {
   }
 
   // ══════════════════════════════════════════════════════════════════════
+  // Boîtes mail multiples (principale + partagées)
+  // ══════════════════════════════════════════════════════════════════════
+
+  @Get('accounts/me')
+  @ApiOperation({ summary: 'Liste de mes boîtes mail (principale + partagées)' })
+  listMyAccounts(@CurrentUser('id') userId: string) {
+    return this.mail.listAccountsForUser(userId);
+  }
+
+  @Get('accounts/:userId')
+  @Roles(Role.ADMIN, Role.GERANT)
+  @ApiOperation({ summary: "Liste des boîtes mail d'un utilisateur (admin)" })
+  listAccounts(@Param('userId') userId: string) {
+    return this.mail.listAccountsForAdmin(userId);
+  }
+
+  @Post('accounts/:userId')
+  @Roles(Role.ADMIN, Role.GERANT)
+  @ApiOperation({ summary: 'Ajouter une boîte mail partagée à un utilisateur' })
+  addSharedAccount(@Param('userId') userId: string, @Body() dto: SetMailAccountDto) {
+    return this.mail.addSharedAccount(userId, dto);
+  }
+
+  @Delete('accounts/:userId/:accountId')
+  @Roles(Role.ADMIN, Role.GERANT)
+  @ApiOperation({ summary: 'Retirer une boîte mail partagée' })
+  removeSharedAccount(
+    @Param('userId') userId: string,
+    @Param('accountId') accountId: string,
+  ) {
+    return this.mail.removeSharedAccount(userId, accountId);
+  }
+
+  @Post('accounts/:userId/:accountId/test')
+  @Roles(Role.ADMIN, Role.GERANT)
+  @ApiOperation({ summary: 'Tester la connexion IMAP/SMTP pour une boîte spécifique' })
+  testSharedAccount(
+    @Param('userId') userId: string,
+    @Param('accountId') accountId: string,
+  ) {
+    return this.mail.testAccountById(userId, accountId);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
   // Notifications
   // ══════════════════════════════════════════════════════════════════════
 
@@ -106,11 +150,13 @@ export class MailController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('q') q?: string,
+    @Query('accountId') accountId?: string,
   ) {
     return this.mail.listMessages(userId, assertFolderKind(kind), {
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
       q,
+      accountId,
     });
   }
 
@@ -120,8 +166,9 @@ export class MailController {
     @CurrentUser('id') userId: string,
     @Param('kind') kind: string,
     @Param('uid') uid: string,
+    @Query('accountId') accountId?: string,
   ) {
-    return this.mail.getMessage(userId, assertFolderKind(kind), parseInt(uid, 10));
+    return this.mail.getMessage(userId, assertFolderKind(kind), parseInt(uid, 10), accountId);
   }
 
   @Delete('folder/:kind/:uid')
@@ -130,8 +177,9 @@ export class MailController {
     @CurrentUser('id') userId: string,
     @Param('kind') kind: string,
     @Param('uid') uid: string,
+    @Query('accountId') accountId?: string,
   ) {
-    return this.mail.deleteMessage(userId, assertFolderKind(kind), parseInt(uid, 10));
+    return this.mail.deleteMessage(userId, assertFolderKind(kind), parseInt(uid, 10), accountId);
   }
 
   @Get('folder/:kind/:uid/attachments/:index')
@@ -142,12 +190,14 @@ export class MailController {
     @Param('uid') uid: string,
     @Param('index') index: string,
     @Res() res: Response,
+    @Query('accountId') accountId?: string,
   ) {
     const attachment = await this.mail.getAttachment(
       userId,
       assertFolderKind(kind),
       parseInt(uid, 10),
       parseInt(index, 10),
+      accountId,
     );
     res.setHeader('Content-Type', attachment.contentType || 'application/octet-stream');
     res.setHeader(
@@ -176,6 +226,7 @@ export class MailController {
     @UploadedFiles() files: any[],
   ) {
     return this.mail.sendMail(userId, {
+      accountId: dto.account_id,
       to: dto.to,
       cc: dto.cc,
       bcc: dto.bcc,
@@ -209,6 +260,7 @@ export class MailController {
     @UploadedFiles() files: any[],
   ) {
     return this.mail.saveDraft(userId, {
+      accountId: dto.account_id,
       to: dto.to,
       cc: dto.cc,
       bcc: dto.bcc,

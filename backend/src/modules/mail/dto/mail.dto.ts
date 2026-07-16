@@ -70,9 +70,20 @@ export class ListMessagesQueryDto {
   q?: string;
 }
 
+export class MailAccountSummaryDto {
+  @ApiProperty() id: string;
+  @ApiProperty() email_address: string;
+  @ApiProperty() is_primary: boolean;
+}
+
 export type MailFolderKind = 'inbox' | 'sent' | 'drafts' | 'trash';
 
 export class SendMailDto {
+  @ApiPropertyOptional({ description: 'ID de la boîte mail à utiliser (défaut : boîte principale)' })
+  @IsOptional()
+  @IsString()
+  account_id?: string;
+
   @ApiPropertyOptional({ example: 'client@example.com, autre@example.com' })
   @IsOptional()
   @IsString()
