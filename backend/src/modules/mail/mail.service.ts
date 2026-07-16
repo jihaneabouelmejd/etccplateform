@@ -246,6 +246,51 @@ export class MailService {
     });
   }
 
+  // ── Envoi via le relais SMTP Hostinger (contourne le blocage SMTP de Railway) ──
+  // Si MAIL_RELAY_URL est configuré, on délègue la connexion SMTP réelle à un
+  // petit script PHP hébergé sur Hostinger (voir docs/send-relay.php), qui n'est
+  // pas soumis au blocage des ports 25/465/587 de Railway. Sinon, on retombe sur
+  // l'envoi SMTP direct (utile en développement local).
+  private async sendViaRelay(account: any, rawMessage: Buffer, envelopeTo: string[]): Promise<void> {
+    const relayUrl = process.env.MAIL_RELAY_URL as string;
+    const relaySecret = process.env.MAIL_RELAY_SECRET || '';
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
+    let res: Response;
+    try {
+      res = await fetch(relayUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Relay-Secret': relaySecret,
+        },
+        body: JSON.stringify({
+          host: account.smtp_host,
+          port: account.smtp_port,
+          secure: account.smtp_port === 465,
+          user: account.email_address,
+          pass: decryptMailSecret(account.password_enc),
+          envelopeFrom: account.email_address,
+          envelopeTo,
+          rawMessageBase64: rawMessage.toString('base64'),
+        }),
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      throw new Error(
+        err.name === 'AbortError' ? 'Le relais SMTP ne répond pas (timeout).' : `Relais SMTP injoignable : ${err.message}`,
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || `Le relais SMTP a répondu avec une erreur (HTTP ${res.status}).`);
+    }
+  }
+
   // ── Détection auto des dossiers (Hostinger utilise des noms variables) ──
   private async resolveFolderPath(client: ImapFlow, kind: MailFolderKind): Promise<string> {
     if (kind === 'inbox') return 'INBOX';
@@ -578,15 +623,23 @@ export class MailService {
       references,
     });
 
-    const transporter = this.buildSmtpTransport(account);
+    const envelopeTo = [fields.to, fields.cc, fields.bcc]
+      .filter(Boolean)
+      .join(',')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
     try {
-      await transporter.sendMail({
-        envelope: {
-          from: account.email_address,
-          to: [fields.to, fields.cc, fields.bcc].filter(Boolean).join(',').split(',').map((s) => s.trim()).filter(Boolean),
-        },
-        raw: rawMessage,
-      });
+      if (process.env.MAIL_RELAY_URL) {
+        await this.sendViaRelay(account, rawMessage, envelopeTo);
+      } else {
+        const transporter = this.buildSmtpTransport(account);
+        await transporter.sendMail({
+          envelope: { from: account.email_address, to: envelopeTo },
+          raw: rawMessage,
+        });
+      }
     } catch (err: any) {
       throw new BadGatewayException(`Échec de l'envoi : ${err.message}`);
     }
