@@ -237,6 +237,12 @@ export class MailService {
       port: account.smtp_port,
       secure: account.smtp_port === 465,
       auth: { user: account.email_address, pass: decryptMailSecret(account.password_enc) },
+      // Sans ces timeouts, une connexion SMTP bloquée peut faire attendre la requête
+      // indéfiniment jusqu'à ce que le proxy Railway la coupe (ECONNRESET / "socket hang up"),
+      // ce qui masque l'erreur réelle derrière un 500 générique côté client.
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 15_000,
     });
   }
 
