@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, Pencil, Trash2, KeyRound } from 'lucide-react';
-import { usersApi } from '@/lib/api';
+import { Plus, Search, Pencil, Trash2, KeyRound, Mail, ShieldCheck, RefreshCw, XCircle } from 'lucide-react';
+import { usersApi, mailApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -41,6 +41,17 @@ export default function EmployesPage() {
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const [editError, setEditError] = useState('');
   const [editing, setEditing] = useState(false);
+
+  // Compte email professionnel (Hostinger) — associé à l'employé en cours d'édition
+  const emptyMailForm = { email_address: '', password: '', imap_host: '', imap_port: 993, smtp_host: '', smtp_port: 465 };
+  const [mailForm, setMailForm] = useState(emptyMailForm);
+  const [mailConfigured, setMailConfigured] = useState(false);
+  const [mailLoading, setMailLoading] = useState(false);
+  const [mailSaving, setMailSaving] = useState(false);
+  const [mailRemoving, setMailRemoving] = useState(false);
+  const [mailTesting, setMailTesting] = useState(false);
+  const [mailError, setMailError] = useState('');
+  const [mailTestResult, setMailTestResult] = useState<{ success: boolean; message?: string } | null>(null);
 
   // Reset password
   const [resetTarget, setResetTarget] = useState<any>(null);
@@ -98,6 +109,80 @@ export default function EmployesPage() {
   const openEdit = (u: any) => {
     setEditForm({ first_name: u.first_name || '', last_name: u.last_name || '', role: u.role || 'EMPLOYE', phone: u.phone || '', email: u.email || '' });
     setEditError(''); setEditTarget(u);
+
+    // Charger le compte email professionnel Hostinger de l'employé
+    setMailForm(emptyMailForm); setMailConfigured(false); setMailTestResult(null); setMailError('');
+    setMailLoading(true);
+    mailApi.adminGetAccount(u.id)
+      .then(({ data }) => {
+        if (data?.configured) {
+          setMailConfigured(true);
+          setMailForm({
+            email_address: data.email_address || '',
+            password: '',
+            imap_host: data.imap_host || '',
+            imap_port: data.imap_port || 993,
+            smtp_host: data.smtp_host || '',
+            smtp_port: data.smtp_port || 465,
+          });
+        } else {
+          setMailConfigured(false);
+        }
+      })
+      .catch(() => setMailConfigured(false))
+      .finally(() => setMailLoading(false));
+  };
+
+  const handleSaveMailAccount = async () => {
+    if (!editTarget) return;
+    setMailError(''); setMailTestResult(null);
+    if (!mailForm.email_address.trim() || !mailForm.imap_host.trim() || !mailForm.smtp_host.trim()) {
+      setMailError('Adresse email, hôte IMAP et hôte SMTP sont requis'); return;
+    }
+    if (!mailConfigured && !mailForm.password.trim()) {
+      setMailError('Le mot de passe de la boîte mail est requis'); return;
+    }
+    setMailSaving(true);
+    try {
+      const payload: any = {
+        email_address: mailForm.email_address,
+        imap_host: mailForm.imap_host,
+        imap_port: Number(mailForm.imap_port) || 993,
+        smtp_host: mailForm.smtp_host,
+        smtp_port: Number(mailForm.smtp_port) || 465,
+      };
+      if (mailForm.password.trim()) payload.password = mailForm.password;
+      await mailApi.adminSetAccount(editTarget.id, payload);
+      setMailConfigured(true);
+      setMailForm(f => ({ ...f, password: '' }));
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      setMailError(Array.isArray(msg) ? msg.join(', ') : (msg || 'Erreur lors de l\'enregistrement'));
+    } finally { setMailSaving(false); }
+  };
+
+  const handleRemoveMailAccount = async () => {
+    if (!editTarget) return;
+    if (!confirm('Retirer le compte email professionnel de cet employé ?')) return;
+    setMailRemoving(true); setMailError(''); setMailTestResult(null);
+    try {
+      await mailApi.adminRemoveAccount(editTarget.id);
+      setMailConfigured(false);
+      setMailForm(emptyMailForm);
+    } catch (e: any) {
+      setMailError(e?.response?.data?.message || 'Erreur lors de la suppression');
+    } finally { setMailRemoving(false); }
+  };
+
+  const handleTestMailAccount = async () => {
+    if (!editTarget) return;
+    setMailTesting(true); setMailTestResult(null);
+    try {
+      const { data } = await mailApi.adminTestAccount(editTarget.id);
+      setMailTestResult(data);
+    } catch (e: any) {
+      setMailTestResult({ success: false, message: e?.response?.data?.message || 'Erreur' });
+    } finally { setMailTesting(false); }
   };
 
   const handleEdit = async (e: React.FormEvent) => {
@@ -331,6 +416,82 @@ export default function EmployesPage() {
                 </button>
               </div>
             </form>
+
+            {/* Compte email professionnel Hostinger */}
+            {canMng && (
+              <div style={{ margin:'0 24px 24px', padding:18, borderRadius:12, border:'1px solid #F5E6D3', background:'#FFFDF5' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+                  <Mail size={15} color="#8E5915" />
+                  <h3 style={{ margin:0, fontSize:13.5, fontWeight:800, color:'#1A141A' }}>Compte email professionnel (Hostinger)</h3>
+                  {mailConfigured && (
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:10.5, fontWeight:700, color:'#16A34A', background:'#F0FFF4', border:'1px solid #BBF7D0', borderRadius:6, padding:'2px 8px', marginLeft:'auto' }}>
+                      <ShieldCheck size={11} /> Configuré
+                    </span>
+                  )}
+                </div>
+
+                {mailLoading ? (
+                  <p style={{ fontSize:12.5, color:'#B8A090' }}>Chargement...</p>
+                ) : (
+                  <>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+                      <div style={{ gridColumn:'1/-1' }}>
+                        <label style={labelStyle}>Adresse email Hostinger *</label>
+                        <input type="email" value={mailForm.email_address} onChange={e => setMailForm({...mailForm, email_address:e.target.value})} placeholder="karim@etcc.ma" style={inputStyle} />
+                      </div>
+                      <div style={{ gridColumn:'1/-1' }}>
+                        <label style={labelStyle}>{mailConfigured ? 'Nouveau mot de passe (laisser vide pour conserver)' : 'Mot de passe *'}</label>
+                        <input type="password" value={mailForm.password} onChange={e => setMailForm({...mailForm, password:e.target.value})} placeholder="••••••••" style={{...inputStyle, fontFamily:'monospace'}} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Hôte IMAP *</label>
+                        <input value={mailForm.imap_host} onChange={e => setMailForm({...mailForm, imap_host:e.target.value})} placeholder="imap.hostinger.com" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Port IMAP</label>
+                        <input type="number" value={mailForm.imap_port} onChange={e => setMailForm({...mailForm, imap_port: Number(e.target.value)})} style={inputStyle} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Hôte SMTP *</label>
+                        <input value={mailForm.smtp_host} onChange={e => setMailForm({...mailForm, smtp_host:e.target.value})} placeholder="smtp.hostinger.com" style={inputStyle} />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Port SMTP</label>
+                        <input type="number" value={mailForm.smtp_port} onChange={e => setMailForm({...mailForm, smtp_port: Number(e.target.value)})} style={inputStyle} />
+                      </div>
+                    </div>
+
+                    {mailError && (
+                      <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:12, fontSize:12, color:'#D32F2F' }}>⚠️ {mailError}</div>
+                    )}
+                    {mailTestResult && (
+                      <div style={{ marginBottom:12, padding:'8px 12px', borderRadius:8, fontSize:12, fontWeight:600, background: mailTestResult.success ? '#F0FFF4' : '#FFF5F5', border:`1px solid ${mailTestResult.success ? '#BBF7D0' : '#FECACA'}`, color: mailTestResult.success ? '#16A34A' : '#DC2626' }}>
+                        {mailTestResult.success ? '✓ Connexion réussie' : `✗ ${mailTestResult.message || 'Échec de connexion'}`}
+                      </div>
+                    )}
+
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+                      <button type="button" onClick={handleSaveMailAccount} disabled={mailSaving}
+                        style={{ ...btnPrimary, display:'inline-flex', alignItems:'center', gap:6, opacity:mailSaving?0.7:1 }}>
+                        {mailSaving ? '...' : '✓ Enregistrer la boîte mail'}
+                      </button>
+                      {mailConfigured && (
+                        <>
+                          <button type="button" onClick={handleTestMailAccount} disabled={mailTesting}
+                            style={{ ...btnSecondary, display:'inline-flex', alignItems:'center', gap:6, opacity:mailTesting?0.7:1 }}>
+                            <RefreshCw size={12} /> {mailTesting ? '...' : 'Tester la connexion'}
+                          </button>
+                          <button type="button" onClick={handleRemoveMailAccount} disabled={mailRemoving}
+                            style={{ padding:'9px 18px', borderRadius:8, border:'1.5px solid #FECACA', background:'#FFF5F5', color:'#DC2626', fontSize:13, fontWeight:600, cursor:'pointer', display:'inline-flex', alignItems:'center', gap:6, opacity:mailRemoving?0.7:1 }}>
+                            <XCircle size={12} /> {mailRemoving ? '...' : 'Retirer'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

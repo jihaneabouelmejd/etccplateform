@@ -264,3 +264,29 @@ export const prestationsApi = {
   update: (id: string, data: any) => api.patch(`/prestations/${id}`, data),
   delete: (id: string)         => api.delete(`/prestations/${id}`),
 };
+
+export const mailApi = {
+  // Dossiers / messages
+  listFolder: (kind: string, params?: { page?: number; limit?: number; q?: string }) =>
+    api.get(`/mail/folder/${kind}`, { params }),
+  getMessage: (kind: string, uid: number) => api.get(`/mail/folder/${kind}/${uid}`),
+  deleteMessage: (kind: string, uid: number) => api.delete(`/mail/folder/${kind}/${uid}`),
+  attachmentUrl: (kind: string, uid: number, index: number) =>
+    `/api/mail/folder/${kind}/${uid}/attachments/${index}`,
+  downloadAttachment: (kind: string, uid: number, index: number) =>
+    api.get(`/mail/folder/${kind}/${uid}/attachments/${index}`, { responseType: 'blob' }),
+  // Composition
+  send: (formData: FormData) =>
+    api.post('/mail/send', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  saveDraft: (formData: FormData) =>
+    api.post('/mail/draft', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  // Notifications
+  unreadCount: () => api.get('/mail/unread-count'),
+  // Compte (utilisateur)
+  myAccount: () => api.get('/mail/account/me'),
+  // Compte (admin/gérant)
+  adminGetAccount: (userId: string) => api.get(`/mail/account/${userId}`),
+  adminSetAccount: (userId: string, data: any) => api.put(`/mail/account/${userId}`, data),
+  adminRemoveAccount: (userId: string) => api.delete(`/mail/account/${userId}`),
+  adminTestAccount: (userId: string) => api.post(`/mail/account/${userId}/test`),
+};

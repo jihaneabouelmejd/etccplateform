@@ -2,12 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { Menu, X } from 'lucide-react';
+import { Menu, X, ChevronDown } from 'lucide-react';
 import { LanguageProvider, useLanguage } from '@/lib/i18n';
 import { useAuth } from '@/hooks/useAuth';
+import { mailApi } from '@/lib/api';
+
+const messagerieChildren = [
+  { href: '/messagerie/inbox',       key: 'menu.messagerie_inbox',    emoji: '📥' },
+  { href: '/messagerie/envoyes',     key: 'menu.messagerie_sent',     emoji: '📤' },
+  { href: '/messagerie/nouveau',     key: 'menu.messagerie_new',      emoji: '✍️' },
+  { href: '/messagerie/brouillons',  key: 'menu.messagerie_drafts',   emoji: '📝' },
+  { href: '/messagerie/corbeille',   key: 'menu.messagerie_trash',    emoji: '🗑️' },
+  { href: '/messagerie/parametres',  key: 'menu.messagerie_settings', emoji: '⚙️' },
+];
 
 const menuItems = [
   { href: '/dashboard',            key: 'menu.dashboard',      emoji: '📊', roles: ['ADMIN', 'GERANT', 'COMPTABLE', 'EMPLOYE'] },
+  { href: '/messagerie',           key: 'menu.messagerie',     emoji: '📧', roles: ['ADMIN', 'GERANT', 'COMPTABLE', 'EMPLOYE'], children: messagerieChildren },
   { href: '/chantiers',            key: 'menu.chantiers',      emoji: '🏗️', roles: ['ADMIN', 'GERANT'] },
   { href: '/taches',               key: 'menu.taches',         emoji: '✅', roles: ['ADMIN', 'GERANT', 'EMPLOYE'] },
   { href: '/mon-bl',               key: 'menu.mon_bl',         emoji: '📤', roles: ['EMPLOYE'] },
@@ -37,6 +48,8 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
   const [user, setUser] = useState<any>({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const pathname = usePathname();
   const { lang, setLang, t, dir } = useLanguage();
   const { fetchMe, setUser: setZustandUser } = useAuth();
@@ -64,6 +77,25 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  // Ouvrir automatiquement le sous-menu Messagerie si on est sur une de ses pages
+  useEffect(() => {
+    if (pathname.startsWith('/messagerie')) setMailOpen(true);
+  }, [pathname]);
+
+  // Compteur de messages non lus (badge Messagerie) — chargé au montage + rafraîchi périodiquement
+  useEffect(() => {
+    if (!isReady) return;
+    let cancelled = false;
+    const loadUnread = () => {
+      mailApi.unreadCount()
+        .then(({ data }) => { if (!cancelled) setUnreadCount(data?.unread || 0); })
+        .catch(() => {});
+    };
+    loadUnread();
+    const interval = setInterval(loadUnread, 60000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [isReady]);
+
   // Fermer sidebar au changement de page (navigation mobile)
   useEffect(() => { setSidebarOpen(false); }, [pathname]);
 
@@ -84,6 +116,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   // Label de la page courante pour la topbar mobile
   const currentPage = menuItems.find(item =>
     pathname === item.href || pathname.startsWith(item.href + '/')
+  );
+  const currentChild = messagerieChildren.find(c =>
+    pathname === c.href || pathname.startsWith(c.href + '/')
   );
 
   return (
@@ -110,9 +145,9 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           <Menu size={20} color="#755C00" />
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
-          {currentPage && <span style={{ fontSize: 18 }}>{currentPage.emoji}</span>}
+          {(currentChild || currentPage) && <span style={{ fontSize: 18 }}>{(currentChild || currentPage)!.emoji}</span>}
           <span style={{ fontSize: 15, fontWeight: 700, color: '#1A141A' }}>
-            {currentPage ? t(currentPage.key) : 'ETCC'}
+            {currentChild ? t(currentChild.key) : currentPage ? t(currentPage.key) : 'ETCC'}
           </span>
         </div>
         <span style={{ fontSize: 15, fontWeight: 800, color: '#1A141A', flexShrink: 0 }}>
@@ -182,6 +217,68 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
               .filter(item => !user?.role || item.roles.includes((user.role || '').toUpperCase()))
               .map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+
+                if (item.children) {
+                  return (
+                    <div key={item.href} style={{ marginBottom: 2 }}>
+                      <button
+                        onClick={() => setMailOpen(o => !o)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                          padding: '10px 12px', borderRadius: 8,
+                          background: isActive ? 'rgba(235,184,0,0.15)' : 'transparent',
+                          color: isActive ? '#1A141A' : '#5C3A1E',
+                          border: isActive ? '1px solid rgba(235,184,0,0.4)' : '1px solid transparent',
+                          cursor: 'pointer', fontSize: 13, fontWeight: 500,
+                          flexDirection: isRTL ? 'row-reverse' : 'row',
+                        }}
+                      >
+                        <span style={{ fontSize: 16 }}>{item.emoji}</span>
+                        <span style={{ flex: 1, textAlign: isRTL ? 'right' : 'left' }}>{t(item.key)}</span>
+                        {unreadCount > 0 && (
+                          <span style={{
+                            background: '#D32F2F', color: 'white', borderRadius: 10,
+                            fontSize: 10, fontWeight: 700, padding: '1px 6px', minWidth: 16, textAlign: 'center',
+                          }}>
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                        <ChevronDown size={14} style={{ transform: mailOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+                      </button>
+                      {mailOpen && (
+                        <div style={{ marginTop: 2, paddingLeft: isRTL ? 0 : 14, paddingRight: isRTL ? 14 : 0 }}>
+                          {item.children.map((child) => {
+                            const childActive = pathname === child.href || pathname.startsWith(child.href + '/');
+                            return (
+                              <a key={child.href} href={child.href} style={{
+                                display: 'flex', alignItems: 'center', gap: 8,
+                                padding: '8px 12px', borderRadius: 8, marginBottom: 2,
+                                textDecoration: 'none', fontSize: 12.5, fontWeight: 500,
+                                background: childActive ? 'rgba(235,184,0,0.15)' : 'transparent',
+                                color: childActive ? '#1A141A' : '#5C3A1E',
+                                border: childActive ? '1px solid rgba(235,184,0,0.4)' : '1px solid transparent',
+                                cursor: 'pointer',
+                                flexDirection: isRTL ? 'row-reverse' : 'row',
+                              }}>
+                                <span style={{ fontSize: 14 }}>{child.emoji}</span>
+                                <span style={{ flex: 1 }}>{t(child.key)}</span>
+                                {child.href === '/messagerie/inbox' && unreadCount > 0 && (
+                                  <span style={{
+                                    background: '#D32F2F', color: 'white', borderRadius: 10,
+                                    fontSize: 9.5, fontWeight: 700, padding: '1px 6px', minWidth: 15, textAlign: 'center',
+                                  }}>
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                  </span>
+                                )}
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 return (
                   <a key={item.href} href={item.href} style={{
                     display: 'flex', alignItems: 'center', gap: 10,
