@@ -5,12 +5,14 @@ import { RapprochementService } from './rapprochement.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('rapprochement')
 @Controller('rapprochement')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(Role.ADMIN, Role.GERANT, Role.COMPTABLE)
+@RequireModule('comptabilite')
 @ApiBearerAuth()
 export class RapprochementController {
   constructor(private readonly rapprochement: RapprochementService) {}

@@ -245,6 +245,15 @@ model User {
   // Rôle & statut
   role                Role
   is_active           Boolean  @default(true)
+
+  // Permissions fines par module (override par utilisateur).
+  // Si non-vide, restreint l'accès de cet utilisateur EXACTEMENT à ces modules
+  // (en plus/à la place des règles par défaut du rôle) — ex: un EMPLOYE avec
+  // allowed_modules=["devis","bc"] a accès complet (CRUD) à Devis et Bons de
+  // commande uniquement, même si le rôle EMPLOYE n'y a normalement pas accès.
+  // Clés valides: devis, bc, bl, invoices, depenses, comptabilite,
+  // comptabilite-interne, pdf
+  allowed_modules     String[] @default([])
   
   // Tracking
   last_login_at       DateTime?

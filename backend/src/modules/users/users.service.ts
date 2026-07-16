@@ -160,6 +160,7 @@ export class UsersService {
           last_login_at: true,
           created_at: true,
           avatar_url: true,
+          allowed_modules: true,
         },
       }),
       this.prisma.user.count({ where }),
@@ -197,6 +198,7 @@ export class UsersService {
         created_at: true,
         updated_at: true,
         avatar_url: true,
+        allowed_modules: true,
       },
     });
 
@@ -223,6 +225,7 @@ export class UsersService {
         ...(dto.role && { role: dto.role }),
         ...(dto.preferred_language && { preferred_language: dto.preferred_language }),
         ...(dto.is_active !== undefined && { is_active: dto.is_active }),
+        ...(dto.allowed_modules !== undefined && { allowed_modules: dto.allowed_modules }),
       },
       select: {
         id: true,
@@ -232,6 +235,7 @@ export class UsersService {
         last_name: true,
         role: true,
         is_active: true,
+        allowed_modules: true,
       },
     });
 

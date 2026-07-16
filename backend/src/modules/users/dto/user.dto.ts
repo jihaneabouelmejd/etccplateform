@@ -5,11 +5,24 @@ import {
   IsOptional,
   IsEmail,
   IsEnum,
+  IsArray,
+  IsIn,
   MinLength,
   MaxLength,
   Matches,
 } from 'class-validator';
 import { Role, Language } from '@prisma/client';
+
+export const ALLOWED_MODULE_KEYS = [
+  'devis',
+  'bc',
+  'bl',
+  'invoices',
+  'depenses',
+  'comptabilite',
+  'comptabilite-interne',
+  'pdf',
+] as const;
 
 export class CreateUserDto {
   @ApiProperty({ example: 'Ahmed' })
@@ -87,6 +100,17 @@ export class UpdateUserDto {
 
   @IsOptional()
   is_active?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    enum: ALLOWED_MODULE_KEYS,
+    isArray: true,
+    description: 'Permissions fines par module (override, EMPLOYE uniquement)',
+  })
+  @IsOptional()
+  @IsArray()
+  @IsIn(ALLOWED_MODULE_KEYS, { each: true })
+  allowed_modules?: string[];
 }
 
 export class ResetPasswordDto {

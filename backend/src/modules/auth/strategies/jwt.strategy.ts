@@ -31,6 +31,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         is_active: true,
         preferred_language: true,
         avatar_url: true,
+        allowed_modules: true,
       },
     });
 

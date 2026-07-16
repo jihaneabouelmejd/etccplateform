@@ -26,16 +26,16 @@ const menuItems = [
   { href: '/clients',              key: 'menu.clients',        emoji: '👥', roles: ['ADMIN', 'GERANT'] },
   { href: '/fournisseurs',         key: 'menu.fournisseurs',   emoji: '🏭', roles: ['ADMIN', 'GERANT'] },
   { href: '/employes',             key: 'menu.employes',       emoji: '👷', roles: ['ADMIN', 'GERANT'] },
-  { href: '/devis',                key: 'menu.devis',          emoji: '📄', roles: ['ADMIN', 'GERANT'] },
-  { href: '/bc',                   key: 'menu.bc',             emoji: '📋', roles: ['ADMIN', 'GERANT'] },
-  { href: '/bl',                   key: 'menu.bl',             emoji: '🚚', roles: ['ADMIN', 'GERANT'] },
-  { href: '/factures',             key: 'menu.factures',       emoji: '🧾', roles: ['ADMIN', 'GERANT', 'COMPTABLE'] },
-  { href: '/merge',                key: 'menu.merge',          emoji: '🔗', roles: ['ADMIN', 'GERANT'] },
+  { href: '/devis',                key: 'menu.devis',          emoji: '📄', roles: ['ADMIN', 'GERANT'], moduleKey: 'devis' },
+  { href: '/bc',                   key: 'menu.bc',             emoji: '📋', roles: ['ADMIN', 'GERANT'], moduleKey: 'bc' },
+  { href: '/bl',                   key: 'menu.bl',             emoji: '🚚', roles: ['ADMIN', 'GERANT'], moduleKey: 'bl' },
+  { href: '/factures',             key: 'menu.factures',       emoji: '🧾', roles: ['ADMIN', 'GERANT', 'COMPTABLE'], moduleKey: 'invoices' },
+  { href: '/merge',                key: 'menu.merge',          emoji: '🔗', roles: ['ADMIN', 'GERANT'], moduleKey: 'pdf' },
   { href: '/stock',                key: 'menu.stock',          emoji: '📦', roles: ['ADMIN', 'GERANT'] },
-  { href: '/depenses',             key: 'menu.depenses',       emoji: '💰', roles: ['ADMIN', 'GERANT', 'EMPLOYE'] },
+  { href: '/depenses',             key: 'menu.depenses',       emoji: '💰', roles: ['ADMIN', 'GERANT', 'EMPLOYE'], moduleKey: 'depenses' },
   { href: '/benefices',            key: 'menu.benefices',      emoji: '📈', roles: ['ADMIN', 'GERANT', 'COMPTABLE'] },
-  { href: '/comptabilite',         key: 'menu.comptabilite',   emoji: '📒', roles: ['ADMIN', 'GERANT', 'COMPTABLE'] },
-  { href: '/comptabilite-interne', key: 'menu.compta_interne', emoji: '📊', roles: ['ADMIN', 'GERANT'] },
+  { href: '/comptabilite',         key: 'menu.comptabilite',   emoji: '📒', roles: ['ADMIN', 'GERANT', 'COMPTABLE'], moduleKey: 'comptabilite' },
+  { href: '/comptabilite-interne', key: 'menu.compta_interne', emoji: '📊', roles: ['ADMIN', 'GERANT'], moduleKey: 'comptabilite-interne' },
   { href: '/rapprochement',        key: 'menu.rapprochement',  emoji: '🏦', roles: ['ADMIN', 'GERANT', 'COMPTABLE'] },
   { href: '/alertes',              key: 'menu.alertes',        emoji: '⚠️', roles: ['ADMIN', 'GERANT'] },
   { href: '/agenda',               key: 'menu.agenda',         emoji: '📅', roles: ['ADMIN', 'GERANT', 'EMPLOYE'] },
@@ -214,7 +214,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
           {/* Menu */}
           <nav style={{ padding: '8px', flex: 1 }}>
             {menuItems
-              .filter(item => !user?.role || item.roles.includes((user.role || '').toUpperCase()))
+              .filter(item => {
+                if (!user?.role) return true;
+                const role = (user.role || '').toUpperCase();
+                const allowedModules: string[] = Array.isArray(user?.allowed_modules) ? user.allowed_modules : [];
+                // EMPLOYE avec des permissions fines par module (override admin) :
+                // ne voit QUE le Dashboard + les rubriques explicitement autorisées.
+                if (role === 'EMPLOYE' && allowedModules.length > 0) {
+                  if (item.href === '/dashboard') return true;
+                  return !!(item as any).moduleKey && allowedModules.includes((item as any).moduleKey);
+                }
+                return item.roles.includes(role);
+              })
               .map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
 

@@ -22,6 +22,18 @@ const btnDanger = { padding:'9px 20px', borderRadius:8, border:'none', backgroun
 
 const emptyCreateForm = { first_name: '', last_name: '', username: '', password: '', role: 'EMPLOYE', phone: '', email: '' };
 
+// Permissions fines par module — override pour un EMPLOYE (accès complet à des rubriques précises)
+const MODULE_OPTIONS: { key: string; label: string; emoji: string }[] = [
+  { key: 'devis',                 label: 'Devis',                emoji: '📄' },
+  { key: 'bc',                    label: 'Bons de commande',     emoji: '📋' },
+  { key: 'bl',                    label: 'Bons de livraison',    emoji: '🚚' },
+  { key: 'invoices',              label: 'Factures',             emoji: '🧾' },
+  { key: 'depenses',              label: 'Dépenses',             emoji: '💰' },
+  { key: 'comptabilite',          label: 'Comptabilité',         emoji: '📒' },
+  { key: 'comptabilite-interne',  label: 'Comptabilité interne', emoji: '📊' },
+  { key: 'pdf',                   label: 'Fusion PDF',           emoji: '🔗' },
+];
+
 export default function EmployesPage() {
   const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
@@ -38,7 +50,7 @@ export default function EmployesPage() {
 
   // Edit modal
   const [editTarget, setEditTarget] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
+  const [editForm, setEditForm] = useState<{ first_name: string; last_name: string; role: string; phone: string; email: string; allowed_modules: string[] }>({ first_name: '', last_name: '', role: '', phone: '', email: '', allowed_modules: [] });
   const [editError, setEditError] = useState('');
   const [editing, setEditing] = useState(false);
 
@@ -118,7 +130,7 @@ export default function EmployesPage() {
   };
 
   const openEdit = (u: any) => {
-    setEditForm({ first_name: u.first_name || '', last_name: u.last_name || '', role: u.role || 'EMPLOYE', phone: u.phone || '', email: u.email || '' });
+    setEditForm({ first_name: u.first_name || '', last_name: u.last_name || '', role: u.role || 'EMPLOYE', phone: u.phone || '', email: u.email || '', allowed_modules: Array.isArray(u.allowed_modules) ? u.allowed_modules : [] });
     setEditError(''); setEditTarget(u);
 
     // Charger le compte email professionnel Hostinger de l'employé
@@ -267,6 +279,8 @@ export default function EmployesPage() {
         role: editForm.role,
         phone: editForm.phone || undefined,
         email: editForm.email || undefined,
+        // On n'envoie les permissions par module que pour un Employé — vidées si le rôle change.
+        allowed_modules: editForm.role === 'EMPLOYE' ? editForm.allowed_modules : [],
       });
       fetchUsers();
       setEditTarget(null);
@@ -478,6 +492,43 @@ export default function EmployesPage() {
                   <input type="email" value={editForm.email} onChange={e => setEditForm({...editForm, email:e.target.value})} style={inputStyle} />
                 </div>
               </div>
+
+              {editForm.role === 'EMPLOYE' && (
+                <div style={{ marginBottom:16, padding:16, borderRadius:12, border:'1px solid #F5E6D3', background:'#FFFDF5' }}>
+                  <label style={{ ...labelStyle, marginBottom:4 }}>Accès complet par rubrique (override)</label>
+                  <p style={{ fontSize:11.5, color:'#B8A090', margin:'0 0 12px' }}>
+                    Coche les rubriques auxquelles cet employé aura un accès complet (lecture, création, modification, suppression, impression, export PDF), en plus/à la place des accès par défaut du rôle Employé. Décoche tout pour revenir aux accès par défaut.
+                  </p>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    {MODULE_OPTIONS.map((m) => {
+                      const checked = editForm.allowed_modules.includes(m.key);
+                      return (
+                        <label key={m.key} style={{
+                          display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:8,
+                          border: checked ? '1.5px solid #F4B315' : '1.5px solid #E8D4B0',
+                          background: checked ? '#FFF8E1' : 'white',
+                          fontSize:12.5, fontWeight:600, color:'#1A141A', cursor:'pointer',
+                        }}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) => {
+                              setEditForm(f => ({
+                                ...f,
+                                allowed_modules: e.target.checked
+                                  ? [...f.allowed_modules, m.key]
+                                  : f.allowed_modules.filter(k => k !== m.key),
+                              }));
+                            }}
+                          />
+                          <span>{m.emoji} {m.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {editError && (
                 <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:16, fontSize:12, color:'#D32F2F' }}>⚠️ {editError}</div>
               )}

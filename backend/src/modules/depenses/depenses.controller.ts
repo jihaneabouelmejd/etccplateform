@@ -5,6 +5,7 @@ import { DepensesService } from './depenses.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('depenses')
@@ -22,6 +23,7 @@ export class DepensesController {
   @Get()
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.GERANT, Role.COMPTABLE)
+  @RequireModule('depenses')
   findAll(
     @Query('status') status?: ExpenseStatus,
     @Query('category') category?: ExpenseCategory,
@@ -38,6 +40,7 @@ export class DepensesController {
   @Get('stats')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.GERANT, Role.COMPTABLE)
+  @RequireModule('depenses')
   getStats(@Query('month') month?: number, @Query('year') year?: number) {
     return this.depenses.getStats(month, year);
   }
@@ -84,6 +87,7 @@ export class DepensesController {
   @Delete(':id')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN, Role.GERANT)
+  @RequireModule('depenses')
   remove(@Param('id') id: string) {
     return this.depenses.delete(id);
   }

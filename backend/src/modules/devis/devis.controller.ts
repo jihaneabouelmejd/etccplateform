@@ -5,11 +5,13 @@ import { DevisService } from './devis.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('devis')
 @Controller('devis')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@RequireModule('devis')
 @ApiBearerAuth()
 export class DevisController {
   constructor(private readonly devis: DevisService) {}
@@ -30,9 +32,12 @@ export class DevisController {
     @Query('page') page?: number,
     @CurrentUser('id') userId?: string,
     @CurrentUser('role') role?: string,
+    @CurrentUser('allowed_modules') allowedModules?: string[],
   ) {
     const statusesArr = statuses ? (statuses.split(',') as DevisStatus[]) : undefined;
-    const createdBy = (role === Role.ADMIN || role === Role.GERANT) ? undefined : userId;
+    const hasFullAccess = role === Role.ADMIN || role === Role.GERANT
+      || (role === Role.EMPLOYE && allowedModules?.includes('devis'));
+    const createdBy = hasFullAccess ? undefined : userId;
     return this.devis.findAll({ status, statuses: statusesArr, client_id: clientId, search, page, created_by: createdBy });
   }
 

@@ -5,11 +5,13 @@ import { BLService } from './bl.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { RequireModule } from '../../common/decorators/require-module.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('bl')
 @Controller('bl')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@RequireModule('bl')
 @ApiBearerAuth()
 export class BLController {
   constructor(private readonly bl: BLService) {}
@@ -45,8 +47,11 @@ export class BLController {
     @Query('limit') limit?: number,
     @CurrentUser('id') userId?: string,
     @CurrentUser('role') role?: string,
+    @CurrentUser('allowed_modules') allowedModules?: string[],
   ) {
-    const createdBy = (role === Role.ADMIN || role === Role.GERANT) ? undefined : userId;
+    const hasFullAccess = role === Role.ADMIN || role === Role.GERANT
+      || (role === Role.EMPLOYE && allowedModules?.includes('bl'));
+    const createdBy = hasFullAccess ? undefined : userId;
     return this.bl.findAll({ status, search, page, limit, created_by: createdBy });
   }
 
