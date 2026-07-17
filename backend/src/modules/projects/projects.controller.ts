@@ -32,8 +32,11 @@ export class ProjectsController {
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('user_id') userId?: string,
+    @CurrentUser() currentUser?: any,
   ) {
-    return this.projects.findAll({ status, client_id: clientId, search, page, user_id: userId });
+    const restricted = currentUser && !['ADMIN', 'GERANT'].includes(currentUser.role);
+    const effectiveUserId = restricted ? currentUser.id : userId;
+    return this.projects.findAll({ status, client_id: clientId, search, page, user_id: effectiveUserId });
   }
 
   @Get('stats')
