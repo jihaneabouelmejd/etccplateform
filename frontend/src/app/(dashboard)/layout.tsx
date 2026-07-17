@@ -105,6 +105,28 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     return () => { document.body.style.overflow = ''; };
   }, [sidebarOpen]);
 
+  // ── Garde d'accès frontend par module (EMPLOYE avec allowed_modules) ──
+  // Même logique que le filtre de sidebar : un EMPLOYE avec des permissions
+  // fines ne doit pouvoir *ouvrir* que le Dashboard + les rubriques dont
+  // moduleKey est dans allowed_modules — même via une URL tapée directement.
+  // NB: doit rester AVANT le "if (!isReady) return" pour ne pas violer les
+  // règles des hooks (nombre de hooks constant entre les renders).
+  const guardRole = (user?.role || '').toUpperCase();
+  const guardAllowedModules: string[] = Array.isArray(user?.allowed_modules) ? user.allowed_modules : [];
+  const moduleGuardActive = guardRole === 'EMPLOYE' && guardAllowedModules.length > 0;
+  const isDashboardRoute = pathname === '/dashboard' || pathname.startsWith('/dashboard/');
+  const currentPageForGuard = menuItems.find(item =>
+    pathname === item.href || pathname.startsWith(item.href + '/')
+  );
+  const pageAllowed = !moduleGuardActive || isDashboardRoute ||
+    !!(currentPageForGuard && (currentPageForGuard as any).moduleKey && guardAllowedModules.includes((currentPageForGuard as any).moduleKey));
+
+  useEffect(() => {
+    if (isReady && moduleGuardActive && !pageAllowed) {
+      window.location.href = '/dashboard';
+    }
+  }, [isReady, moduleGuardActive, pageAllowed, pathname]);
+
   if (!isReady) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FBF6EE' }}>
       <p style={{ color: '#A33C00', fontSize: 14 }}>{t('loading')}</p>
@@ -120,23 +142,6 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   const currentChild = messagerieChildren.find(c =>
     pathname === c.href || pathname.startsWith(c.href + '/')
   );
-
-  // ── Garde d'accès frontend par module (EMPLOYE avec allowed_modules) ──
-  // Même logique que le filtre de sidebar : un EMPLOYE avec des permissions
-  // fines ne doit pouvoir *ouvrir* que le Dashboard + les rubriques dont
-  // moduleKey est dans allowed_modules — même via une URL tapée directement.
-  const role = (user?.role || '').toUpperCase();
-  const allowedModules: string[] = Array.isArray(user?.allowed_modules) ? user.allowed_modules : [];
-  const moduleGuardActive = role === 'EMPLOYE' && allowedModules.length > 0;
-  const isDashboardRoute = pathname === '/dashboard' || pathname.startsWith('/dashboard/');
-  const pageAllowed = !moduleGuardActive || isDashboardRoute ||
-    !!(currentPage && (currentPage as any).moduleKey && allowedModules.includes((currentPage as any).moduleKey));
-
-  useEffect(() => {
-    if (moduleGuardActive && !pageAllowed) {
-      window.location.href = '/dashboard';
-    }
-  }, [moduleGuardActive, pageAllowed, pathname]);
 
   return (
     <div dir={dir} style={{
