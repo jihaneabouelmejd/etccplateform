@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Plus, Search, Trash2, ArrowRight, Copy, Pencil, Truck, ChevronDown, ChevronRight } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
-import { devisApi, clientsApi, projectsApi, blApi, signaturesApi } from '@/lib/api';
+import { devisApi, clientsApi, projectsApi, blApi, signaturesApi, prestationsApi } from '@/lib/api';
 import PDFButton from '@/components/ui/PDFButton';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -37,6 +37,7 @@ export default function DevisPage() {
   const [stats, setStats] = useState<any>(null);
   const [clients, setClients] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [prestations, setPrestations] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
@@ -56,7 +57,7 @@ export default function DevisPage() {
   const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
   // Form state
-  const [form, setForm] = useState({ client_id: '', project_id: '', object: '', site: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
+  const [form, setForm] = useState({ client_id: '', project_id: '', prestation_id: '', object: '', site: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
   const [lines, setLines] = useState<Line[]>([{ desc: '', qty: 1, pu: 0 }]);
   const [signatures, setSignatures] = useState<any[]>([]);
 
@@ -102,6 +103,7 @@ export default function DevisPage() {
     clientsApi.list({ limit: 200 }).then(r => setClients(r.data.data || []));
     projectsApi.list({ limit: 200 }).then(r => setProjects(r.data.data || []));
     signaturesApi.list().then(r => setSignatures(r.data || [])).catch(() => {});
+    prestationsApi.list().then(r => setPrestations(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
   const addLine = () => setLines([...lines, { desc: '', qty: 1, pu: 0 }]);
@@ -114,7 +116,7 @@ export default function DevisPage() {
 
   const openCreate = () => {
     setEditTarget(null);
-    setForm({ client_id: '', project_id: '', object: '', site: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
+    setForm({ client_id: '', project_id: '', prestation_id: '', object: '', site: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
     setLines([{ desc: '', qty: 1, pu: 0 }]);
     setSaveError('');
     setShowForm(true);
@@ -128,6 +130,7 @@ export default function DevisPage() {
     setForm({
       client_id: full.client_id,
       project_id: full.project_id || '',
+      prestation_id: full.prestation_id || '',
       object: full.object || '',
       site: full.site || '',
       discount_rate: Number(full.discount_rate) || 0,
@@ -150,6 +153,7 @@ export default function DevisPage() {
     const payload = {
       client_id: form.client_id,
       project_id: form.project_id || undefined,
+      prestation_id: form.prestation_id || undefined,
       object: form.object || undefined,
       site: form.site || undefined,
       discount_rate: form.discount_rate || 0,
@@ -475,6 +479,13 @@ export default function DevisPage() {
                     <select value={form.project_id} onChange={e => setForm({...form, project_id:e.target.value})} style={inputStyle}>
                       <option value="">— Aucun —</option>
                       {projects.map(p => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <label style={labelStyle}>Prestation</label>
+                    <select value={form.prestation_id} onChange={e => setForm({...form, prestation_id:e.target.value})} style={inputStyle}>
+                      <option value="">— Aucune —</option>
+                      {prestations.map(p => <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>)}
                     </select>
                   </div>
                   <div className="col-span-2">

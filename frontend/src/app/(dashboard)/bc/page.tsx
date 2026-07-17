@@ -6,7 +6,7 @@ import { useLanguage } from '@/lib/i18n';
 import FileViewerModal from '@/components/ui/FileViewerModal';
 import { useRouter } from 'next/navigation';
 import PDFButton from '@/components/ui/PDFButton';
-import { bcApi, devisApi, clientsApi, signaturesApi } from '@/lib/api';
+import { bcApi, devisApi, clientsApi, signaturesApi, prestationsApi } from '@/lib/api';
 import { formatDate, cn, formatCurrency } from '@/lib/utils';
 import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -47,6 +47,7 @@ export default function BCPage() {
   const [validatedDevis, setValidatedDevis] = useState<any[]>([]);
   const [clients, setClients]             = useState<any[]>([]);
   const [signatures, setSignatures]       = useState<any[]>([]);
+  const [prestations, setPrestations]     = useState<any[]>([]);
   const [search, setSearch]               = useState('');
   const [statusFilter, setStatusFilter]   = useState('');
   const [loading, setLoading]             = useState(true);
@@ -64,6 +65,7 @@ export default function BCPage() {
   const [importMode, setImportMode]           = useState<'manual' | 'file'>('file');
   const [importClientId, setImportClientId]   = useState('');
   const [importDevisId, setImportDevisId]     = useState('');   // ← lien devis optionnel
+  const [importPrestationId, setImportPrestationId] = useState(''); // ← lien prestation optionnel
   const [importLines, setImportLines]         = useState<ImportLine[]>([emptyLine()]);
   const [importSigId, setImportSigId]         = useState('');
   const [importing, setImporting]             = useState(false);
@@ -80,14 +82,15 @@ export default function BCPage() {
   const [editNumber, setEditNumber]       = useState('');
   const [editDate, setEditDate]           = useState('');
   const [editSaving, setEditSaving]       = useState(false);
+  const [editPrestationId, setEditPrestationId] = useState('');
 
-  const openEdit = (bc: any) => { setEditTarget(bc); setEditNumber(bc.number || ''); setEditDate(bc.issue_date ? bc.issue_date.split('T')[0] : ''); };
+  const openEdit = (bc: any) => { setEditTarget(bc); setEditNumber(bc.number || ''); setEditDate(bc.issue_date ? bc.issue_date.split('T')[0] : ''); setEditPrestationId(bc.prestation_id || ''); };
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTarget) return;
     setEditSaving(true);
     try {
-      await bcApi.update(editTarget.id, { number: editNumber, issue_date: editDate });
+      await bcApi.update(editTarget.id, { number: editNumber, issue_date: editDate, prestation_id: editPrestationId || null });
       fetchData();
       setEditTarget(null);
     } finally { setEditSaving(false); }
@@ -126,6 +129,7 @@ export default function BCPage() {
     signaturesApi.list().then(r => setSignatures(r.data || [])).catch(() => {});
     // Charger tous les devis pour le sélecteur import
     devisApi.list({ status: 'VALIDATED', limit: 500 }).then(r => setAllDevis(r.data.data || [])).catch(() => {});
+    prestationsApi.list().then(r => setPrestations(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
   // ── Ouverture modal "Générer depuis devis" ───────────────────────────────
@@ -163,6 +167,7 @@ export default function BCPage() {
     if (uploadAbortRef.current) { uploadAbortRef.current.abort(); uploadAbortRef.current = null; }
     setImportClientId('');
     setImportDevisId('');
+    setImportPrestationId('');
     setImportLines([emptyLine()]);
     setImportError('');
     setImportFile(null);
@@ -232,6 +237,7 @@ export default function BCPage() {
       await bcApi.import({
         client_id:          importClientId,
         devis_id:           importDevisId || undefined,
+        prestation_id:      importPrestationId || undefined,
         source:             importMode === 'file' ? 'IMPORTED_OCR' : 'IMPORTED_MANUAL',
         imported_file_url:  importMode === 'file' ? importFileUrl : undefined,
         signature_id:       importSigId || undefined,
@@ -585,6 +591,17 @@ export default function BCPage() {
               </select>
             </div>
 
+            {/* Prestation */}
+            <div style={{ marginBottom:18 }}>
+              <label style={labelStyle}>Prestation<span style={{ marginLeft:6, fontSize:10, fontWeight:500, color:'#8E5915', textTransform:'none', letterSpacing:0 }}>(optionnel)</span></label>
+              <select value={importPrestationId} onChange={e => setImportPrestationId(e.target.value)} style={inputStyle}>
+                <option value="">— Aucune —</option>
+                {prestations.map(p => (
+                  <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                ))}
+              </select>
+            </div>
+
             {/* ── Mode fichier ─────────────────────────────────────────── */}
             {importMode === 'file' && (
               <div style={{ marginBottom:18 }}>
@@ -854,10 +871,20 @@ export default function BCPage() {
                 <input value={editNumber} onChange={e => setEditNumber(e.target.value)}
                   style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
               </div>
-              <div style={{ marginBottom:20 }}>
+              <div style={{ marginBottom:14 }}>
                 <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Date d'émission</label>
                 <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
                   style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+              </div>
+              <div style={{ marginBottom:20 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Prestation</label>
+                <select value={editPrestationId} onChange={e => setEditPrestationId(e.target.value)}
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box', background:'white' }}>
+                  <option value="">— Aucune —</option>
+                  {prestations.map(p => (
+                    <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                  ))}
+                </select>
               </div>
               <div style={{ display:'flex', gap:10 }}>
                 <button type="button" onClick={() => setEditTarget(null)} style={{ flex:1, padding:'9px', borderRadius:8, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:13, fontWeight:600, cursor:'pointer' }}>Annuler</button>

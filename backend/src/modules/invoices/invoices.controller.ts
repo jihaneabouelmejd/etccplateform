@@ -38,6 +38,7 @@ export class InvoicesController {
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('prestation_id') prestationId?: string,
     @CurrentUser('id') userId?: string,
     @CurrentUser('role') role?: string,
     @CurrentUser('allowed_modules') allowedModules?: string[],
@@ -45,7 +46,7 @@ export class InvoicesController {
     const hasFullAccess = role === Role.ADMIN || role === Role.GERANT || role === Role.COMPTABLE
       || (role === Role.EMPLOYE && allowedModules?.includes('invoices'));
     const createdBy = hasFullAccess ? undefined : userId;
-    return this.invoices.findAll({ direction, status, month, year, search, page, limit, created_by: createdBy });
+    return this.invoices.findAll({ direction, status, month, year, search, page, limit, created_by: createdBy, prestation_id: prestationId });
   }
 
   @Get('stats')

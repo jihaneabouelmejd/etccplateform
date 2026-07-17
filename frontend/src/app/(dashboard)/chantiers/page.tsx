@@ -1,17 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { projectsApi, clientsApi, devisApi, prestationsApi } from '@/lib/api';
+import { projectsApi, clientsApi, devisApi, prestationsApi, assignableUsersApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 
 /* --- types --- */
+interface AssignableUser { id: string; first_name: string; last_name: string; role: string; }
+interface Assignment { user: AssignableUser; }
 interface Project {
   id: string; code: string; name: string;
   client?: { id: string; commercial_name: string };
   budget_amount: number; progress: number; status: string;
   city?: string; description?: string;
   start_date?: string; end_date?: string; client_id?: string;
+  assignments?: Assignment[];
 }
 interface Client { id: string; commercial_name: string; }
 interface Prestation {
@@ -19,6 +22,7 @@ interface Prestation {
   date_debut: string; date_fin: string; description: string;
   statut: 'EN_COURS' | 'TERMINEE' | 'ANNULEE';
   devis_id?: string;
+  assignments?: Assignment[];
 }
 
 const PREST_STATUS: Record<string, { label: string; color: string; bg: string }> = {
@@ -27,7 +31,11 @@ const PREST_STATUS: Record<string, { label: string; color: string; bg: string }>
   ANNULEE:  { label: 'Annulée',  color: '#B71C1C', bg: '#FFEBEE' },
 };
 
-const emptyPrestation: Omit<Prestation, 'id'> = { nom: '', client: '', montant: 0, date_debut: '', date_fin: '', description: '', statut: 'EN_COURS', devis_id: '' };
+const emptyPrestation = { nom: '', client: '', montant: 0, date_debut: '', date_fin: '', description: '', statut: 'EN_COURS' as Prestation['statut'], devis_id: '', assignee_ids: [] as string[] };
+
+const roleLabel: Record<string, string> = {
+  ADMIN: 'Admin', GERANT: 'Gérant', EMPLOYE: 'Employé', COMPTABLE: 'Comptable',
+};
 
 // localStorage helpers kept for backward-compat migration (read-once to import old data)
 function migrateOldPrestations(): Prestation[] {
@@ -45,7 +53,7 @@ const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> =
 const inputStyle = { width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' as const };
 const labelStyle = { display:'block' as const, fontSize:11, fontWeight:700 as const, color:'#8E5915', textTransform:'uppercase' as const, letterSpacing:0.5, marginBottom:6 };
 
-const emptyForm = { name:'', city:'', budget:'', client_id:'', start_date:'', end_date:'', description:'', status:'ACTIVE', progress:'0' };
+const emptyForm = { name:'', city:'', budget:'', client_id:'', start_date:'', end_date:'', description:'', status:'ACTIVE', progress:'0', assignee_ids: [] as string[] };
 
 /* ============================================================ */
 export default function ChantiersPage() {
@@ -63,6 +71,8 @@ export default function ChantiersPage() {
   const [showCreate, setShowCreate]   = useState(false);
   const [editProject, setEditProject] = useState<Project | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [viewProject, setViewProject] = useState<any | null>(null);
+  const [viewProjectLoading, setViewProjectLoading] = useState(false);
 
   /* form */
   const [form, setForm]         = useState({ ...emptyForm });
@@ -72,11 +82,21 @@ export default function ChantiersPage() {
 
   const canDel = user?.role === 'ADMIN' || user?.role === 'GERANT';
 
+  /* assignable users (chantiers + prestations) */
+  const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([]);
+  useEffect(() => {
+    assignableUsersApi.list().then(r => {
+      setAssignableUsers(Array.isArray(r.data) ? r.data : []);
+    }).catch(() => {});
+  }, []);
+
   /* prestations state */
   const [prestations, setPrestations] = useState<Prestation[]>([]);
   const [showPrestForm, setShowPrestForm] = useState(false);
   const [editPrest, setEditPrest] = useState<Prestation | null>(null);
   const [deletePrest, setDeletePrest] = useState<Prestation | null>(null);
+  const [viewPrest, setViewPrest] = useState<any | null>(null);
+  const [viewPrestLoading, setViewPrestLoading] = useState(false);
   const [prestForm, setPrestForm] = useState({ ...emptyPrestation });
   const [prestSearch, setPrestSearch] = useState('');
 
@@ -126,11 +146,21 @@ export default function ChantiersPage() {
 
   const openEditPrest = (p: Prestation) => {
     setEditPrest(p);
-    setPrestForm({ nom: p.nom, client: p.client, montant: p.montant, date_debut: p.date_debut, date_fin: p.date_fin, description: p.description, statut: p.statut, devis_id: p.devis_id || '' });
+    setPrestForm({ nom: p.nom, client: p.client, montant: p.montant, date_debut: p.date_debut, date_fin: p.date_fin, description: p.description, statut: p.statut, devis_id: p.devis_id || '', assignee_ids: (p.assignments?.map(a => a.user?.id).filter((id): id is string => typeof id === 'string' && id.length > 0)) || [] });
     if (p.devis_id) { setPrestSource('devis'); } else { setPrestSource('manuel'); }
     setClientMode('list');
     setClientCustom('');
     setShowPrestForm(true);
+  };
+
+  const openViewPrest = async (p: Prestation) => {
+    setViewPrest(p);
+    setViewPrestLoading(true);
+    try {
+      const r = await prestationsApi.get(p.id);
+      setViewPrest(r.data);
+    } catch (err) { console.error(err); }
+    finally { setViewPrestLoading(false); }
   };
 
   const filteredPrest = prestations.filter(p => p.nom.toLowerCase().includes(prestSearch.toLowerCase()) || p.client.toLowerCase().includes(prestSearch.toLowerCase()));
@@ -168,6 +198,7 @@ export default function ChantiersPage() {
         start_date: form.start_date || undefined,
         end_date: form.end_date || undefined,
         description: form.description || undefined,
+        assignee_ids: form.assignee_ids,
       });
       await fetchAll(); setShowCreate(false); setForm({ ...emptyForm });
     } catch (e: any) {
@@ -183,6 +214,7 @@ export default function ChantiersPage() {
       client_id: p.client?.id || '', start_date: p.start_date?.slice(0,10) || '',
       end_date: p.end_date?.slice(0,10) || '', description: p.description || '',
       status: p.status, progress: String(p.progress ?? 0),
+      assignee_ids: (p.assignments?.map(a => a.user?.id).filter((id): id is string => typeof id === 'string' && id.length > 0)) || [],
     });
     setEditProject(p); setFormError('');
   };
@@ -200,12 +232,23 @@ export default function ChantiersPage() {
         description: form.description || undefined,
         status: form.status,
         progress: Math.min(100, Math.max(0, parseInt(form.progress) || 0)),
+        assignee_ids: form.assignee_ids,
       });
       await fetchAll(); setEditProject(null);
     } catch (e: any) {
       const m = e?.response?.data?.message;
       setFormError(Array.isArray(m) ? m.join(', ') : (m || 'Erreur lors de la modification'));
     } finally { setSaving(false); }
+  };
+
+  const openViewProject = async (p: Project) => {
+    setViewProject(p);
+    setViewProjectLoading(true);
+    try {
+      const r = await projectsApi.get(p.id);
+      setViewProject(r.data);
+    } catch (err) { console.error(err); }
+    finally { setViewProjectLoading(false); }
   };
 
   /* -- DELETE -- */
@@ -336,6 +379,11 @@ export default function ChantiersPage() {
                   </td>
                   <td style={{ padding:'12px 14px' }}>
                     <div style={{ display:'flex', gap:6 }}>
+                      <button onClick={() => openViewProject(p)}
+                        title="Détails"
+                        style={{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                        Détails
+                      </button>
                       <button onClick={() => openEdit(p)}
                         title="Modifier"
                         style={{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:11, fontWeight:600, cursor:'pointer' }}>
@@ -401,6 +449,10 @@ export default function ChantiersPage() {
                       </td>
                       <td style={{ padding:'12px 14px' }}>
                         <div style={{ display:'flex', gap:6 }}>
+                          <button onClick={() => openViewPrest(p)}
+                            style={{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:11, fontWeight:600, cursor:'pointer' }}>
+                            Détails
+                          </button>
                           <button onClick={() => openEditPrest(p)}
                             style={{ padding:'5px 10px', borderRadius:7, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:11, fontWeight:600, cursor:'pointer' }}>
                             Modifier
@@ -420,6 +472,96 @@ export default function ChantiersPage() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* ======= MODAL DETAIL PRESTATION ======= */}
+      {viewPrest && (
+        <Modal title={`Prestation — ${viewPrest.nom}`} onClose={() => setViewPrest(null)}>
+          <div style={{ padding:24 }}>
+            {viewPrestLoading && <p style={{ fontSize:12, color:'#8E5915', margin:'0 0 12px' }}>Chargement...</p>}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:20 }}>
+              <div>
+                <p style={labelS}>Client</p>
+                <p style={{ margin:0, fontSize:14, fontWeight:600, color:'#1A141A' }}>{viewPrest.client || '—'}</p>
+              </div>
+              <div>
+                <p style={labelS}>Montant</p>
+                <p style={{ margin:0, fontSize:14, fontWeight:700, fontFamily:'monospace', color:'#1A141A' }}>{Number(viewPrest.montant||0).toLocaleString('fr-FR')} MAD</p>
+              </div>
+              <div>
+                <p style={labelS}>Statut</p>
+                <span style={{ padding:'4px 10px', borderRadius:20, fontSize:11, fontWeight:600, color:PREST_STATUS[viewPrest.statut]?.color, background:PREST_STATUS[viewPrest.statut]?.bg }}>
+                  {PREST_STATUS[viewPrest.statut]?.label}
+                </span>
+              </div>
+              <div>
+                <p style={labelS}>Période</p>
+                <p style={{ margin:0, fontSize:13, color:'#423738' }}>{viewPrest.date_debut || '—'}{viewPrest.date_fin ? ` → ${viewPrest.date_fin}` : ''}</p>
+              </div>
+            </div>
+
+            {viewPrest.description && (
+              <div style={{ marginBottom:20 }}>
+                <p style={labelS}>Description</p>
+                <p style={{ margin:0, fontSize:13, color:'#423738' }}>{viewPrest.description}</p>
+              </div>
+            )}
+
+            <div style={{ marginBottom:20 }}>
+              <p style={labelS}>Assigné(e)s</p>
+              <AssigneeBadges assignments={viewPrest.assignments} />
+            </div>
+
+            <DocList title="Devis liés" items={viewPrest.devis_docs} emptyText="Aucun devis lié"
+              renderRow={(d: any) => (<>
+                <span style={{ fontWeight:600, color:'#1A141A' }}>{d.number || d.object || '—'}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontFamily:'monospace', fontWeight:700 }}>{Number(d.total_ttc||0).toLocaleString('fr-FR')} MAD</span>
+                  <span style={docBadgeStyle}>{d.status}</span>
+                </span>
+              </>)} />
+
+            <DocList title="Bons de commande liés" items={viewPrest.bcs} emptyText="Aucun BC lié"
+              renderRow={(d: any) => (<>
+                <span style={{ fontWeight:600, color:'#1A141A' }}>{d.number || '—'}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontFamily:'monospace', fontWeight:700 }}>{Number(d.total_ttc||0).toLocaleString('fr-FR')} MAD</span>
+                  <span style={docBadgeStyle}>{d.status}</span>
+                </span>
+              </>)} />
+
+            <DocList title="Bons de livraison liés" items={viewPrest.bls} emptyText="Aucun BL lié"
+              renderRow={(d: any) => (<>
+                <span style={{ fontWeight:600, color:'#1A141A' }}>{d.number || '—'}</span>
+                <span style={docBadgeStyle}>{d.status}</span>
+              </>)} />
+
+            <DocList title="Factures liées" items={viewPrest.invoices} emptyText="Aucune facture liée"
+              renderRow={(d: any) => (<>
+                <span style={{ fontWeight:600, color:'#1A141A' }}>{d.number || '—'}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontFamily:'monospace', fontWeight:700 }}>{Number(d.total_ttc||0).toLocaleString('fr-FR')} MAD</span>
+                  <span style={docBadgeStyle}>{d.status}</span>
+                </span>
+              </>)} />
+
+            <DocList title="Dépenses liées" items={viewPrest.expenses} emptyText="Aucune dépense liée"
+              renderRow={(d: any) => (<>
+                <span style={{ fontWeight:600, color:'#1A141A' }}>{d.description || '—'}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontFamily:'monospace', fontWeight:700 }}>{Number(d.amount||0).toLocaleString('fr-FR')} MAD</span>
+                  <span style={docBadgeStyle}>{d.status}</span>
+                </span>
+              </>)} />
+
+            <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}>
+              <button onClick={() => setViewPrest(null)}
+                style={{ padding:'9px 18px', borderRadius:8, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
 
       {/* ======= MODAL PRESTATION ======= */}
@@ -553,6 +695,21 @@ export default function ChantiersPage() {
                 <textarea value={prestForm.description} onChange={e => setPrestForm({...prestForm, description:e.target.value})}
                   placeholder="Details de la prestation..." rows={2} style={{...inputS, resize:'none'}} />
               </div>
+
+              {/* ASSIGNÉS */}
+              <div style={{ gridColumn:'1/-1' }}>
+                <label style={labelS}>Assigné à</label>
+                <AssigneeSelector
+                  users={assignableUsers}
+                  selected={prestForm.assignee_ids}
+                  onToggle={(uid) => setPrestForm(f => ({
+                    ...f,
+                    assignee_ids: f.assignee_ids.includes(uid)
+                      ? f.assignee_ids.filter(id => id !== uid)
+                      : [...f.assignee_ids, uid],
+                  }))}
+                />
+              </div>
             </div>
 
             <div style={{ display:'flex', justifyContent:'flex-end', gap:10, paddingTop:16, borderTop:'1px solid #F5E6D3' }}>
@@ -594,11 +751,98 @@ export default function ChantiersPage() {
         </div>
       )}
 
+      {/* ======= MODAL DETAIL CHANTIER ======= */}
+      {viewProject && (
+        <Modal title={`Chantier — ${viewProject.name}`} onClose={() => setViewProject(null)}>
+          <div style={{ padding:24 }}>
+            {viewProjectLoading && <p style={{ fontSize:12, color:'#8E5915', margin:'0 0 12px' }}>Chargement...</p>}
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:20 }}>
+              <div>
+                <p style={labelS}>Client</p>
+                <p style={{ margin:0, fontSize:14, fontWeight:600, color:'#1A141A' }}>{viewProject.client?.commercial_name || '—'}</p>
+              </div>
+              <div>
+                <p style={labelS}>Budget</p>
+                <p style={{ margin:0, fontSize:14, fontWeight:700, fontFamily:'monospace', color:'#1A141A' }}>{Number(viewProject.budget_amount||0).toLocaleString('fr-FR')} MAD</p>
+              </div>
+              <div>
+                <p style={labelS}>Statut</p>
+                <span style={{ padding:'4px 10px', borderRadius:20, fontSize:11, fontWeight:600, color:(STATUS_CFG[viewProject.status]||STATUS_CFG.ACTIVE).color, background:(STATUS_CFG[viewProject.status]||STATUS_CFG.ACTIVE).bg }}>
+                  {(STATUS_CFG[viewProject.status]||STATUS_CFG.ACTIVE).label}
+                </span>
+              </div>
+              <div>
+                <p style={labelS}>Période</p>
+                <p style={{ margin:0, fontSize:13, color:'#423738' }}>{viewProject.start_date?.slice(0,10) || '—'}{viewProject.end_date ? ` → ${viewProject.end_date.slice(0,10)}` : ''}</p>
+              </div>
+            </div>
+
+            {viewProject.description && (
+              <div style={{ marginBottom:20 }}>
+                <p style={labelS}>Description</p>
+                <p style={{ margin:0, fontSize:13, color:'#423738' }}>{viewProject.description}</p>
+              </div>
+            )}
+
+            <div style={{ marginBottom:20 }}>
+              <p style={labelS}>Assigné(e)s</p>
+              <AssigneeBadges assignments={viewProject.assignments} />
+            </div>
+
+            <DocList title="Devis liés" items={viewProject.devis} emptyText="Aucun devis lié"
+              renderRow={(d: any) => (<>
+                <span style={{ fontWeight:600, color:'#1A141A' }}>{d.number || d.object || '—'}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontFamily:'monospace', fontWeight:700 }}>{Number(d.total_ttc||0).toLocaleString('fr-FR')} MAD</span>
+                  <span style={docBadgeStyle}>{d.status}</span>
+                </span>
+              </>)} />
+
+            <DocList title="Bons de livraison liés" items={viewProject.bls} emptyText="Aucun BL lié"
+              renderRow={(d: any) => (<>
+                <span style={{ fontWeight:600, color:'#1A141A' }}>{d.number || '—'}</span>
+                <span style={docBadgeStyle}>{d.status}</span>
+              </>)} />
+
+            <DocList title="Factures liées" items={viewProject.invoices} emptyText="Aucune facture liée"
+              renderRow={(d: any) => (<>
+                <span style={{ fontWeight:600, color:'#1A141A' }}>{d.number || '—'}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontFamily:'monospace', fontWeight:700 }}>{Number(d.total_ttc||0).toLocaleString('fr-FR')} MAD</span>
+                  <span style={docBadgeStyle}>{d.status}</span>
+                </span>
+              </>)} />
+
+            <DocList title="Dépenses liées" items={viewProject.expenses} emptyText="Aucune dépense liée"
+              renderRow={(d: any) => (<>
+                <span style={{ fontWeight:600, color:'#1A141A' }}>{d.description || '—'}</span>
+                <span style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontFamily:'monospace', fontWeight:700 }}>{Number(d.amount||0).toLocaleString('fr-FR')} MAD</span>
+                  <span style={docBadgeStyle}>{d.status}</span>
+                </span>
+              </>)} />
+
+            {viewProject._count?.bcs > 0 && (
+              <p style={{ fontSize:12, color:'#8E5915', margin:'0 0 20px' }}>
+                {viewProject._count.bcs} bon(s) de commande lié(s) — voir le module BC.
+              </p>
+            )}
+
+            <div style={{ display:'flex', justifyContent:'flex-end', marginTop:8 }}>
+              <button onClick={() => setViewProject(null)}
+                style={{ padding:'9px 18px', borderRadius:8, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* ======= MODAL CREER CHANTIER ======= */}
       {showCreate && (
         <Modal title="Nouveau chantier" onClose={() => setShowCreate(false)}>
           <ChantierForm form={form} setForm={setForm} clients={clients} onSubmit={handleCreate}
-            onCancel={() => setShowCreate(false)} saving={saving} error={formError} mode="create" />
+            onCancel={() => setShowCreate(false)} saving={saving} error={formError} mode="create" users={assignableUsers} />
         </Modal>
       )}
 
@@ -606,7 +850,7 @@ export default function ChantiersPage() {
       {editProject && (
         <Modal title={`Modifier — ${editProject.name}`} onClose={() => setEditProject(null)}>
           <ChantierForm form={form} setForm={setForm} clients={clients} onSubmit={handleEdit}
-            onCancel={() => setEditProject(null)} saving={saving} error={formError} mode="edit" />
+            onCancel={() => setEditProject(null)} saving={saving} error={formError} mode="edit" users={assignableUsers} />
         </Modal>
       )}
 
@@ -657,8 +901,87 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 
 const inputS = { width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' as const };
 const labelS = { display:'block' as const, fontSize:11, fontWeight:700 as const, color:'#8E5915', textTransform:'uppercase' as const, letterSpacing:0.5, marginBottom:6 };
+const docBadgeStyle = { padding:'2px 8px', borderRadius:12, background:'#F5E6D3', color:'#8E5915', fontSize:10, fontWeight:600 as const };
 
-function ChantierForm({ form, setForm, clients, onSubmit, onCancel, saving, error, mode }: any) {
+function AssigneeBadges({ assignments }: { assignments?: { user?: { id: string; first_name: string; last_name: string } }[] }) {
+  if (!assignments || assignments.length === 0) {
+    return <p style={{ fontSize:12, color:'#B8A090', margin:0, fontStyle:'italic' }}>Aucun(e) assigné(e)</p>;
+  }
+  return (
+    <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
+      {assignments.filter(a => a.user).map((a, idx) => (
+        <div key={a.user!.id || idx} style={{ display:'flex', alignItems:'center', gap:6, padding:'4px 10px 4px 4px', borderRadius:20, background:'#FDF6E9', border:'1px solid #E8D4B0' }}>
+          <div style={{ width:22, height:22, borderRadius:'50%', background:'linear-gradient(135deg,#F4B315,#E59312)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700, color:'#1A141A', flexShrink:0 }}>
+            {a.user!.first_name?.[0]}{a.user!.last_name?.[0]}
+          </div>
+          <span style={{ fontSize:12, fontWeight:600, color:'#1A141A' }}>{a.user!.first_name} {a.user!.last_name}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DocList({ title, items, renderRow, emptyText }: { title: string; items?: any[]; renderRow: (item: any) => React.ReactNode; emptyText: string }) {
+  return (
+    <div style={{ marginBottom:16 }}>
+      <p style={labelS}>{title}{items?.length ? ` (${items.length})` : ''}</p>
+      {(!items || items.length === 0) ? (
+        <p style={{ fontSize:12, color:'#B8A090', margin:0, fontStyle:'italic' }}>{emptyText}</p>
+      ) : (
+        <div style={{ border:'1.5px solid #F5E6D3', borderRadius:8, overflow:'hidden' }}>
+          {items.map((it, idx) => (
+            <div key={it.id || idx} style={{ padding:'8px 12px', borderBottom: idx < items.length-1 ? '1px solid #F5E6D3' : 'none', display:'flex', justifyContent:'space-between', alignItems:'center', fontSize:12 }}>
+              {renderRow(it)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AssigneeSelector({ users, selected, onToggle, disabled }: { users: AssignableUser[]; selected: string[]; onToggle: (uid: string) => void; disabled?: boolean }) {
+  return (
+    <div>
+      <div style={{ border:'1.5px solid #E8D4B0', borderRadius:8, padding:'8px 10px', background:'white', maxHeight:180, overflowY:'auto', opacity: disabled ? 0.7 : 1 }}>
+        {users.length === 0 && (
+          <p style={{ fontSize:12, color:'#8E5915', margin:0 }}>Chargement des utilisateurs...</p>
+        )}
+        {['ADMIN','GERANT','EMPLOYE','COMPTABLE'].map(role => {
+          const group = users.filter(u => u.role === role);
+          if (!group.length) return null;
+          return (
+            <div key={role} style={{ marginBottom:6 }}>
+              <p style={{ fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, margin:'0 0 4px' }}>
+                {roleLabel[role]}
+              </p>
+              {group.map(u => (
+                <label key={u.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 6px', borderRadius:6, cursor: disabled ? 'not-allowed' : 'pointer', background: selected.includes(u.id) ? 'rgba(244,179,21,0.13)' : 'transparent' }}>
+                  <input
+                    type="checkbox"
+                    disabled={disabled}
+                    checked={selected.includes(u.id)}
+                    onChange={() => !disabled && onToggle(u.id)}
+                    style={{ accentColor:'#F4B315', width:14, height:14, flexShrink:0 }}
+                  />
+                  <div style={{ width:26, height:26, borderRadius:'50%', background:'linear-gradient(135deg,#F4B315,#E59312)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#1A141A', flexShrink:0 }}>
+                    {u.first_name?.[0]}{u.last_name?.[0]}
+                  </div>
+                  <span style={{ fontSize:13, color:'#1A141A', fontWeight:500 }}>{u.first_name} {u.last_name}</span>
+                </label>
+              ))}
+            </div>
+          );
+        })}
+      </div>
+      {selected.length > 0 && (
+        <p style={{ fontSize:11, color:'#8E5915', marginTop:4 }}>{selected.length} personne(s) assignée(s)</p>
+      )}
+    </div>
+  );
+}
+
+function ChantierForm({ form, setForm, clients, onSubmit, onCancel, saving, error, mode, users }: any) {
   return (
     <form onSubmit={onSubmit} style={{ padding:24 }}>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
@@ -724,6 +1047,20 @@ function ChantierForm({ form, setForm, clients, onSubmit, onCancel, saving, erro
           <label style={labelS}>Description</label>
           <textarea value={form.description} onChange={e => setForm({...form, description:e.target.value})}
             placeholder="Description du chantier..." rows={2} style={{...inputS, resize:'none'}} />
+        </div>
+        <div style={{ gridColumn:'1/-1' }}>
+          <label style={labelS}>Assigné à</label>
+          <AssigneeSelector
+            users={users || []}
+            selected={form.assignee_ids || []}
+            disabled={saving}
+            onToggle={(uid: string) => setForm({
+              ...form,
+              assignee_ids: (form.assignee_ids || []).includes(uid)
+                ? form.assignee_ids.filter((id: string) => id !== uid)
+                : [...(form.assignee_ids || []), uid],
+            })}
+          />
         </div>
       </div>
       {error && <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:16, fontSize:12, color:'#D32F2F' }}>Erreur : {error}</div>}

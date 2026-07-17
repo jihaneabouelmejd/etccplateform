@@ -59,6 +59,7 @@ export class BCService {
         site: (devis as any).site,
         client_id: devis.client_id,
         project_id: devis.project_id,
+        prestation_id: (devis as any).prestation_id,
         created_by: createdBy,
         total_ht: devis.total_ht_net,
         total_ttc: devis.total_ttc,
@@ -84,6 +85,7 @@ export class BCService {
   async importBC(data: {
     client_id: string;
     project_id?: string;
+    prestation_id?: string;
     devis_id?: string;
     source: BCSource;
     imported_file_url?: string;
@@ -93,14 +95,16 @@ export class BCService {
   }, createdBy: string) {
     const number = await this.generateNumber();
 
-    // Si un devis est lié, récupérer le client/project depuis ce devis si pas fournis
+    // Si un devis est lié, récupérer le client/project/prestation depuis ce devis si pas fournis
     let resolvedClientId = data.client_id;
     let resolvedProjectId = data.project_id;
+    let resolvedPrestationId = data.prestation_id;
     if (data.devis_id) {
       const devis = await this.prisma.devis.findUnique({ where: { id: data.devis_id } });
       if (!devis) throw new (require('@nestjs/common').NotFoundException)('Devis lié introuvable');
       if (!resolvedClientId) resolvedClientId = devis.client_id;
       if (!resolvedProjectId) resolvedProjectId = devis.project_id ?? undefined;
+      if (!resolvedPrestationId) resolvedPrestationId = (devis as any).prestation_id ?? undefined;
     }
 
     return this.prisma.bonCommande.create({
@@ -109,6 +113,7 @@ export class BCService {
         source: data.source,
         client_id: resolvedClientId,
         project_id: resolvedProjectId,
+        prestation_id: resolvedPrestationId,
         devis_id: data.devis_id || null,
         created_by: createdBy,
         imported_file_url: data.imported_file_url,
@@ -132,13 +137,14 @@ export class BCService {
     });
   }
 
-  async findAll(params?: { status?: BCStatus; client_id?: string; search?: string; page?: number; limit?: number; created_by?: string }) {
+  async findAll(params?: { status?: BCStatus; client_id?: string; search?: string; page?: number; limit?: number; created_by?: string; prestation_id?: string }) {
     const page = params?.page || 1;
     const limit = Math.min(Number(params?.limit) || 50, 500);
     const where: any = {};
     if (params?.created_by) where.created_by = params.created_by;
     if (params?.status) where.status = params.status;
     if (params?.client_id) where.client_id = params.client_id;
+    if (params?.prestation_id) where.prestation_id = params.prestation_id;
     if (params?.search) where.number = { contains: params.search, mode: 'insensitive' };
 
     const [data, total] = await Promise.all([
@@ -162,19 +168,21 @@ export class BCService {
       include: {
         lines: { orderBy: { order: 'asc' }, include: { product: true } },
         client: true, devis: true, bls: true, invoices: true,
+        prestation: { select: { id: true, nom: true, client: true } },
       },
     });
     if (!bc) throw new NotFoundException('BC non trouvé');
     return bc;
   }
 
-  async update(id: string, input: { number?: string; issue_date?: string }) {
+  async update(id: string, input: { number?: string; issue_date?: string; prestation_id?: string | null }) {
     await this.findOne(id);
     return this.prisma.bonCommande.update({
       where: { id },
       data: {
         ...(input.number && { number: input.number }),
         ...(input.issue_date && { issue_date: new Date(input.issue_date) }),
+        ...(input.prestation_id !== undefined && { prestation_id: input.prestation_id || null }),
       },
     });
   }

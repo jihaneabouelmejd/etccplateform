@@ -45,6 +45,7 @@ export class BLController {
     @Query('search') search?: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('prestation_id') prestationId?: string,
     @CurrentUser('id') userId?: string,
     @CurrentUser('role') role?: string,
     @CurrentUser('allowed_modules') allowedModules?: string[],
@@ -52,7 +53,7 @@ export class BLController {
     const hasFullAccess = role === Role.ADMIN || role === Role.GERANT
       || (role === Role.EMPLOYE && allowedModules?.includes('bl'));
     const createdBy = hasFullAccess ? undefined : userId;
-    return this.bl.findAll({ status, search, page, limit, created_by: createdBy });
+    return this.bl.findAll({ status, search, page, limit, created_by: createdBy, prestation_id: prestationId });
   }
 
   @Get(':id')
@@ -61,7 +62,7 @@ export class BLController {
 
   @Patch(':id')
   @Roles(Role.ADMIN, Role.GERANT)
-  update(@Param('id') id: string, @Body() data: { number?: string; issue_date?: string }) {
+  update(@Param('id') id: string, @Body() data: { number?: string; issue_date?: string; prestation_id?: string | null }) {
     return this.bl.update(id, data);
   }
 

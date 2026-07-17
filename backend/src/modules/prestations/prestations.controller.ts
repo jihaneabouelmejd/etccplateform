@@ -20,8 +20,9 @@ export class PrestationsController {
   findAll(
     @Query('statut') statut?: string,
     @Query('search') search?: string,
+    @Query('user_id') userId?: string,
   ) {
-    return this.prestations.findAll({ statut, search });
+    return this.prestations.findAll({ statut, search, user_id: userId });
   }
 
   @Get(':id')

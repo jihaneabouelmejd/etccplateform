@@ -25,6 +25,12 @@ export class ProjectsService {
     return `ETCC-${year}-${seq.toString().padStart(3, '0')}`;
   }
 
+  private validIds(ids: any): string[] {
+    return Array.isArray(ids)
+      ? ids.filter((uid) => typeof uid === 'string' && uid.trim().length > 0)
+      : [];
+  }
+
   async create(data: {
     name: string;
     description?: string;
@@ -34,8 +40,10 @@ export class ProjectsService {
     end_date?: Date;
     address?: string;
     city?: string;
+    assignee_ids?: string[];
   }, createdBy: string) {
     const code = await this.generateCode();
+    const assigneeIds = this.validIds(data.assignee_ids);
 
     return this.prisma.project.create({
       data: {
@@ -49,8 +57,14 @@ export class ProjectsService {
         address: data.address,
         city: data.city,
         created_by: createdBy,
+        assignments: assigneeIds.length
+          ? { create: assigneeIds.map((uid) => ({ user_id: uid })) }
+          : undefined,
       },
-      include: { client: { select: { commercial_name: true } } },
+      include: {
+        client: { select: { commercial_name: true } },
+        assignments: { include: { user: { select: { id: true, first_name: true, last_name: true, avatar_url: true, role: true } } } },
+      },
     });
   }
 
@@ -60,6 +74,7 @@ export class ProjectsService {
     search?: string;
     page?: number;
     limit?: number;
+    user_id?: string;
   }) {
     const page = params?.page || 1;
     const limit = params?.limit || 50;
@@ -73,6 +88,9 @@ export class ProjectsService {
         { code: { contains: params.search, mode: 'insensitive' } },
       ];
     }
+    if (params?.user_id) {
+      where.assignments = { some: { user_id: params.user_id } };
+    }
 
     const [data, total] = await Promise.all([
       this.prisma.project.findMany({
@@ -83,6 +101,7 @@ export class ProjectsService {
         include: {
           client: { select: { commercial_name: true } },
           tasks: { select: { status: true, progress: true } },
+          assignments: { include: { user: { select: { id: true, first_name: true, last_name: true, avatar_url: true, role: true } } } },
           _count: { select: { tasks: true, devis: true, bls: true, invoices: true, expenses: true } },
         },
       }),
@@ -116,6 +135,7 @@ export class ProjectsService {
         invoices: { orderBy: { created_at: 'desc' }, take: 10 },
         expenses: { orderBy: { created_at: 'desc' }, take: 10 },
         photos: { orderBy: { uploaded_at: 'desc' } },
+        assignments: { include: { user: { select: { id: true, first_name: true, last_name: true, avatar_url: true, role: true } } } },
         _count: { select: { tasks: true, devis: true, bcs: true, bls: true, invoices: true, expenses: true } },
       },
     });
@@ -137,7 +157,31 @@ export class ProjectsService {
     if (data.end_date    !== undefined) updateData.end_date     = data.end_date   ? new Date(data.end_date)   : null;
     if (data.client_id   !== undefined) updateData.client_id    = data.client_id;
     if (data.address     !== undefined) updateData.address      = data.address;
-    return this.prisma.project.update({ where: { id }, data: updateData });
+
+    return this.prisma.$transaction(async (tx) => {
+      if (Object.keys(updateData).length > 0) {
+        await tx.project.update({ where: { id }, data: updateData });
+      }
+
+      if (data.assignee_ids !== undefined) {
+        const validIds = this.validIds(data.assignee_ids);
+        await tx.projectAssignment.deleteMany({ where: { project_id: id } });
+        if (validIds.length > 0) {
+          await tx.projectAssignment.createMany({
+            data: validIds.map((uid) => ({ project_id: id, user_id: uid })),
+            skipDuplicates: true,
+          });
+        }
+      }
+
+      return tx.project.findUnique({
+        where: { id },
+        include: {
+          client: { select: { commercial_name: true } },
+          assignments: { include: { user: { select: { id: true, first_name: true, last_name: true, avatar_url: true, role: true } } } },
+        },
+      });
+    });
   }
 
   async updateStatus(id: string, status: ProjectStatus) {
@@ -148,6 +192,7 @@ export class ProjectsService {
 
   async remove(id: string) {
     await this.findOne(id);
+    await this.prisma.projectAssignment.deleteMany({ where: { project_id: id } });
     return this.prisma.project.delete({ where: { id } });
   }
 

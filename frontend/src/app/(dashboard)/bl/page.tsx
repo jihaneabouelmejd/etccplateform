@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Trash2, ArrowRight, Camera, Upload, X, Eye, PlusCircle, File, FileImage, Download } from 'lucide-react';
 import FileViewerModal from '@/components/ui/FileViewerModal';
-import api, { blApi, bcApi, devisApi, invoicesApi, uploadApi, signaturesApi, depensesApi, clientsApi } from '@/lib/api';
+import api, { blApi, bcApi, devisApi, invoicesApi, uploadApi, signaturesApi, depensesApi, clientsApi, prestationsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { formatDate, cn } from '@/lib/utils';
 import PDFButton from '@/components/ui/PDFButton';
@@ -57,8 +57,9 @@ export default function BLPage() {
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState('');
   const [selectedBc, setSelectedBc] = useState<any>(null);
-  const [blForm, setBlForm]       = useState({ bc_id: '', custom_number: '', issue_date: new Date().toISOString().slice(0,10), delivery_date: '', delivered_by: '', delivery_address: '', notes: '', signature_id: '' });
+  const [blForm, setBlForm]       = useState({ bc_id: '', custom_number: '', issue_date: new Date().toISOString().slice(0,10), delivery_date: '', delivered_by: '', delivery_address: '', notes: '', signature_id: '', prestation_id: '' });
   const [signatures, setSignatures] = useState<any[]>([]);
+  const [prestations, setPrestations] = useState<any[]>([]);
   const [blLines, setBlLines]     = useState<BLLine[]>([{ desc: '', qty: 1 }]);
 
   // Source toggle (BC or Devis)
@@ -80,6 +81,7 @@ export default function BLPage() {
   const [showBlImportModal, setShowBlImportModal] = useState(false);
   const [blImportMode, setBlImportMode]          = useState<'manual' | 'file'>('file');
   const [blImportClientId, setBlImportClientId]  = useState('');
+  const [blImportPrestationId, setBlImportPrestationId] = useState('');
   const [blImportLines, setBlImportLines]        = useState<{ description: string; quantity: string }[]>([{ description: '', quantity: '1' }]);
   const [blImporting, setBlImporting]            = useState(false);
   const [blImportError, setBlImportError]        = useState('');
@@ -92,7 +94,7 @@ export default function BLPage() {
 
   // ── Edit BL complet ──────────────────────────────────────────────────────
   const [editTarget, setEditTarget]     = useState<any>(null);
-  const [editForm, setEditForm]         = useState({ number:'', issue_date:'', delivery_date:'', delivered_by:'', delivery_address:'', notes:'', signature_id:'' });
+  const [editForm, setEditForm]         = useState({ number:'', issue_date:'', delivery_date:'', delivered_by:'', delivery_address:'', notes:'', signature_id:'', prestation_id:'' });
   const [editLines, setEditLines]       = useState<BLLine[]>([]);
   const [editSaving, setEditSaving]     = useState(false);
 
@@ -108,6 +110,7 @@ export default function BLPage() {
       delivery_address: full.delivery_address || '',
       notes: full.notes || '',
       signature_id: full.signature_id || '',
+      prestation_id: full.prestation_id || '',
     });
     setEditLines((full.lines || []).map((l: any) => ({ desc: l.description, qty: Number(l.quantity) })));
   };
@@ -153,6 +156,7 @@ export default function BLPage() {
       .catch(() => {});
     signaturesApi.list().then(r => setSignatures(r.data || [])).catch(() => {});
     clientsApi.list({ limit: 500 }).then(r => setClients(r.data.data || [])).catch(() => {});
+    prestationsApi.list().then(r => setPrestations(Array.isArray(r.data) ? r.data : [])).catch(() => {});
     // Charger les BL en attente (imports employés)
     if (canDel) fetchPendingBls();
   }, []);
@@ -161,6 +165,7 @@ export default function BLPage() {
   const openBlImportModal = () => {
     if (blUploadAbortRef.current) { blUploadAbortRef.current.abort(); blUploadAbortRef.current = null; }
     setBlImportClientId('');
+    setBlImportPrestationId('');
     setBlImportLines([{ description: '', quantity: '1' }]);
     setBlImportError('');
     setBlImportFile(null);
@@ -218,6 +223,7 @@ export default function BLPage() {
 
       await blApi.import({
         client_id:         blImportClientId,
+        prestation_id:     blImportPrestationId || undefined,
         source:            blImportMode === 'file' ? 'IMPORTED_OCR' : 'IMPORTED_MANUAL',
         imported_file_url: blImportMode === 'file' ? blImportFileUrl : undefined,
         lines,
@@ -297,6 +303,7 @@ export default function BLPage() {
           bc_id: blForm.bc_id,
           client_id: selectedBc?.client_id,
           project_id: selectedBc?.project_id,
+          prestation_id: blForm.prestation_id || undefined,
           custom_number: blForm.custom_number || undefined,
           issue_date: blForm.issue_date ? new Date(blForm.issue_date) : undefined,
           delivery_date: blForm.delivery_date ? new Date(blForm.delivery_date) : undefined,
@@ -309,7 +316,7 @@ export default function BLPage() {
       }
       fetchData();
       setShowForm(false);
-      setBlForm({ bc_id: '', custom_number: '', issue_date: new Date().toISOString().slice(0,10), delivery_date: '', delivered_by: '', delivery_address: '', notes: '', signature_id: '' });
+      setBlForm({ bc_id: '', custom_number: '', issue_date: new Date().toISOString().slice(0,10), delivery_date: '', delivered_by: '', delivery_address: '', notes: '', signature_id: '', prestation_id: '' });
       setBlLines([{ desc: '', qty: 1 }]);
       setSelectedBc(null);
       setSelectedDevisId('');
@@ -626,6 +633,15 @@ export default function BLPage() {
                 )}
                 {blSource === 'bc' && (<>
                 <div>
+                  <label style={labelStyle}>Prestation<span style={{ fontWeight:400, color:'#B8A090', textTransform:'none' }}> (optionnel)</span></label>
+                  <select value={blForm.prestation_id} onChange={e => setBlForm({...blForm, prestation_id:e.target.value})} style={inputStyle}>
+                    <option value="">— Aucune —</option>
+                    {prestations.map(p => (
+                      <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label style={labelStyle}>Date de livraison</label>
                   <input type="date" value={blForm.delivery_date} onChange={e => setBlForm({...blForm, delivery_date:e.target.value})} style={inputStyle} />
                 </div>
@@ -839,6 +855,17 @@ export default function BLPage() {
               </select>
             </div>
 
+            {/* Prestation */}
+            <div style={{ marginBottom:18 }}>
+              <label style={labelStyle}>Prestation<span style={{ fontWeight:400, color:'#B8A090', textTransform:'none' }}> (optionnel)</span></label>
+              <select value={blImportPrestationId} onChange={e => setBlImportPrestationId(e.target.value)} style={inputStyle}>
+                <option value="">— Aucune —</option>
+                {prestations.map(p => (
+                  <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                ))}
+              </select>
+            </div>
+
             {/* ── Mode fichier ─────────────────────────────────────────── */}
             {blImportMode === 'file' && (
               <div style={{ marginBottom:18 }}>
@@ -982,6 +1009,17 @@ export default function BLPage() {
               <div style={{ marginBottom:16 }}>
                 <label style={labelStyle}>Adresse de livraison</label>
                 <input value={editForm.delivery_address} onChange={e => setEditForm({...editForm, delivery_address:e.target.value})} placeholder="Adresse complète" style={inputStyle} />
+              </div>
+
+              {/* Prestation */}
+              <div style={{ marginBottom:16 }}>
+                <label style={labelStyle}>Prestation</label>
+                <select value={editForm.prestation_id} onChange={e => setEditForm({...editForm, prestation_id:e.target.value})} style={inputStyle}>
+                  <option value="">— Aucune —</option>
+                  {prestations.map(p => (
+                    <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Lignes */}

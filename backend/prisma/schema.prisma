@@ -280,6 +280,8 @@ model User {
   notifications       Notification[]
   objectifs           Objectif[]
   prestations         Prestation[]
+  assigned_projects     ProjectAssignment[]
+  assigned_prestations  PrestationAssignment[]
   google_token        UserGoogleToken?
   mail_accounts       MailAccount[]
 
@@ -492,10 +494,25 @@ model Project {
   stock_movements StockMovement[]
   photos          ProjectPhoto[]
   objectifs       Objectif[]
+  assignments     ProjectAssignment[]
 
   @@index([client_id])
   @@index([status])
   @@map("projects")
+}
+
+/// Assignation multiple d'utilisateurs à un chantier (qui travaille sur ce chantier)
+model ProjectAssignment {
+  id          String   @id @default(uuid())
+  project_id  String
+  user_id     String
+  assigned_at DateTime @default(now())
+
+  project     Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([project_id, user_id])
+  @@map("project_assignments")
 }
 
 model ProjectPhoto {
@@ -656,9 +673,10 @@ model Devis {
   // Relations
   client_id       String
   project_id      String?
+  prestation_id   String?
   created_by      String
   signature_id    String?
-  
+
   // Dates
   issue_date      DateTime    @default(now())
   validity_days   Int         @default(30)
@@ -693,15 +711,17 @@ model Devis {
   // Relations
   client          Client      @relation(fields: [client_id], references: [id])
   project         Project?    @relation(fields: [project_id], references: [id])
+  prestation      Prestation? @relation("DevisPrestation", fields: [prestation_id], references: [id], onDelete: SetNull)
   creator         User        @relation(fields: [created_by], references: [id])
   signature       Signature?  @relation(fields: [signature_id], references: [id])
   lines           DevisLine[]
   bcs             BonCommande[]
-  prestations     Prestation[]
+  prestations     Prestation[] @relation("PrestationOriginDevis")
 
   @@index([client_id])
   @@index([status])
   @@index([number])
+  @@index([prestation_id])
   @@map("devis")
 }
 
@@ -733,8 +753,9 @@ model BonCommande {
   // Relations
   client_id       String
   project_id      String?
+  prestation_id   String?
   created_by      String
-  
+
   // Dates
   issue_date      DateTime       @default(now())
   expected_delivery DateTime?
@@ -756,15 +777,17 @@ model BonCommande {
   devis           Devis?         @relation(fields: [devis_id], references: [id])
   client          Client         @relation(fields: [client_id], references: [id])
   project         Project?       @relation(fields: [project_id], references: [id])
+  prestation      Prestation?    @relation(fields: [prestation_id], references: [id], onDelete: SetNull)
   creator         User           @relation(fields: [created_by], references: [id])
   signature       Signature?     @relation(fields: [signature_id], references: [id])
   lines           BCLine[]
   bls             BonLivraison[]
   invoices        Invoice[]
-  
+
   @@index([client_id])
   @@index([devis_id])
   @@index([status])
+  @@index([prestation_id])
   @@map("bons_commande")
 }
 
@@ -801,9 +824,10 @@ model BonLivraison {
   // Relations
   client_id       String
   project_id      String?
+  prestation_id   String?
   created_by      String
   signature_id    String?
-  
+
   // Dates
   issue_date      DateTime     @default(now())
   delivery_date   DateTime?
@@ -827,6 +851,7 @@ model BonLivraison {
   bc              BonCommande? @relation(fields: [bc_id], references: [id])
   client          Client       @relation(fields: [client_id], references: [id])
   project         Project?     @relation(fields: [project_id], references: [id])
+  prestation      Prestation?  @relation(fields: [prestation_id], references: [id], onDelete: SetNull)
   creator         User         @relation(fields: [created_by], references: [id])
   signature       Signature?   @relation(fields: [signature_id], references: [id])
   lines           BLLine[]
@@ -835,6 +860,7 @@ model BonLivraison {
   @@index([bc_id])
   @@index([client_id])
   @@index([status])
+  @@index([prestation_id])
   @@map("bons_livraison")
 }
 
@@ -879,9 +905,10 @@ model Invoice {
   // Relations
   client_id       String?
   project_id      String?
+  prestation_id   String?
   created_by      String
   signature_id    String?
-  
+
   // Dates
   issue_date      DateTime         @default(now())
   due_date        DateTime?        // Échéance
@@ -921,17 +948,19 @@ model Invoice {
   fournisseur     Fournisseur?     @relation(fields: [fournisseur_id], references: [id])
   client          Client?          @relation(fields: [client_id], references: [id])
   project         Project?         @relation(fields: [project_id], references: [id])
+  prestation      Prestation?      @relation(fields: [prestation_id], references: [id], onDelete: SetNull)
   creator         User             @relation(fields: [created_by], references: [id])
   signature       Signature?       @relation(fields: [signature_id], references: [id])
   lines           InvoiceLine[]
   payments        Payment[]
-  
+
   @@index([direction])
   @@index([status])
   @@index([client_id])
   @@index([fournisseur_id])
   @@index([bl_id])
   @@index([number])
+  @@index([prestation_id])
   @@map("invoices")
 }
 
@@ -1088,9 +1117,9 @@ model Expense {
   id              String          @id @default(uuid())
   project_id      String?
 
-  // Lien prestation (localStorage-based, pas FK)
+  // Lien prestation (FK réelle vers Prestation)
   prestation_id   String?
-  prestation_nom  String?
+  prestation_nom  String?  // dénormalisé pour affichage rapide, resynchronisé à l'écriture
 
   category        ExpenseCategory
   amount          Decimal         @db.Decimal(10, 2)
@@ -1120,12 +1149,14 @@ model Expense {
   updated_at      DateTime        @updatedAt
 
   project         Project?        @relation(fields: [project_id], references: [id])
+  prestation      Prestation?     @relation(fields: [prestation_id], references: [id], onDelete: SetNull)
   submitter       User            @relation("ExpenseSubmitter", fields: [submitted_by], references: [id])
   approver        User?           @relation("ExpenseApprover", fields: [approved_by], references: [id])
   paiement_dette  PaiementDette?  @relation(fields: [paiement_dette_id], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([project_id])
+  @@index([prestation_id])
   @@map("expenses")
 }
 
@@ -1287,12 +1318,32 @@ model Prestation {
   created_at  DateTime         @default(now())
   updated_at  DateTime         @updatedAt
 
-  creator     User             @relation(fields: [created_by], references: [id], onDelete: Cascade)
-  devis       Devis?           @relation(fields: [devis_id], references: [id], onDelete: SetNull)
+  creator     User                    @relation(fields: [created_by], references: [id], onDelete: Cascade)
+  devis       Devis?                  @relation("PrestationOriginDevis", fields: [devis_id], references: [id], onDelete: SetNull)
+
+  assignments PrestationAssignment[]
+  devis_docs  Devis[]                 @relation("DevisPrestation")
+  bcs         BonCommande[]
+  bls         BonLivraison[]
+  invoices    Invoice[]
+  expenses    Expense[]
 
   @@index([created_by])
   @@index([devis_id])
   @@map("prestations")
+}
+
+model PrestationAssignment {
+  id            String     @id @default(uuid())
+  prestation_id String
+  user_id       String
+  assigned_at   DateTime   @default(now())
+
+  prestation    Prestation @relation(fields: [prestation_id], references: [id], onDelete: Cascade)
+  user          User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([prestation_id, user_id])
+  @@map("prestation_assignments")
 }
 
 model UserGoogleToken {

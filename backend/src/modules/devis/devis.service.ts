@@ -11,6 +11,7 @@ interface DevisLineInput {
 interface CreateDevisInput {
   client_id: string;
   project_id?: string;
+  prestation_id?: string;
   signature_id?: string;
   object?: string;
   site?: string;
@@ -88,6 +89,7 @@ export class DevisService {
         number,
         client_id: input.client_id,
         project_id: input.project_id,
+        prestation_id: input.prestation_id,
         created_by: createdBy,
         signature_id: input.signature_id,
         object: input.object,
@@ -123,12 +125,14 @@ export class DevisService {
     page?: number;
     limit?: number;
     created_by?: string;
+    prestation_id?: string;
   }) {
     const page = params?.page || 1;
     const limit = params?.limit || 50;
     const where: any = {};
 
     if (params?.created_by) where.created_by = params.created_by;
+    if (params?.prestation_id) where.prestation_id = params.prestation_id;
     if (params?.statuses && params.statuses.length > 0) {
       where.status = { in: params.statuses };
     } else if (params?.status) {
@@ -170,6 +174,7 @@ export class DevisService {
         lines: { orderBy: { order: 'asc' } },
         client: true,
         project: true,
+        prestation: { select: { id: true, nom: true, client: true } },
         creator: { select: { first_name: true, last_name: true } },
         signature: true,
         bcs: { select: { id: true, number: true, status: true } },
@@ -204,6 +209,7 @@ export class DevisService {
         data: {
           client_id: input.client_id ?? devis.client_id,
           project_id: input.project_id !== undefined ? input.project_id : devis.project_id,
+          prestation_id: input.prestation_id !== undefined ? input.prestation_id : (devis as any).prestation_id,
           object: input.object !== undefined ? input.object : devis.object,
           site: input.site !== undefined ? input.site : (devis as any).site,
           payment_terms: input.payment_terms !== undefined ? input.payment_terms : devis.payment_terms,
@@ -276,6 +282,7 @@ export class DevisService {
         number,
         client_id: original.client_id,
         project_id: original.project_id,
+        prestation_id: (original as any).prestation_id,
         created_by: createdBy,
         object: `${original.object} (copie)`,
         site: (original as any).site,
@@ -315,6 +322,7 @@ export class DevisService {
     return {
       client_id: devis.client_id,
       project_id: devis.project_id,
+      prestation_id: (devis as any).prestation_id,
       lines: devis.lines.map((l) => ({
         description: l.description,
         quantity: l.quantity,
@@ -331,6 +339,7 @@ export class DevisService {
     return {
       client_id: devis.client_id,
       project_id: devis.project_id,
+      prestation_id: (devis as any).prestation_id,
       discount_rate: Number(devis.discount_rate),
       lines: devis.lines.map((l) => ({
         description: l.description,

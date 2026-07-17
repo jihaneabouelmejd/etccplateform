@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Plus, Search, Check, AlertCircle, Trash2, Banknote, Camera, X, Upload, Eye, ImageOff, Sparkles, FileText, ChevronDown, Pencil } from 'lucide-react';
-import { invoicesApi, blApi, fournisseursApi, uploadApi, signaturesApi } from '@/lib/api';
+import { invoicesApi, blApi, fournisseursApi, uploadApi, signaturesApi, prestationsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 import FileViewerModal from '@/components/ui/FileViewerModal';
@@ -64,7 +64,7 @@ export default function FacturesPage() {
   const [achatForm, setAchatForm] = useState({
     fournisseur_id: '', fournisseur_libre: '', ref_fournisseur: '',
     total_ht_brut: '', tva_amount: '', total_ttc: '',
-    issue_date: new Date().toISOString().slice(0,10), due_date: '', notes: '',
+    issue_date: new Date().toISOString().slice(0,10), due_date: '', notes: '', prestation_id: '',
   });
   const [creatingAchat, setCreatingAchat] = useState(false);
   const [achatError, setAchatError] = useState('');
@@ -77,7 +77,8 @@ export default function FacturesPage() {
 
   // Edit invoice modal
   const [editTarget, setEditTarget] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ issue_date: '', due_date: '', payment_terms: '', notes: '', discount_rate: 0, signature_id: '', number: '' });
+  const [editForm, setEditForm] = useState({ issue_date: '', due_date: '', payment_terms: '', notes: '', discount_rate: 0, signature_id: '', number: '', prestation_id: '' });
+  const [prestations, setPrestations] = useState<any[]>([]);
   const [editLines, setEditLines] = useState<Array<{ desc: string; qty: number; pu: number }>>([]);
   const [editSigs, setEditSigs] = useState<any[]>([]);
   const [editSaving, setEditSaving] = useState(false);
@@ -100,6 +101,10 @@ export default function FacturesPage() {
   };
 
   useEffect(() => { fetchData(); }, [tab, search, statusFilter]);
+
+  useEffect(() => {
+    prestationsApi.list().then(r => setPrestations(Array.isArray(r.data) ? r.data : [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!canDel) return;
@@ -172,7 +177,7 @@ export default function FacturesPage() {
   };
 
   const openAchatModal = () => {
-    setAchatForm({ fournisseur_id: '', fournisseur_libre: '', ref_fournisseur: '', total_ht_brut: '', tva_amount: '', total_ttc: '', issue_date: new Date().toISOString().slice(0,10), due_date: '', notes: '' });
+    setAchatForm({ fournisseur_id: '', fournisseur_libre: '', ref_fournisseur: '', total_ht_brut: '', tva_amount: '', total_ttc: '', issue_date: new Date().toISOString().slice(0,10), due_date: '', notes: '', prestation_id: '' });
     setScanPreview(null); setScanUrl(null); setScanFilename(null); setAchatError(''); setExtractMsg(null); setDetectedFournisseur(null);
     setAchatForm(f => ({ ...f, fournisseur_id: '', fournisseur_libre: '' }));
     fournisseursApi.list({ limit: 200 }).then(r => setFournisseurs(r.data.data || [])).catch(() => {});
@@ -273,6 +278,7 @@ export default function FacturesPage() {
       ].filter(Boolean);
       await invoicesApi.createPurchase({
         fournisseur_id: achatForm.fournisseur_id || undefined,
+        prestation_id: achatForm.prestation_id || undefined,
         total_ht_brut: parseFloat(achatForm.total_ht_brut) || 0,
         tva_amount: parseFloat(achatForm.tva_amount) || 0,
         total_ttc: parseFloat(achatForm.total_ttc) || 0,
@@ -317,6 +323,7 @@ export default function FacturesPage() {
       discount_rate: Number(full.discount_rate) || 0,
       signature_id: full.signature_id || '',
       number: full.number || '',
+      prestation_id: full.prestation_id || '',
     });
     setEditLines((full.lines || []).map((l: any) => ({ desc: l.description, qty: Number(l.quantity), pu: Number(l.unit_price) })));
     setEditError('');
@@ -336,6 +343,7 @@ export default function FacturesPage() {
         discount_rate: editForm.discount_rate,
         signature_id: editForm.signature_id || null,
         number: editForm.number || undefined,
+        prestation_id: editForm.prestation_id || null,
         lines: editLines.filter(l => l.desc).map(l => ({ description: l.desc, quantity: l.qty, unit_price: l.pu })),
       });
       fetchData();
@@ -925,6 +933,15 @@ export default function FacturesPage() {
                     )}
                   </div>
                   <div style={{ gridColumn:'1/-1' }}>
+                    <label style={lStyle}>Prestation <span style={{ fontWeight:400, color:'#B8A090' }}>(optionnel)</span></label>
+                    <select value={achatForm.prestation_id} onChange={e => setAchatForm({...achatForm, prestation_id: e.target.value})} style={iStyle}>
+                      <option value="">— Aucune —</option>
+                      {prestations.map(p => (
+                        <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div style={{ gridColumn:'1/-1' }}>
                     <label style={lStyle}>Référence fournisseur</label>
                     <input
                       value={achatForm.ref_fournisseur}
@@ -1117,6 +1134,18 @@ export default function FacturesPage() {
                 <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Notes</label>
                 <textarea value={editForm.notes} onChange={e => setEditForm({...editForm, notes:e.target.value})}
                   rows={2} style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', resize:'none', boxSizing:'border-box' }} />
+              </div>
+
+              {/* Prestation */}
+              <div style={{ marginBottom:16 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Prestation</label>
+                <select value={editForm.prestation_id} onChange={e => setEditForm({...editForm, prestation_id:e.target.value})}
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box', background:'white' }}>
+                  <option value="">— Aucune —</option>
+                  {prestations.map(p => (
+                    <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                  ))}
+                </select>
               </div>
 
               {/* Signature */}

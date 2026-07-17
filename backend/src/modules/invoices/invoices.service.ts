@@ -142,6 +142,7 @@ export class InvoicesService {
           site: siteValue,
           client_id: bl.client_id,
           project_id: bl.project_id,
+          prestation_id: (bl as any).prestation_id ?? (devis as any)?.prestation_id ?? undefined,
           created_by: createdBy,
           signature_id: input.signature_id,
           issue_date: new Date(),
@@ -195,6 +196,7 @@ export class InvoicesService {
   async createPurchaseInvoice(data: {
     fournisseur_id?: string;
     project_id?: string;
+    prestation_id?: string;
     scanned_file_url?: string;
     ocr_raw_data?: any;
     total_ht_brut: number;
@@ -214,6 +216,7 @@ export class InvoicesService {
         source: data.scanned_file_url ? 'SCANNED' : 'INTERNAL',
         fournisseur_id: data.fournisseur_id || undefined,
         project_id: data.project_id,
+        prestation_id: data.prestation_id,
         created_by: createdBy,
         scanned_file_url: data.scanned_file_url,
         ocr_raw_data: data.ocr_raw_data,
@@ -250,12 +253,14 @@ export class InvoicesService {
     page?: number;
     limit?: number;
     created_by?: string;
+    prestation_id?: string;
   }) {
     const page = params?.page || 1;
     const limit = Math.min(Number(params?.limit) || 50, 500);
     const where: any = {};
 
     if (params?.created_by) where.created_by = params.created_by;
+    if (params?.prestation_id) where.prestation_id = params.prestation_id;
     if (params?.direction) where.direction = params.direction;
     // Si status explicitement demandé → filtre exact ; sinon exclure CANCELLED (ils vont en Corbeille)
     if (params?.status) {
@@ -303,6 +308,7 @@ export class InvoicesService {
         payments: { orderBy: { date: 'desc' } },
         creator: { select: { first_name: true, last_name: true } },
         signature: true,
+        prestation: { select: { id: true, nom: true, client: true } },
       },
     });
     if (!invoice) throw new NotFoundException('Facture non trouvée');
@@ -321,6 +327,7 @@ export class InvoicesService {
     signature_id?: string | null;
     issue_date?: Date;
     number?: string;
+    prestation_id?: string | null;
   }) {
     const invoice = await this.findOne(id);
 
@@ -353,6 +360,7 @@ export class InvoicesService {
           ...(input.payment_terms !== undefined && { payment_terms: input.payment_terms }),
           ...(input.notes !== undefined && { notes: input.notes }),
           ...(input.signature_id !== undefined && { signature_id: input.signature_id || null }),
+          ...(input.prestation_id !== undefined && { prestation_id: input.prestation_id || null }),
           ...totals,
           ...(input.lines && input.lines.length > 0 ? {
             lines: {

@@ -31,8 +31,9 @@ export class ProjectsController {
     @Query('client_id') clientId?: string,
     @Query('search') search?: string,
     @Query('page') page?: number,
+    @Query('user_id') userId?: string,
   ) {
-    return this.projects.findAll({ status, client_id: clientId, search, page });
+    return this.projects.findAll({ status, client_id: clientId, search, page, user_id: userId });
   }
 
   @Get('stats')

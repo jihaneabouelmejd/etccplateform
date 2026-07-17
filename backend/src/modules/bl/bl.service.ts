@@ -13,6 +13,7 @@ interface CreateBLInput {
   devis_id?: string;
   client_id: string;
   project_id?: string;
+  prestation_id?: string;
   signature_id?: string;
   delivery_date?: Date;
   delivered_by?: string;
@@ -83,6 +84,7 @@ export class BLService {
         devis_id: devisId,
         client_id: devis.client_id,
         project_id: devis.project_id ?? undefined,
+        prestation_id: (devis as any).prestation_id ?? undefined,
         // Use override if provided, otherwise inherit from devis
         signature_id: signatureIdOverride ?? (devis as any).signature_id ?? undefined,
         lines,
@@ -98,6 +100,7 @@ export class BLService {
   async importBL(data: {
     client_id: string;
     project_id?: string;
+    prestation_id?: string;
     source: BLSource;
     imported_file_url?: string;
     ocr_raw_data?: any;
@@ -115,6 +118,7 @@ export class BLService {
         source: data.source,
         client_id: data.client_id,
         project_id: data.project_id,
+        prestation_id: data.prestation_id,
         created_by: createdBy,
         imported_file_url: data.imported_file_url,
         ocr_raw_data: data.ocr_raw_data,
@@ -153,11 +157,13 @@ export class BLService {
     // Le BL reprend le numéro de séquence et le site du document source (devis, sinon BC)
     let sourceNumber: string | undefined;
     let siteValue: string | undefined;
+    let prestationId: string | undefined = input.prestation_id;
     if (input.devis_id) {
       const devis = await this.prisma.devis.findUnique({ where: { id: input.devis_id } });
       if (devis) {
         sourceNumber = devis.number;
         siteValue = (devis as any).site ?? undefined;
+        if (!prestationId) prestationId = (devis as any).prestation_id ?? undefined;
       }
     } else if (bc) {
       if ((bc as any).devis) {
@@ -167,6 +173,7 @@ export class BLService {
         sourceNumber = bc.number;
         siteValue = (bc as any).site ?? undefined;
       }
+      if (!prestationId) prestationId = (bc as any).prestation_id ?? undefined;
     }
 
     const number = input.custom_number || (sourceNumber ? await this.deriveNumberFromSource(sourceNumber) : await this.generateNumber());
@@ -197,6 +204,7 @@ export class BLService {
           site: siteValue,
           client_id: input.client_id,
           project_id: input.project_id,
+          prestation_id: prestationId,
           created_by: createdBy,
           signature_id: input.signature_id,
           issue_date: input.issue_date || new Date(),
@@ -279,11 +287,12 @@ export class BLService {
     });
   }
 
-  async findAll(params?: { status?: BLStatus; search?: string; page?: number; limit?: number; created_by?: string }) {
+  async findAll(params?: { status?: BLStatus; search?: string; page?: number; limit?: number; created_by?: string; prestation_id?: string }) {
     const page = params?.page || 1;
     const limit = Math.min(Number(params?.limit) || 50, 500);
     const where: any = {};
     if (params?.created_by) where.created_by = params.created_by;
+    if (params?.prestation_id) where.prestation_id = params.prestation_id;
     if (params?.status) {
       where.status = params.status;
     } else {
@@ -315,6 +324,7 @@ export class BLService {
         bc: { include: { devis: { select: { number: true, id: true } } } },
         invoices: { select: { id: true, number: true, status: true } },
         signature: true,
+        prestation: { select: { id: true, nom: true, client: true } },
       },
     });
     if (!bl) throw new NotFoundException('BL non trouve');
@@ -329,6 +339,7 @@ export class BLService {
     delivery_address?: string;
     notes?: string;
     signature_id?: string;
+    prestation_id?: string | null;
     lines?: BLLineInput[];
   }) {
     await this.findOne(id);
@@ -346,6 +357,7 @@ export class BLService {
           ...(input.delivery_address !== undefined && { delivery_address: input.delivery_address || null }),
           ...(input.notes !== undefined && { notes: input.notes || null }),
           ...(input.signature_id !== undefined && { signature_id: input.signature_id || null }),
+          ...(input.prestation_id !== undefined && { prestation_id: input.prestation_id || null }),
           ...(input.lines ? {
             lines: {
               create: input.lines.map((l, i) => ({

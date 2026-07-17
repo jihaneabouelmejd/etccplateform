@@ -30,6 +30,7 @@ export class DevisController {
     @Query('client_id') clientId?: string,
     @Query('search') search?: string,
     @Query('page') page?: number,
+    @Query('prestation_id') prestationId?: string,
     @CurrentUser('id') userId?: string,
     @CurrentUser('role') role?: string,
     @CurrentUser('allowed_modules') allowedModules?: string[],
@@ -38,7 +39,7 @@ export class DevisController {
     const hasFullAccess = role === Role.ADMIN || role === Role.GERANT
       || (role === Role.EMPLOYE && allowedModules?.includes('devis'));
     const createdBy = hasFullAccess ? undefined : userId;
-    return this.devis.findAll({ status, statuses: statusesArr, client_id: clientId, search, page, created_by: createdBy });
+    return this.devis.findAll({ status, statuses: statusesArr, client_id: clientId, search, page, created_by: createdBy, prestation_id: prestationId });
   }
 
   @Get('stats')
