@@ -32,6 +32,7 @@ const MODULE_OPTIONS: { key: string; label: string; emoji: string }[] = [
   { key: 'comptabilite',          label: 'Comptabilité',         emoji: '📒' },
   { key: 'comptabilite-interne',  label: 'Comptabilité interne', emoji: '📊' },
   { key: 'pdf',                   label: 'Fusion PDF',           emoji: '🔗' },
+  { key: 'messagerie',            label: 'Messagerie',           emoji: '📧' },
 ];
 
 export default function EmployesPage() {
