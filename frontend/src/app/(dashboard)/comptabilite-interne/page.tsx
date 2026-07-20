@@ -5,6 +5,7 @@ import { TrendingUp, TrendingDown, Receipt, FileText, Building2, Upload, AlertTr
 import api, { invoicesApi, depensesApi, comptaApi, uploadApi } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
+import FileViewerModal from '@/components/ui/FileViewerModal';
 
 const MONTHS = ['Jan','Fev','Mar','Avr','Mai','Juin','Juil','Aou','Sep','Oct','Nov','Dec'];
 
@@ -917,30 +918,7 @@ export default function ComptabiliteInternePage() {
         </div>
       )}
       {/* ======== VIEWER PLEIN ECRAN ======== */}
-      {viewReleve && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:1000, display:'flex', flexDirection:'column' }}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 20px', background:'#1A141A', flexShrink:0 }}>
-            <span style={{ color:'white', fontWeight:700, fontSize:14 }}>Relevé bancaire</span>
-            <div style={{ display:'flex', gap:10 }}>
-              <button onClick={() => downloadFile(viewReleve, 'releve')}
-                style={{ padding:'7px 16px', borderRadius:7, border:'none', background:'#F4B315', color:'#1A141A', fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:6 }}>
-                <Download size={13}/> Télécharger
-              </button>
-              <button onClick={() => setViewReleve(null)}
-                style={{ padding:'7px 16px', borderRadius:7, border:'none', background:'#EF4444', color:'white', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                ✕ Fermer
-              </button>
-            </div>
-          </div>
-          <div style={{ flex:1, overflow:'auto', display:'flex', justifyContent:'center', alignItems:'flex-start', padding:20 }}>
-            {viewReleve.toLowerCase().match(/\.(jpe?g|png|webp|gif)/) ? (
-              <img src={viewReleve} alt="releve" style={{ maxWidth:'100%', maxHeight:'calc(100vh - 100px)', objectFit:'contain', borderRadius:8, boxShadow:'0 4px 32px rgba(0,0,0,0.5)' }} />
-            ) : (
-              <iframe src={viewReleve} style={{ width:'100%', height:'calc(100vh - 100px)', border:'none', borderRadius:8, background:'white' }} title="Relevé bancaire" />
-            )}
-          </div>
-        </div>
-      )}
+      <FileViewerModal url={viewReleve} title="Relevé bancaire" onClose={() => setViewReleve(null)} />
 
       {/* ======== TAB ENCAISSEMENTS ======== */}
       {tab === 'encaissements' && (

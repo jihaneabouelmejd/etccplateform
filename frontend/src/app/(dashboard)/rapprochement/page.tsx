@@ -9,6 +9,7 @@ import {
 import { useLanguage } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import api from '@/lib/api';
+import FileViewerModal from '@/components/ui/FileViewerModal';
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
 async function downloadFile(url: string, filename = 'document') {
@@ -533,27 +534,7 @@ tr:nth-child(even){background:#FFFDF7;}
       )}
 
       {/* ═══ VIEWER PLEIN ÉCRAN ══════════════════════════════════════════ */}
-      {viewReleve && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 3000, display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.92)' }}>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '10px 18px', gap: 10, flexShrink: 0 }}>
-            <button onClick={() => downloadFile(viewReleve, 'releve')}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#F4B315,#E59312)', color: '#1A141A', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-              <Download size={13}/> Télécharger
-            </button>
-            <button onClick={() => setViewReleve(null)}
-              style={{ width: 34, height: 34, borderRadius: '50%', background: '#EF4444', border: 'none', color: 'white', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              &#x2715;
-            </button>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 16px 16px' }}>
-            {viewReleve.toLowerCase().match(/\.(jpe?g|png|webp|gif|bmp)/) ? (
-              <img src={viewReleve} alt="relevé" style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 10, objectFit: 'contain' }}/>
-            ) : (
-              <iframe src={viewReleve} style={{ width: '88vw', height: '88vh', border: 'none', borderRadius: 10, background: 'white' }} title="Relevé bancaire"/>
-            )}
-          </div>
-        </div>
-      )}
+      <FileViewerModal url={viewReleve} title="Relevé bancaire" onClose={() => setViewReleve(null)} />
 
       {/* ═══ MODAL LIER FACTURE ══════════════════════════════════════════ */}
       {linkTarget && (
