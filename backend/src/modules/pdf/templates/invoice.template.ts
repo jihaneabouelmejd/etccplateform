@@ -1,4 +1,4 @@
-import { fmt, fmtAr, fmtDate } from './base.helpers';
+import { fmt, fmtAr, fmtDate, montantEnLettresMAD } from './base.helpers';
 import type { InvoicePDFData, PDFLanguage } from '../pdf.service';
 
 interface CompanyData {
@@ -90,6 +90,11 @@ body{
 .tfl{font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:rgba(0,0,0,0.5);}
 .tfv{font-size:20px;font-weight:900;color:#0C0C0C;letter-spacing:-1px;}
 
+/* MONTANT EN LETTRES */
+.mlettres{margin:0 48px 18px;padding:11px 16px;background:#FFFBF0;border:1.5px dashed #D4A017;border-radius:5px;}
+.mlettres .mll{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#D4A017;display:block;margin-bottom:4px;}
+.mlettres .mlv{font-size:12px;font-style:italic;font-weight:600;color:#1A1A1A;}
+
 /* PAIEMENT */
 .pay{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0 48px 18px;}
 .pay-block{background:#F4F4F4;border-radius:5px;padding:14px 18px;}
@@ -120,6 +125,8 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
   const f = isAR ? fmtAr : fmt;
   const c = data.company;
   const isPaid = data.balance <= 0;
+  const amountToSpell = data.balance > 0 ? data.balance : data.total_ttc;
+  const amountInWords = montantEnLettresMAD(amountToSpell);
 
   const rawName = c.legal_name || c.name || '';
   const brandName = rawName.length >= 2
@@ -229,6 +236,11 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
       <span class="tfv">${f(data.balance > 0 ? data.balance : data.total_ttc)} DH</span>
     </div>
   </div>
+</div>
+
+<div class="mlettres">
+  <span class="mll">${isAR ? 'Montant en lettres' : (data.acompte_amount > 0 ? 'Arrêtée la présente facture, solde à régler à la somme de' : 'Arrêtée la présente facture à la somme de')}</span>
+  <span class="mlv">${amountInWords}</span>
 </div>
 
 <div class="pay">

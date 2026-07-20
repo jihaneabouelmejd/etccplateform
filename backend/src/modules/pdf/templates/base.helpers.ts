@@ -26,6 +26,89 @@ export function fmtDate(dateStr: string | Date, lang: 'FR' | 'AR'): string {
   }).format(d);
 }
 
+// ============================================================================
+// Montant en lettres (français) — pour les factures
+// ============================================================================
+
+const FR_UNITS = ['', 'un', 'deux', 'trois', 'quatre', 'cinq', 'six', 'sept', 'huit', 'neuf',
+  'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept', 'dix-huit', 'dix-neuf'];
+const FR_TENS = ['', '', 'vingt', 'trente', 'quarante', 'cinquante', 'soixante', 'soixante-dix', 'quatre-vingt', 'quatre-vingt-dix'];
+
+function frConvertGroup(n: number): string {
+  let str = '';
+  const h = Math.floor(n / 100);
+  const rest = n % 100;
+  if (h > 0) {
+    str += (h > 1 ? FR_UNITS[h] + ' ' : '') + 'cent';
+    if (h > 1 && rest === 0) str += 's';
+    if (rest > 0) str += ' ';
+  }
+  if (rest > 0) {
+    if (rest < 20) {
+      str += FR_UNITS[rest];
+    } else {
+      const t = Math.floor(rest / 10);
+      const u = rest % 10;
+      if (t === 7 || t === 9) {
+        const base = FR_TENS[t - 1];
+        // "soixante et onze" (71) mais "quatre-vingt-onze" (91, pas de "et")
+        str += (t === 7 && u === 1) ? `${base} et onze` : `${base}-${FR_UNITS[10 + u]}`;
+      } else {
+        str += FR_TENS[t];
+        if (u === 1 && t !== 8) str += ' et un';
+        else if (u > 0) str += `-${FR_UNITS[u]}`;
+        else if (t === 8) str += 's';
+      }
+    }
+  }
+  return str;
+}
+
+/** Convertit un entier en toutes lettres françaises (ex: 1234 -> "mille deux cent trente-quatre"). */
+export function numberToWordsFR(num: number): string {
+  const n = Math.floor(Math.abs(num));
+  if (n === 0) return 'zéro';
+
+  const scales: { value: number; singular: string; plural: string }[] = [
+    { value: 1_000_000_000, singular: 'milliard', plural: 'milliards' },
+    { value: 1_000_000, singular: 'million', plural: 'millions' },
+    { value: 1_000, singular: 'mille', plural: 'mille' },
+  ];
+
+  let remainder = n;
+  const parts: string[] = [];
+  for (const scale of scales) {
+    if (remainder >= scale.value) {
+      const count = Math.floor(remainder / scale.value);
+      remainder %= scale.value;
+      if (scale.value === 1_000 && count === 1) {
+        parts.push('mille');
+      } else {
+        parts.push(`${frConvertGroup(count)} ${count > 1 ? scale.plural : scale.singular}`);
+      }
+    }
+  }
+  if (remainder > 0 || parts.length === 0) {
+    parts.push(frConvertGroup(remainder));
+  }
+  return parts.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+/** Formate un montant en Dirhams marocains en toutes lettres (ex: "Mille deux cents Dirhams et cinquante Centimes"). */
+export function montantEnLettresMAD(amount: number): string {
+  const safe = Number.isFinite(amount) ? Math.abs(amount) : 0;
+  const dirhams = Math.floor(safe);
+  const centimes = Math.round((safe - dirhams) * 100);
+
+  const dirhamsWords = numberToWordsFR(dirhams);
+  let result = `${dirhamsWords.charAt(0).toUpperCase()}${dirhamsWords.slice(1)} Dirham${dirhams > 1 ? 's' : ''}`;
+
+  if (centimes > 0) {
+    result += ` et ${numberToWordsFR(centimes)} Centime${centimes > 1 ? 's' : ''}`;
+  }
+  return result;
+}
+
 export const HONEY = {
   dark: '#1A141A',
   caramel: '#E59312',
