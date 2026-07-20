@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { FileText, Download, TrendingUp, TrendingDown, Building2, Camera, ExternalLink, Eye, RefreshCw } from 'lucide-react';
+import { FileText, Download, TrendingUp, TrendingDown, Building2, Camera, ExternalLink, Eye, RefreshCw, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
 import { invoicesApi, depensesApi, comptaApi } from '@/lib/api';
@@ -119,6 +119,22 @@ export default function ComptabilitePage() {
     if (lastUpdate) loadReleves(true);
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
+
+  /* ── suppression facture ────────────────────────── */
+  const handleDeleteInvoice = async (inv: any) => {
+    const isCancelled = inv.status === 'CANCELLED';
+    const msg = isCancelled
+      ? `Supprimer définitivement la facture ${inv.number} ? Cette action est irréversible.`
+      : `Supprimer la facture ${inv.number} ? Elle sera déplacée dans la corbeille (annulée).`;
+    if (!confirm(msg)) return;
+    try {
+      if (isCancelled) await invoicesApi.hardDelete(inv.id);
+      else await invoicesApi.cancel(inv.id);
+      await loadAll();
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Erreur lors de la suppression');
+    }
+  };
 
   /* ── loaders ─────────────────────────────────── */
   const loadAll = async () => {
@@ -402,6 +418,11 @@ export default function ComptabilitePage() {
                                   </button>
                                 </div>
                               )}
+                              <button onClick={() => handleDeleteInvoice(inv)}
+                                style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'3px 8px', borderRadius:5, border:'1px solid #FECACA', background:'white', color:'#DC2626', fontSize:9, fontWeight:600, cursor:'pointer', alignSelf:'flex-start' }}
+                                title="Supprimer">
+                                <Trash2 size={9}/> Supprimer
+                              </button>
                             </div>
                           </td>
                         </tr>
