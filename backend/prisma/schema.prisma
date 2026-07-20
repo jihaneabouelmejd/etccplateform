@@ -1363,14 +1363,14 @@ model UserGoogleToken {
   @@map("user_google_tokens")
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   MODULE MARCHÉS PRIVÉS
-   Module additif et indépendant — aucune table existante n'est modifiée.
-   Lien vers Client (optionnel) et Project (optionnel, transformation en chantier).
-   Les champs "responsable_id / valide_par_id / responsable_depot_id / created_by"
-   référencent des User.id en texte libre (sans contrainte FK) pour ne poser
-   aucune relation supplémentaire sur le modèle User existant.
-   ══════════════════════════════════════════════════════════════════ */
+// ══════════════════════════════════════════════════════════════════
+// MODULE MARCHÉS PRIVÉS
+// Module additif et indépendant — aucune table existante n'est modifiée.
+// Lien vers Client (optionnel) et Project (optionnel, transformation en chantier).
+// Les champs "responsable_id / valide_par_id / responsable_depot_id / created_by"
+// référencent des User.id en texte libre (sans contrainte FK) pour ne poser
+// aucune relation supplémentaire sur le modèle User existant.
+// ══════════════════════════════════════════════════════════════════
 
 enum MarcheStage {
   NOUVEAU         // Nouveaux marchés (détectés)
