@@ -23,6 +23,7 @@ import { UploadModule } from './modules/upload/upload.module';
 import { AgendaModule } from './modules/agenda/agenda.module';
 import { PrestationsModule } from './modules/prestations/prestations.module';
 import { MailModule } from './modules/mail/mail.module';
+import { MarchesPrivesModule } from './modules/marches-prives/marches-prives.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { MailModule } from './modules/mail/mail.module';
     AgendaModule,
     PrestationsModule,
     MailModule,
+    MarchesPrivesModule,
   ],
 })
 export class AppModule {}

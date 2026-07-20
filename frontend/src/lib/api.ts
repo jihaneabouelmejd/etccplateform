@@ -303,3 +303,24 @@ export const mailApi = {
   adminRemoveAccount: (userId: string) => api.delete(`/mail/account/${userId}`),
   adminTestAccount: (userId: string) => api.post(`/mail/account/${userId}/test`),
 };
+
+export const marchesPrivesApi = {
+  list: (params?: any) => api.get('/marches-prives', { params }),
+  get: (id: string) => api.get(`/marches-prives/${id}`),
+  create: (data: any) => api.post('/marches-prives', data),
+  update: (id: string, data: any) => api.patch(`/marches-prives/${id}`, data),
+  changeStage: (id: string, stage: string, extra?: any) =>
+    api.patch(`/marches-prives/${id}/stage`, { stage, ...extra }),
+  transformerEnChantier: (id: string, data?: any) =>
+    api.post(`/marches-prives/${id}/transformer-en-chantier`, data || {}),
+  delete: (id: string) => api.delete(`/marches-prives/${id}`),
+  stats: () => api.get('/marches-prives/stats'),
+  // Documents
+  addDocument: (id: string, data: any) => api.post(`/marches-prives/${id}/documents`, data),
+  updateDocument: (docId: string, data: any) => api.patch(`/marches-prives/documents/${docId}`, data),
+  deleteDocument: (docId: string) => api.delete(`/marches-prives/documents/${docId}`),
+  // Dépenses
+  addDepense: (id: string, data: any) => api.post(`/marches-prives/${id}/depenses`, data),
+  updateDepense: (depId: string, data: any) => api.patch(`/marches-prives/depenses/${depId}`, data),
+  deleteDepense: (depId: string) => api.delete(`/marches-prives/depenses/${depId}`),
+};

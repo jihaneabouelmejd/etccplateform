@@ -397,7 +397,8 @@ model Client {
   bcs             BonCommande[]
   bls             BonLivraison[]
   invoices        Invoice[]
-  
+  marches_prives  MarchePrive[]
+
   @@index([ice])
   @@index([commercial_name])
   @@map("clients")
@@ -495,6 +496,7 @@ model Project {
   photos          ProjectPhoto[]
   objectifs       Objectif[]
   assignments     ProjectAssignment[]
+  marche_origine  MarchePrive?
 
   @@index([client_id])
   @@index([status])
@@ -1359,4 +1361,123 @@ model UserGoogleToken {
   user          User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("user_google_tokens")
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MODULE MARCHÉS PRIVÉS
+   Module additif et indépendant — aucune table existante n'est modifiée.
+   Lien vers Client (optionnel) et Project (optionnel, transformation en chantier).
+   Les champs "responsable_id / valide_par_id / responsable_depot_id / created_by"
+   référencent des User.id en texte libre (sans contrainte FK) pour ne poser
+   aucune relation supplémentaire sur le modèle User existant.
+   ══════════════════════════════════════════════════════════════════ */
+
+enum MarcheStage {
+  NOUVEAU         // Nouveaux marchés (détectés)
+  RETENU          // Opportunités retenues (acceptées)
+  EN_PREPARATION  // Dossiers en préparation
+  A_VALIDER       // Dossiers à valider
+  DEPOSE          // Dossiers déposés
+  GAGNE           // Marchés gagnés
+  PERDU           // Marchés perdus
+}
+
+enum MarcheDocType {
+  ADMINISTRATIF
+  TECHNIQUE
+  FINANCIER
+  AUTRE
+}
+
+model MarchePrive {
+  id                    String        @id @default(uuid())
+
+  reference             String?
+  objet                 String
+  client_id             String?
+  client_name           String?
+  ville                 String?
+  budget_estimatif      Decimal?      @db.Decimal(14, 2)
+  devise                String?       @default("MAD")
+  date_limite           DateTime?
+  source                String?
+  score_ia              Int?
+
+  stage                 MarcheStage   @default(NOUVEAU)
+  refuse_reason         String?       @db.Text
+
+  // Préparation (checklist manuelle — lot 1)
+  dossier_admin_ok      Boolean       @default(false)
+  dossier_technique_ok  Boolean       @default(false)
+  dossier_financier_ok  Boolean       @default(false)
+
+  // Validation
+  valide_par_id         String?
+  valide_at             DateTime?
+
+  // Dépôt
+  date_depot            DateTime?
+  responsable_depot_id  String?
+  depot_notes           String?       @db.Text
+
+  // Résultat
+  cause_perte           String?       @db.Text
+  montant_final          Decimal?     @db.Decimal(14, 2)
+
+  // Transformation en chantier (une fois gagné)
+  project_id             String?      @unique
+
+  responsable_id         String?
+  notes                  String?      @db.Text
+
+  created_by              String?
+  created_at              DateTime    @default(now())
+  updated_at               DateTime   @updatedAt
+
+  client                   Client?    @relation(fields: [client_id], references: [id], onDelete: SetNull)
+  project                  Project?   @relation(fields: [project_id], references: [id], onDelete: SetNull)
+
+  documents                MarcheDocument[]
+  depenses                 MarcheDepense[]
+
+  @@index([stage])
+  @@index([client_id])
+  @@index([date_limite])
+  @@map("marches_prives")
+}
+
+model MarcheDocument {
+  id          String        @id @default(uuid())
+  marche_id   String
+  type        MarcheDocType @default(AUTRE)
+  nom         String
+  file_url    String
+  obligatoire Boolean       @default(false)
+  valide      Boolean       @default(false)
+  expire_at   DateTime?
+  uploaded_by String?
+  created_at  DateTime      @default(now())
+
+  marche      MarchePrive   @relation(fields: [marche_id], references: [id], onDelete: Cascade)
+
+  @@index([marche_id])
+  @@map("marche_documents")
+}
+
+model MarcheDepense {
+  id                        String      @id @default(uuid())
+  marche_id                 String
+  libelle                   String
+  montant                   Decimal     @db.Decimal(12, 2)
+  date                      DateTime    @default(now())
+  categorie                 String?
+  notes                     String?     @db.Text
+  transferred_to_expense_id String?
+  created_by                String?
+  created_at                DateTime    @default(now())
+
+  marche                    MarchePrive @relation(fields: [marche_id], references: [id], onDelete: Cascade)
+
+  @@index([marche_id])
+  @@map("marche_depenses")
 }
