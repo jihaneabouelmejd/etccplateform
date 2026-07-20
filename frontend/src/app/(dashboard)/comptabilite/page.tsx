@@ -6,15 +6,26 @@ import api from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
 import { invoicesApi, depensesApi, comptaApi } from '@/lib/api';
 import PDFButton from '@/components/ui/PDFButton';
+import FileViewerModal from '@/components/ui/FileViewerModal';
 import { formatCurrency, formatDate, cn } from '@/lib/utils';
 
 const MONTHS = ['Janvier','Fevrier','Mars','Avril','Mai','Juin','Juillet','Aout','Septembre','Octobre','Novembre','Decembre'];
+
+function isCloudinaryUrl(url: string) {
+  return url.includes('cloudinary.com');
+}
+
+// Proxy backend : évite le 401 Cloudinary en passant par notre API authentifiée
+function proxyDownloadUrl(url: string): string {
+  return `/api/upload/proxy?url=${encodeURIComponent(url)}&dl=1`;
+}
 
 /** Téléchargement forcé via blob — contourne target=_blank + download ignoré par les navigateurs */
 async function downloadFile(url: string, filename = 'document') {
   try {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-    const res = await fetch(url, token ? { headers: { Authorization: `Bearer ${token}` } } : {});
+    const fetchUrl = isCloudinaryUrl(url) ? proxyDownloadUrl(url) : url;
+    const res = await fetch(fetchUrl, token ? { headers: { Authorization: `Bearer ${token}` } } : {});
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const blob = await res.blob();
     const ext  = url.toLowerCase().endsWith('.pdf') ? '.pdf'
@@ -29,7 +40,8 @@ async function downloadFile(url: string, filename = 'document') {
     URL.revokeObjectURL(objUrl);
   } catch (e) {
     console.error('Download failed', e);
-    window.open(url, '_blank');   // fallback : ouvrir dans un onglet
+    // Fallback : ouvrir via le proxy pour éviter le 401 Cloudinary
+    window.open(isCloudinaryUrl(url) ? proxyDownloadUrl(url).replace('&dl=1','') : url, '_blank');
   }
 }
 
@@ -503,29 +515,7 @@ export default function ComptabilitePage() {
 
 
       {/* Viewer plein écran */}
-      {viewReleve && (
-        <div style={{ position:'fixed', inset:0, zIndex:3000, display:'flex', flexDirection:'column', background:'rgba(0,0,0,0.92)' }}>
-          {/* Header */}
-          <div style={{ display:'flex', justifyContent:'flex-end', alignItems:'center', padding:'10px 18px', gap:10, flexShrink:0 }}>
-            <button onClick={() => viewReleve && downloadFile(viewReleve, 'document')}
-              style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#F4B315,#E59312)', color:'#1A141A', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-              <Download size={13}/> Télécharger
-            </button>
-            <button onClick={() => setViewReleve(null)}
-              style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:34, height:34, borderRadius:'50%', background:'#EF4444', border:'none', color:'white', fontSize:18, cursor:'pointer' }}>
-              &#x2715;
-            </button>
-          </div>
-          {/* Content */}
-          <div style={{ flex:1, overflow:'auto', display:'flex', alignItems:'center', justifyContent:'center', padding:'0 16px 16px' }}>
-            {viewReleve?.toLowerCase().match(/\.(jpe?g|png|webp|gif|bmp)/) ? (
-              <img src={viewReleve} alt="document" style={{ maxWidth:'100%', maxHeight:'100%', borderRadius:10, objectFit:'contain', display:'block' }}/>
-            ) : (
-              <iframe src={viewReleve} style={{ width:'88vw', height:'88vh', border:'none', borderRadius:10, background:'white' }} title="Document"/>
-            )}
-          </div>
-        </div>
-      )}
+      <FileViewerModal url={viewReleve} title="Document" onClose={() => setViewReleve(null)} />
     </div>
   );
 }
