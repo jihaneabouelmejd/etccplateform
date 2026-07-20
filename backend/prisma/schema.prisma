@@ -1427,6 +1427,11 @@ model MarchePrive {
   // Transformation en chantier (une fois gagné)
   project_id             String?      @unique
 
+  // Sync Calendrier ↔ Agenda (lot 2) — lien optionnel vers une Task existante
+  // (module Agenda/Tasks) pour rappeler la date limite. Champ additif,
+  // ne modifie pas le modèle Task existant.
+  agenda_task_id          String?
+
   responsable_id         String?
   notes                  String?      @db.Text
 

@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { MarcheStage, MarcheDocType } from '@prisma/client';
+import { MarcheStage, MarcheDocType, TaskStatus } from '@prisma/client';
 import { ProjectsService } from '../projects/projects.service';
+import { TasksService } from '../tasks/tasks.service';
 
 const MARCHE_INCLUDE = {
   client: { select: { id: true, commercial_name: true } },
@@ -15,7 +16,49 @@ export class MarchesPrivesService {
   constructor(
     private prisma: PrismaService,
     private projectsService: ProjectsService,
+    private tasksService: TasksService,
   ) {}
+
+  // ─── Sync Calendrier ↔ Agenda (lot 2) ──────────────────────────────────
+  // Réutilise TasksService.create/update/remove/updateStatus (module Tasks/
+  // Agenda existant) sans le modifier. Best-effort : un échec de sync ne
+  // doit jamais faire échouer une opération sur le marché lui-même.
+
+  private async syncAgendaTask(
+    marcheId: string,
+    objet: string,
+    dateLimite: Date | null,
+    existingTaskId: string | null | undefined,
+    userId?: string,
+  ) {
+    try {
+      if (!dateLimite) {
+        if (existingTaskId) {
+          await this.tasksService.remove(existingTaskId).catch(() => undefined);
+          await this.prisma.marchePrive.update({ where: { id: marcheId }, data: { agenda_task_id: null } });
+        }
+        return;
+      }
+      const title = `📋 Marché privé — date limite : ${objet}`;
+      if (existingTaskId) {
+        await this.tasksService.update(existingTaskId, { title, due_date: dateLimite });
+      } else {
+        const task = await this.tasksService.create({ title, due_date: dateLimite, priority: 1 }, userId || 'system');
+        await this.prisma.marchePrive.update({ where: { id: marcheId }, data: { agenda_task_id: task.id } });
+      }
+    } catch {
+      // sync additive uniquement — on ignore silencieusement les erreurs
+    }
+  }
+
+  private async completeAgendaTask(existingTaskId: string | null | undefined) {
+    if (!existingTaskId) return;
+    try {
+      await this.tasksService.updateStatus(existingTaskId, TaskStatus.DONE);
+    } catch {
+      // sync additive uniquement — on ignore silencieusement les erreurs
+    }
+  }
 
   // ─── Marchés ────────────────────────────────────────────────────────────
 
@@ -36,7 +79,7 @@ export class MarchesPrivesService {
     if (!data.objet || !data.objet.trim()) {
       throw new BadRequestException("L'objet du marché est requis");
     }
-    return this.prisma.marchePrive.create({
+    const marche = await this.prisma.marchePrive.create({
       data: {
         objet: data.objet,
         reference: data.reference,
@@ -54,6 +97,12 @@ export class MarchesPrivesService {
       },
       include: MARCHE_INCLUDE,
     });
+
+    if (data.date_limite) {
+      await this.syncAgendaTask(marche.id, marche.objet, new Date(data.date_limite), null, createdBy);
+      return this.findOne(marche.id);
+    }
+    return marche;
   }
 
   async findAll(params?: {
@@ -102,7 +151,7 @@ export class MarchesPrivesService {
   }
 
   async update(id: string, data: any) {
-    await this.findOne(id);
+    const before = await this.findOne(id);
     const updateData: any = {};
     const fields = [
       'objet', 'reference', 'client_id', 'client_name', 'ville', 'source',
@@ -119,11 +168,25 @@ export class MarchesPrivesService {
     if (data.dossier_technique_ok !== undefined) updateData.dossier_technique_ok = !!data.dossier_technique_ok;
     if (data.dossier_financier_ok !== undefined) updateData.dossier_financier_ok = !!data.dossier_financier_ok;
 
-    return this.prisma.marchePrive.update({
+    const updated = await this.prisma.marchePrive.update({
       where: { id },
       data: updateData,
       include: MARCHE_INCLUDE,
     });
+
+    // Sync Calendrier ↔ Agenda (lot 2) — uniquement si date_limite ou objet changent
+    if (data.date_limite !== undefined) {
+      await this.syncAgendaTask(
+        id,
+        updated.objet,
+        updateData.date_limite ?? null,
+        before.agenda_task_id,
+        updated.created_by || undefined,
+      );
+      return this.findOne(id);
+    }
+
+    return updated;
   }
 
   /**
@@ -131,7 +194,7 @@ export class MarchesPrivesService {
    * L'utilisateur fait progresser le dossier lui-même dans le pipeline.
    */
   async changeStage(id: string, stage: MarcheStage, extra: any, userId: string) {
-    await this.findOne(id);
+    const before = await this.findOne(id);
     const data: any = { stage };
 
     if (stage === 'PERDU' && !extra?.cause_perte) {
@@ -155,11 +218,22 @@ export class MarchesPrivesService {
       if (extra?.notes !== undefined) data.notes = extra.notes;
     }
 
-    return this.prisma.marchePrive.update({ where: { id }, data, include: MARCHE_INCLUDE });
+    const updated = await this.prisma.marchePrive.update({ where: { id }, data, include: MARCHE_INCLUDE });
+
+    // Sync Calendrier ↔ Agenda (lot 2) — une fois déposé/gagné/perdu, la
+    // date limite n'est plus une échéance à venir : on clôture le rappel.
+    if ((stage === 'DEPOSE' || stage === 'GAGNE' || stage === 'PERDU') && before.agenda_task_id) {
+      await this.completeAgendaTask(before.agenda_task_id);
+    }
+
+    return updated;
   }
 
   async remove(id: string) {
-    await this.findOne(id);
+    const marche = await this.findOne(id);
+    if (marche.agenda_task_id) {
+      await this.tasksService.remove(marche.agenda_task_id).catch(() => undefined);
+    }
     return this.prisma.marchePrive.delete({ where: { id } });
   }
 
