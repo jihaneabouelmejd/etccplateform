@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "Backend NestJS pour la plateforme ETCC",
   "main": "dist/main.js",
+  "engines": {
+    "node": ">=20.18.1"
+  },
   "scripts": {
     "build": "npx prisma generate && nest build",
     "start": "nest start",
