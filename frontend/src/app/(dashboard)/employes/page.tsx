@@ -33,6 +33,8 @@ const MODULE_OPTIONS: { key: string; label: string; emoji: string }[] = [
   { key: 'comptabilite-interne',  label: 'Comptabilité interne', emoji: '📊' },
   { key: 'pdf',                   label: 'Fusion PDF',           emoji: '🔗' },
   { key: 'messagerie',            label: 'Messagerie',           emoji: '📧' },
+  { key: 'marches-prives',        label: 'Marchés Privés',       emoji: '📑' },
+  { key: 'veille',                label: 'Veille commerciale',   emoji: '🔎' },
 ];
 
 export default function EmployesPage() {

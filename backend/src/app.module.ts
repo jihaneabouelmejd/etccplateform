@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -24,11 +25,13 @@ import { AgendaModule } from './modules/agenda/agenda.module';
 import { PrestationsModule } from './modules/prestations/prestations.module';
 import { MailModule } from './modules/mail/mail.module';
 import { MarchesPrivesModule } from './modules/marches-prives/marches-prives.module';
+import { VeilleModule } from './modules/veille/veille.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
     // ✅ ThrottlerModule supprimé temporairement
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -53,6 +56,7 @@ import { MarchesPrivesModule } from './modules/marches-prives/marches-prives.mod
     PrestationsModule,
     MailModule,
     MarchesPrivesModule,
+    VeilleModule,
   ],
 })
 export class AppModule {}

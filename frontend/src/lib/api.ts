@@ -324,3 +324,27 @@ export const marchesPrivesApi = {
   updateDepense: (depId: string, data: any) => api.patch(`/marches-prives/depenses/${depId}`, data),
   deleteDepense: (depId: string) => api.delete(`/marches-prives/depenses/${depId}`),
 };
+
+export const veilleApi = {
+  // Entreprises
+  entreprises: {
+    list: (params?: any) => api.get('/veille/entreprises', { params }),
+    get: (id: string) => api.get(`/veille/entreprises/${id}`),
+    dashboard: () => api.get('/veille/entreprises/dashboard'),
+    aConfigurer: () => api.get('/veille/entreprises/a-configurer'),
+    create: (data: any) => api.post('/veille/entreprises', data),
+    update: (id: string, data: any) => api.patch(`/veille/entreprises/${id}`, data),
+    configureSelectors: (id: string, config: any) => api.patch(`/veille/entreprises/${id}/config`, config),
+    remove: (id: string) => api.delete(`/veille/entreprises/${id}`),
+    syncNow: (id: string) => api.post(`/veille/entreprises/${id}/sync`),
+    toggleFavori: (id: string) => api.post(`/veille/entreprises/${id}/favori`),
+  },
+  // Consultations
+  consultations: {
+    search: (params?: any) => api.get('/veille/consultations', { params }),
+    get: (id: string) => api.get(`/veille/consultations/${id}`),
+    markVue: (id: string) => api.patch(`/veille/consultations/${id}/vue`),
+    ignorer: (id: string) => api.patch(`/veille/consultations/${id}/ignorer`),
+    importer: (id: string) => api.post(`/veille/consultations/${id}/importer`),
+  },
+};

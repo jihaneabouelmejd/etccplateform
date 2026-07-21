@@ -40,6 +40,7 @@ const menuItems = [
   { href: '/alertes',              key: 'menu.alertes',        emoji: '⚠️', roles: ['ADMIN', 'GERANT'] },
   { href: '/agenda',               key: 'menu.agenda',         emoji: '📅', roles: ['ADMIN', 'GERANT', 'EMPLOYE'] },
   { href: '/marches-prives',       key: 'menu.marches_prives', emoji: '📑', roles: ['ADMIN', 'GERANT'], moduleKey: 'marches-prives' },
+  { href: '/veille',               key: 'menu.veille',         emoji: '🔎', roles: ['ADMIN', 'GERANT', 'EMPLOYE'], moduleKey: 'veille' },
   { href: '/corbeille',            key: 'menu.corbeille',      emoji: '🗑️', roles: ['ADMIN', 'GERANT'] },
   { href: '/parametres',           key: 'menu.parametres',     emoji: '⚙️', roles: ['ADMIN', 'GERANT'] },
 ];

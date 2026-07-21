@@ -1486,3 +1486,205 @@ model MarcheDepense {
   @@index([marche_id])
   @@map("marche_depenses")
 }
+
+// ══════════════════════════════════════════════════════════════════
+// MODULE VEILLE (plateforme de veille commerciale — Entreprises &
+// Consultations). Module additif et totalement indépendant — aucune
+// table existante n'est modifiée. Lien vers MarchePrive uniquement via
+// l'action manuelle "Importer" (Consultation.imported_marche_id) et vers
+// User uniquement via un champ user_id texte libre (sans contrainte FK),
+// pour ne poser aucune relation supplémentaire sur les modèles existants.
+// Pas d'IA / pas d'API payante : extraction par JSON-LD, RSS/Atom,
+// sitemap, sélecteurs CSS configurables, heuristiques HTML et regex.
+// ══════════════════════════════════════════════════════════════════
+
+enum SourceType {
+  RSS
+  JSON_LD
+  SITEMAP
+  HTML_CONFIGURED
+  HTML_GENERIC
+  PLUGIN
+}
+
+enum EntrepriseStatus {
+  ACTIF
+  A_CONFIGURER
+  DESACTIVE
+  ERREUR
+}
+
+enum EntrepriseType {
+  PROMOTEUR
+  CONSTRUCTION
+  INDUSTRIE
+  AUTOMOBILE
+  AERONAUTIQUE
+  ENERGIE
+  HOTELLERIE
+  DISTRIBUTION
+  SANTE
+  LOGISTIQUE
+  ENSEIGNEMENT
+  AUTRE
+}
+
+enum AnnonceStatus {
+  NOUVELLE
+  VUE
+  IMPORTEE
+  IGNOREE
+  EXPIREE
+}
+
+enum ScrapeRunStatus {
+  SUCCES
+  ECHEC
+  PARTIEL
+}
+
+// Donneur d'ordre surveillé (promoteur, industriel, hôtelier, etc.)
+model Entreprise {
+  id                String            @id @default(uuid())
+  nom               String
+  logo_url          String?
+  secteur           String?
+  ville             String?
+  site_officiel     String?
+  type_entreprise   EntrepriseType    @default(AUTRE)
+  status            EntrepriseStatus  @default(A_CONFIGURER)
+
+  // Type d'extraction réel (mécanique interne) — affiché en "Générique"
+  // (RSS/JSON_LD/SITEMAP/HTML_GENERIC) ou "Spécifique" (HTML_CONFIGURED/PLUGIN)
+  // côté interface.
+  type              SourceType        @default(HTML_GENERIC)
+
+  // Chemins/URLs prioritaires à surveiller sur le site (ex: /appels-offres,
+  // /consultations, /procurement, /fournisseurs, ...)
+  pages_surveillees String[]          @default([])
+
+  // Config sélecteurs CSS (mode HTML_CONFIGURED) : { listSelector, titleSelector,
+  // linkSelector, dateSelector, budgetSelector, descriptionSelector, ... }
+  // Éditable depuis l'admin "Sources à configurer", sans toucher au code.
+  config            Json?
+
+  // Clé d'un extracteur spécifique enregistré dans le registre de plugins
+  // (mode PLUGIN), ex: "addoha".
+  plugin_key        String?
+
+  categorie_defaut  String?
+  frequence_cron    String?           @default("0 */6 * * *")
+
+  // Stats dénormalisées (rafraîchies après chaque synchronisation)
+  last_sync_at            DateTime?
+  last_sync_status        ScrapeRunStatus?
+  last_sync_duration_ms   Int?
+  last_sync_count         Int?
+  total_consultations     Int          @default(0)
+  total_erreurs           Int          @default(0)
+  taux_reussite           Float?
+  derniere_consultation_at DateTime?
+
+  created_by         String?
+  created_at         DateTime          @default(now())
+  updated_at         DateTime          @updatedAt
+
+  consultations       Consultation[]
+  logs                ScrapeLog[]
+  favoris              EntrepriseFavori[]
+
+  @@index([status])
+  @@index([type])
+  @@index([type_entreprise])
+  @@index([secteur])
+  @@index([ville])
+  @@map("veille_entreprises")
+}
+
+// Favori utilisateur (lien vers User en texte libre, sans FK, cf. note module)
+model EntrepriseFavori {
+  id            String     @id @default(uuid())
+  user_id       String
+  entreprise_id String
+  created_at    DateTime   @default(now())
+
+  entreprise    Entreprise @relation(fields: [entreprise_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, entreprise_id])
+  @@map("veille_entreprise_favoris")
+}
+
+// Consultation / appel d'offres / opportunité détectée
+model Consultation {
+  id                String        @id @default(uuid())
+  entreprise_id     String
+
+  external_id       String?
+  source_url        String
+
+  title             String
+  description       String?       @db.Text
+  categorie         String?
+  secteur           String?
+  ville             String?
+  budget_estimatif  Decimal?      @db.Decimal(14, 2)
+  devise            String?
+  maitre_ouvrage    String?
+  date_publication  DateTime?
+  date_limite       DateTime?
+  keywords          String[]      @default([])
+
+  content_hash      String
+  raw_data          Json?
+
+  status            AnnonceStatus @default(NOUVELLE)
+  imported_marche_id String?
+
+  first_seen_at     DateTime      @default(now())
+  last_seen_at      DateTime      @default(now())
+  created_at        DateTime      @default(now())
+  updated_at        DateTime      @updatedAt
+
+  entreprise        Entreprise    @relation(fields: [entreprise_id], references: [id], onDelete: Cascade)
+  history           ConsultationHistory[]
+
+  @@unique([entreprise_id, source_url])
+  @@index([content_hash])
+  @@index([status])
+  @@index([ville])
+  @@index([secteur])
+  @@index([date_limite])
+  @@map("veille_consultations")
+}
+
+model ConsultationHistory {
+  id            String        @id @default(uuid())
+  consultation_id String
+  champ         String
+  ancienne_valeur String?     @db.Text
+  nouvelle_valeur String?     @db.Text
+  changed_at    DateTime      @default(now())
+
+  consultation  Consultation  @relation(fields: [consultation_id], references: [id], onDelete: Cascade)
+
+  @@index([consultation_id])
+  @@map("veille_consultations_historique")
+}
+
+model ScrapeLog {
+  id                String          @id @default(uuid())
+  entreprise_id     String
+  started_at        DateTime        @default(now())
+  finished_at       DateTime?
+  duration_ms       Int?
+  status            ScrapeRunStatus @default(SUCCES)
+  annonces_trouvees Int             @default(0)
+  annonces_nouvelles Int            @default(0)
+  annonces_maj      Int             @default(0)
+  erreur            String?         @db.Text
+
+  entreprise        Entreprise      @relation(fields: [entreprise_id], references: [id], onDelete: Cascade)
+
+  @@index([entreprise_id, started_at])
+  @@map("veille_scrape_logs")
+}

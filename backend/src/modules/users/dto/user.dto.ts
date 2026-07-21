@@ -23,6 +23,8 @@ export const ALLOWED_MODULE_KEYS = [
   'comptabilite-interne',
   'pdf',
   'messagerie',
+  'marches-prives',
+  'veille',
 ] as const;
 
 export class CreateUserDto {

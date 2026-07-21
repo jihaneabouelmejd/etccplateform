@@ -15,7 +15,8 @@ export type ModuleKey =
   | 'comptabilite'
   | 'comptabilite-interne'
   | 'pdf'
-  | 'marches-prives';
+  | 'marches-prives'
+  | 'veille';
 
 export const REQUIRE_MODULE_KEY = 'requireModule';
 
