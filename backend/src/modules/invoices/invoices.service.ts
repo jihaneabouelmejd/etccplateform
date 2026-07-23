@@ -431,7 +431,7 @@ export class InvoicesService {
 
     const monthWhere = { issue_date: { gte: startOfMonth, lte: endOfMonth } };
 
-    const [totalIssued, totalPaid, totalUnpaid, totalOverdue, tvaCollected] = await Promise.all([
+    const [totalIssued, totalPaid, totalUnpaid, totalOverdue, tvaCollected, tvaDeductible] = await Promise.all([
       this.prisma.invoice.aggregate({
         where: { direction: 'ISSUED', status: { not: 'CANCELLED' }, ...monthWhere },
         _sum: { total_ttc: true },
@@ -454,6 +454,10 @@ export class InvoicesService {
         where: { direction: 'ISSUED', status: { not: 'CANCELLED' }, ...monthWhere },
         _sum: { tva_amount: true },
       }),
+      this.prisma.invoice.aggregate({
+        where: { direction: 'RECEIVED', status: { not: 'CANCELLED' }, ...monthWhere },
+        _sum: { tva_amount: true },
+      }),
     ]);
 
     return {
@@ -465,6 +469,7 @@ export class InvoicesService {
       unpaid_amount: Number(totalUnpaid._sum.balance || 0),
       overdue_count: totalOverdue,
       tva_collected: Number(tvaCollected._sum.tva_amount || 0),
+      tva_deductible: Number(tvaDeductible._sum.tva_amount || 0),
     };
   }
   async updateStatus(id: string, status: string) {

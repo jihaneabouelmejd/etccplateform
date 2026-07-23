@@ -535,6 +535,59 @@ export default function ComptabilitePage() {
       )}
 
 
+      {/* ===== TVA MENSUELLE ===== */}
+      {tab==='tva' && (
+        <div>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            {[
+              { label:'TVA collectee',  value:fmt(totalTvaCollectee)+' MAD',  sub:`Annee ${year}`, color:'#3B82F6' },
+              { label:'TVA deductible', value:fmt(totalTvaDeductible)+' MAD', sub:'Achats fournisseurs', color:'#EF4444' },
+              { label:'TVA due',        value:fmt(totalTvaDue)+' MAD',        sub:'Collectee - deductible', color:'#F4B315' },
+            ].map(k => (
+              <div key={k.label} style={card}>
+                <p style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:0.5, color:'#8E5915', marginBottom:6 }}>{k.label}</p>
+                <p style={{ fontSize:18, fontWeight:800, color:k.color, fontFamily:'monospace', margin:'0 0 2px' }}>{k.value}</p>
+                <p style={{ fontSize:10, color:'#B8A090' }}>{k.sub}</p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ ...card, padding:0, overflow:'hidden' }}>
+            {loadingTva ? <p className="text-center py-12 text-honey-caramel">Chargement...</p> : (
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                  <thead>
+                    <tr style={{ background:'#FDF6E9' }}>
+                      {['Mois','TVA collectee','TVA deductible','TVA due'].map(h => (
+                        <th key={h} style={{ padding:'9px 12px', textAlign:'left', color:'#8E5915', fontWeight:700, fontSize:10, textTransform:'uppercase', whiteSpace:'nowrap', borderBottom:'1px solid #F5E6D3' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tvaData.length===0 ? (
+                      <tr><td colSpan={4} style={{ padding:'32px', textAlign:'center', color:'#8E5915' }}>Aucune donnee</td></tr>
+                    ) : tvaData.map((m,i) => {
+                      const collected = Number(m.tva_collected||0);
+                      const deductible = Number(m.tva_deductible||0);
+                      const due = Math.max(0, collected - deductible);
+                      const isCurrent = m.month === currentMonth;
+                      return (
+                        <tr key={m.month} style={{ borderBottom:'1px solid #F5E6D3', background:isCurrent?'#FFF8E7':(i%2===0?'white':'#FFFDF7') }}>
+                          <td style={{ padding:'8px 12px', fontWeight:700, color:'#1A141A', whiteSpace:'nowrap' }}>{MONTHS[m.month-1]}</td>
+                          <td style={{ padding:'8px 12px', fontFamily:'monospace', color:'#3B82F6', whiteSpace:'nowrap' }}>{fmt(collected)} MAD</td>
+                          <td style={{ padding:'8px 12px', fontFamily:'monospace', color:'#EF4444', whiteSpace:'nowrap' }}>{fmt(deductible)} MAD</td>
+                          <td style={{ padding:'8px 12px', fontFamily:'monospace', fontWeight:700, color:'#F4B315', whiteSpace:'nowrap' }}>{fmt(due)} MAD</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Viewer plein écran */}
       <FileViewerModal url={viewReleve} title="Document" onClose={() => setViewReleve(null)} />
     </div>
