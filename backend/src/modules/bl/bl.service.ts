@@ -303,7 +303,7 @@ export class BLService {
     const [data, total] = await Promise.all([
       this.prisma.bonLivraison.findMany({
         where, skip: (page - 1) * limit, take: limit,
-        orderBy: { created_at: 'desc' },
+        orderBy: { number: 'desc' },
         include: {
           client: { select: { commercial_name: true } },
           bc: { select: { number: true, devis_id: true } },

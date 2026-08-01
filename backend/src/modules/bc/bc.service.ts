@@ -150,7 +150,7 @@ export class BCService {
     const [data, total] = await Promise.all([
       this.prisma.bonCommande.findMany({
         where, skip: (page - 1) * limit, take: limit,
-        orderBy: { created_at: 'desc' },
+        orderBy: { number: 'desc' },
         include: {
           client: { select: { commercial_name: true } },
           devis: { select: { number: true } },
