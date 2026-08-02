@@ -614,6 +614,9 @@ export default function FacturesPage() {
                   <td className="px-4 py-3">
                     <p className="font-mono font-semibold text-honey-dark">{inv.number}</p>
                     <p className="text-[11px] text-honey-caramel">{formatDate(inv.issue_date)}</p>
+                    {inv.bc?.client_number && (
+                      <p className="text-[10px] text-blue-600 font-mono mt-0.5">N° BC client: {inv.bc.client_number}</p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-honey-dark">{inv.client?.commercial_name}</td>
                   <td className="px-4 py-3 font-mono font-bold text-honey-dark">{formatCurrency(Number(inv.total_ttc))}</td>

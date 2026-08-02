@@ -97,6 +97,7 @@ export interface InvoicePDFData {
   number: string;
   bl_number?: string;
   bc_number?: string;
+  bc_client_number?: string;
   devis_number?: string;
   site?: string;
   issue_date: string;

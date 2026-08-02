@@ -216,7 +216,7 @@ export class PDFController {
         client: true,
         fournisseur: true,
         bl: { select: { number: true } },
-        bc: { select: { number: true } },
+        bc: { select: { number: true, client_number: true } },
         signature: true,
       },
     });
@@ -239,6 +239,7 @@ export class PDFController {
         number: invoice.number,
         bl_number: invoice.bl?.number || undefined,
         bc_number: invoice.bc?.number || undefined,
+        bc_client_number: invoice.bc?.client_number || undefined,
         site: (invoice as any).site || undefined,
         issue_date: invoice.issue_date.toISOString(),
         due_date: invoice.due_date?.toISOString() || undefined,
@@ -391,7 +392,7 @@ export class PDFController {
             client: true,
             fournisseur: true,
             bl: { select: { number: true } },
-            bc: { select: { number: true } },
+            bc: { select: { number: true, client_number: true } },
             signature: true,
           },
         });
@@ -413,6 +414,7 @@ export class PDFController {
             number: invoice.number,
             bl_number: invoice.bl?.number || undefined,
             bc_number: invoice.bc?.number || undefined,
+            bc_client_number: invoice.bc?.client_number || undefined,
             issue_date: invoice.issue_date.toISOString(),
             due_date: invoice.due_date?.toISOString() || undefined,
             client: {

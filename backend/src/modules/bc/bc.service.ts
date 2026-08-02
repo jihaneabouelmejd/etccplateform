@@ -91,6 +91,7 @@ export class BCService {
     imported_file_url?: string;
     ocr_raw_data?: any;
     signature_id?: string;
+    client_number?: string;
     lines: { description: string; quantity: number; unit_price?: number }[];
   }, createdBy: string) {
     const number = await this.generateNumber();
@@ -119,6 +120,7 @@ export class BCService {
         imported_file_url: data.imported_file_url,
         ocr_raw_data: data.ocr_raw_data,
         signature_id: data.signature_id,
+        client_number: data.client_number || null,
         lines: {
           create: data.lines.map((l, i) => ({
             description: l.description,
@@ -175,7 +177,7 @@ export class BCService {
     return bc;
   }
 
-  async update(id: string, input: { number?: string; issue_date?: string; prestation_id?: string | null }) {
+  async update(id: string, input: { number?: string; issue_date?: string; prestation_id?: string | null; client_number?: string | null }) {
     await this.findOne(id);
     return this.prisma.bonCommande.update({
       where: { id },
@@ -183,6 +185,7 @@ export class BCService {
         ...(input.number && { number: input.number }),
         ...(input.issue_date && { issue_date: new Date(input.issue_date) }),
         ...(input.prestation_id !== undefined && { prestation_id: input.prestation_id || null }),
+        ...(input.client_number !== undefined && { client_number: input.client_number || null }),
       },
     });
   }

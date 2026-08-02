@@ -151,6 +151,7 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
   const refs = [
     data.devis_number ? `Devis : <strong>${data.devis_number}</strong>` : '',
     data.bc_number    ? `BC : <strong>${data.bc_number}</strong>` : '',
+    data.bc_client_number ? `N° BC client : <strong>${data.bc_client_number}</strong>` : '',
     data.bl_number    ? `BL : <strong>${data.bl_number}</strong>` : '',
   ].filter(Boolean).join(' &nbsp;|&nbsp; ');
 

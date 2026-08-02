@@ -751,6 +751,7 @@ model BonCommande {
   site            String?        // Chantier / site des travaux (hérité du devis)
   imported_file_url String?      // Si IMPORTED_OCR/MANUAL
   ocr_raw_data    Json?          // Données brutes OCR
+  client_number   String?        // Numéro du BC tel qu'émis par le client (ex: MAD1-CO014589)
   
   // Relations
   client_id       String

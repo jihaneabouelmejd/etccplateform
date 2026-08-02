@@ -56,7 +56,7 @@ export class BCController {
 
   @Patch(':id')
   @Roles(Role.ADMIN, Role.GERANT)
-  update(@Param('id') id: string, @Body() data: { number?: string; issue_date?: string; prestation_id?: string | null }) {
+  update(@Param('id') id: string, @Body() data: { number?: string; issue_date?: string; prestation_id?: string | null; client_number?: string | null }) {
     return this.bc.update(id, data);
   }
 

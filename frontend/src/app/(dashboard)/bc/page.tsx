@@ -68,6 +68,7 @@ export default function BCPage() {
   const [importPrestationId, setImportPrestationId] = useState(''); // ← lien prestation optionnel
   const [importLines, setImportLines]         = useState<ImportLine[]>([emptyLine()]);
   const [importSigId, setImportSigId]         = useState('');
+  const [importClientNumber, setImportClientNumber] = useState(''); // ← numéro du BC tel qu'émis par le client
   const [importing, setImporting]             = useState(false);
   const [importError, setImportError]         = useState('');
   // File upload
@@ -83,14 +84,15 @@ export default function BCPage() {
   const [editDate, setEditDate]           = useState('');
   const [editSaving, setEditSaving]       = useState(false);
   const [editPrestationId, setEditPrestationId] = useState('');
+  const [editClientNumber, setEditClientNumber] = useState('');
 
-  const openEdit = (bc: any) => { setEditTarget(bc); setEditNumber(bc.number || ''); setEditDate(bc.issue_date ? bc.issue_date.split('T')[0] : ''); setEditPrestationId(bc.prestation_id || ''); };
+  const openEdit = (bc: any) => { setEditTarget(bc); setEditNumber(bc.number || ''); setEditDate(bc.issue_date ? bc.issue_date.split('T')[0] : ''); setEditPrestationId(bc.prestation_id || ''); setEditClientNumber(bc.client_number || ''); };
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTarget) return;
     setEditSaving(true);
     try {
-      await bcApi.update(editTarget.id, { number: editNumber, issue_date: editDate, prestation_id: editPrestationId || null });
+      await bcApi.update(editTarget.id, { number: editNumber, issue_date: editDate, prestation_id: editPrestationId || null, client_number: editClientNumber || null });
       fetchData();
       setEditTarget(null);
     } finally { setEditSaving(false); }
@@ -175,6 +177,7 @@ export default function BCPage() {
     setUploadingFile(false);
     setImportMode('file');
     setImportSigId('');
+    setImportClientNumber('');
     setShowImportModal(true);
   };
 
@@ -241,6 +244,7 @@ export default function BCPage() {
         source:             importMode === 'file' ? 'IMPORTED_OCR' : 'IMPORTED_MANUAL',
         imported_file_url:  importMode === 'file' ? importFileUrl : undefined,
         signature_id:       importSigId || undefined,
+        client_number:      importClientNumber.trim() || undefined,
         lines,
       });
       fetchData(); setShowImportModal(false);
@@ -368,6 +372,9 @@ export default function BCPage() {
                   <div className="font-mono font-semibold text-honey-dark">{bc.number}</div>
                   {bc.source !== 'INTERNAL' && (
                     <div className="text-[10px] text-honey-caramel mt-0.5">{sourceLabel[bc.source]}</div>
+                  )}
+                  {bc.client_number && (
+                    <div className="text-[10px] text-blue-600 mt-0.5 font-mono">N° client: {bc.client_number}</div>
                   )}
                 </td>
                 <td className="px-4 py-3 text-honey-dark">{bc.client?.commercial_name}</td>
@@ -602,6 +609,13 @@ export default function BCPage() {
               </select>
             </div>
 
+            {/* Numéro BC client */}
+            <div style={{ marginBottom:18 }}>
+              <label style={labelStyle}>N° BC client<span style={{ marginLeft:6, fontSize:10, fontWeight:500, color:'#8E5915', textTransform:'none', letterSpacing:0 }}>(optionnel — tel qu'écrit sur le BC, ex: MAD1-CO014589)</span></label>
+              <input value={importClientNumber} onChange={e => setImportClientNumber(e.target.value)}
+                placeholder="Ex: MAD1-CO014589" style={{ ...inputStyle, fontFamily:'monospace' }} />
+            </div>
+
             {/* ── Mode fichier ─────────────────────────────────────────── */}
             {importMode === 'file' && (
               <div style={{ marginBottom:18 }}>
@@ -765,6 +779,13 @@ export default function BCPage() {
                     </div>
                   </div>
 
+                  {viewTarget.client_number && (
+                    <div style={{ marginBottom:20, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:10, padding:'12px 16px' }}>
+                      <p style={{ margin:'0 0 4px', fontSize:10, fontWeight:700, color:'#1D4ED8', textTransform:'uppercase' }}>N° BC client</p>
+                      <p style={{ margin:0, fontSize:14, fontWeight:600, color:'#1A141A', fontFamily:'monospace' }}>{viewTarget.client_number}</p>
+                    </div>
+                  )}
+
                   {/* Montants */}
                   {(viewTarget.total_ht || viewTarget.total_ttc) && (
                     <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:20 }}>
@@ -875,6 +896,12 @@ export default function BCPage() {
                 <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Date d'émission</label>
                 <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
                   style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
+              </div>
+              <div style={{ marginBottom:14 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>N° BC client</label>
+                <input value={editClientNumber} onChange={e => setEditClientNumber(e.target.value)}
+                  placeholder="Ex: MAD1-CO014589"
+                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
               </div>
               <div style={{ marginBottom:20 }}>
                 <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Prestation</label>
