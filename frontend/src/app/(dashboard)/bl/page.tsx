@@ -139,7 +139,7 @@ export default function BLPage() {
   const fetchData = () => {
     setLoading(true);
     setFetchError('');
-    blApi.list({ search, status: statusFilter || undefined })
+    blApi.list({ search, status: statusFilter || undefined, limit: 500 })
       .then((r) => setBls(r.data.data || []))
       .catch((e: any) => {
         setBls([]);

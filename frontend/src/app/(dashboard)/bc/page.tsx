@@ -115,7 +115,7 @@ export default function BCPage() {
   const fetchData = useCallback(() => {
     setLoading(true);
     setFetchError('');
-    bcApi.list({ search, status: statusFilter || undefined })
+    bcApi.list({ search, status: statusFilter || undefined, limit: 500 })
       .then((r) => setBcs(r.data.data || []))
       .catch((e: any) => {
         setBcs([]);

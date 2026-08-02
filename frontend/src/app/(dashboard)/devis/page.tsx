@@ -70,7 +70,7 @@ export default function DevisPage() {
   const fetchData = () => {
     setLoading(true);
     // "SENT_GROUP" = tous les devis ayant été envoyés (SENT + VALIDATED + REJECTED)
-    const apiParams: any = { search };
+    const apiParams: any = { search, limit: 500 };
     if (statusFilter === 'SENT_GROUP') {
       apiParams.statuses = 'SENT,VALIDATED,REJECTED';
     } else if (statusFilter) {

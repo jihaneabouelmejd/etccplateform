@@ -91,7 +91,7 @@ export default function FacturesPage() {
 
   const fetchData = () => {
     setLoading(true);
-    invoicesApi.list({ direction: tab, status: statusFilter || undefined, search: search || undefined })
+    invoicesApi.list({ direction: tab, status: statusFilter || undefined, search: search || undefined, limit: 500 })
       .then(res => setInvoices(res.data.data || []))
       .catch(() => setInvoices([]))
       .finally(() => setLoading(false));
