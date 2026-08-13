@@ -12,6 +12,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { DevisModule } from './modules/devis/devis.module';
 import { BCModule } from './modules/bc/bc.module';
 import { BLModule } from './modules/bl/bl.module';
+import { BRModule } from './modules/br/br.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
 import { SignaturesModule } from './modules/signatures/signatures.module';
 import { PDFModule } from './modules/pdf/pdf.module';
@@ -44,6 +45,7 @@ import { VeilleModule } from './modules/veille/veille.module';
     DevisModule,
     BCModule,
     BLModule,
+    BRModule,
     InvoicesModule,
     StockModule,
     DepensesModule,

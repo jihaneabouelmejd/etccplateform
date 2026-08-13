@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, FileText, Truck, Receipt, ShoppingCart, ArrowUp, ArrowDown } from 'lucide-react';
-import { devisApi, blApi, invoicesApi, bcApi, pdfMergeApi } from '@/lib/api';
+import { Plus, Trash2, Download, FileText, Truck, Receipt, ShoppingCart, ArrowUp, ArrowDown, PackageCheck } from 'lucide-react';
+import { devisApi, blApi, invoicesApi, bcApi, brApi, pdfMergeApi } from '@/lib/api';
 import { useLanguage } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import PDFButton from '@/components/ui/PDFButton';
 
-type DocType = 'devis' | 'bl' | 'invoice' | 'bc';
+type DocType = 'devis' | 'bl' | 'invoice' | 'bc' | 'br';
 
 interface MergeItem {
   id: string;
@@ -21,6 +21,7 @@ const typeConfig: Record<DocType, { icon: any; color: string; bg: string; label:
   bl:      { icon: Truck,        color: 'text-green-700',  bg: 'bg-green-50 border-green-200',  label: 'BL'      },
   invoice: { icon: Receipt,      color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200', label: 'Facture' },
   bc:      { icon: ShoppingCart, color: 'text-honey-dark', bg: 'bg-honey-cream border-honey-beige-soft', label: 'BC' },
+  br:      { icon: PackageCheck, color: 'text-teal-700',   bg: 'bg-teal-50 border-teal-200',   label: 'BR'      },
 };
 
 export default function MergePage() {
@@ -28,6 +29,7 @@ export default function MergePage() {
   const [blList,      setBlList]      = useState<any[]>([]);
   const [invoiceList, setInvoiceList] = useState<any[]>([]);
   const [bcList,      setBcList]      = useState<any[]>([]);
+  const [brList,      setBrList]      = useState<any[]>([]);
   const [loading,     setLoading]     = useState(true);
 
   const [items,       setItems]       = useState<MergeItem[]>([]);
@@ -42,11 +44,13 @@ export default function MergePage() {
       blApi.list({ limit: 200 }),
       invoicesApi.list({ limit: 200 }),
       bcApi.list({ limit: 200 }),
-    ]).then(([d, b, i, bc]) => {
+      brApi.list({ limit: 200 }),
+    ]).then(([d, b, i, bc, br]) => {
       setDevisList(d.data.data || []);
       setBlList(b.data.data || []);
       setInvoiceList(i.data.data || []);
       setBcList(bc.data.data || []);
+      setBrList(br.data.data || []);
     }).finally(() => setLoading(false));
   }, []);
 
@@ -61,6 +65,7 @@ export default function MergePage() {
     if (addType === 'bl')      return externalBl.map(b => ({ id: b.id, label: `${b.number} – ${b.client?.commercial_name || ''}` }));
     if (addType === 'invoice') return invoiceList.map(i => ({ id: i.id, label: `${i.number} – ${i.client?.commercial_name || ''}` }));
     if (addType === 'bc')      return externalBc.map(b => ({ id: b.id, label: `${b.number} – ${b.client?.commercial_name || ''}` }));
+    if (addType === 'br')      return brList.map(b => ({ id: b.id, label: `${b.number} – ${b.client?.commercial_name || ''}` }));
     return [];
   };
 
@@ -111,7 +116,7 @@ export default function MergePage() {
 
           {/* Type toggle */}
           <div style={{ display:'flex', gap:6, marginBottom:14, background:'#FBF6EE', padding:4, borderRadius:10 }}>
-            {(['devis','bl','invoice','bc'] as DocType[]).map(t => (
+            {(['devis','bl','invoice','bc','br'] as DocType[]).map(t => (
               <button key={t} type="button" onClick={() => { setAddType(t); setAddId(''); }}
                 style={{ flex:1, padding:'7px 0', borderRadius:7, border:'none', background:addType===t?'white':'transparent', color:addType===t?'#1A141A':'#8E5915', fontSize:12, fontWeight:700, cursor:'pointer', boxShadow:addType===t?'0 1px 4px rgba(0,0,0,0.08)':'none' }}>
                 {typeConfig[t].label}

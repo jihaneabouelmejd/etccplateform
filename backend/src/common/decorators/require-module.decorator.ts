@@ -10,6 +10,7 @@ export type ModuleKey =
   | 'devis'
   | 'bc'
   | 'bl'
+  | 'br'
   | 'invoices'
   | 'depenses'
   | 'comptabilite'

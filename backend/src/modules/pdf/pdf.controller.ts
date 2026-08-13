@@ -201,6 +201,22 @@ export class PDFController {
     res.send(pdfBuffer);
   }
 
+  // BR PDF (toujours un fichier réel importé — jamais généré depuis un gabarit)
+  @Get('br/:id')
+  @ApiOperation({ summary: 'Récupérer le PDF du bon de réception (fichier importé)' })
+  async generateBRPDF(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const br = await this.prisma.bonReception.findUnique({ where: { id } });
+    if (!br) throw new NotFoundException('Bon de réception non trouvé');
+    const importedPdf = await this.pdfService.fetchImportedFileAsPdf((br as any).imported_file_url);
+    if (!importedPdf) throw new NotFoundException('Fichier du bon de réception introuvable');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${br.number}.pdf"`);
+    res.send(importedPdf);
+  }
+
   // INVOICE PDF
   @Get('invoice/:id')
   @ApiOperation({ summary: 'Générer PDF de la facture (FR ou AR)' })
@@ -495,6 +511,12 @@ export class PDFController {
             notes: bc.notes || undefined,
           }, lang);
         }
+
+      } else if (item.type === 'br') {
+        const br = await this.prisma.bonReception.findUnique({ where: { id: item.id } });
+        if (!br) throw new NotFoundException(`BR ${item.id} non trouvé`);
+        buf = await this.pdfService.fetchImportedFileAsPdf((br as any).imported_file_url);
+        if (!buf) throw new NotFoundException(`Fichier du BR ${item.id} introuvable`);
 
       } else {
         throw new BadRequestException('Type de document inconnu');

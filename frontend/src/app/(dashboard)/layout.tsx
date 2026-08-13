@@ -28,6 +28,7 @@ const menuItems = [
   { href: '/employes',             key: 'menu.employes',       emoji: '👷', roles: ['ADMIN', 'GERANT'] },
   { href: '/devis',                key: 'menu.devis',          emoji: '📄', roles: ['ADMIN', 'GERANT'], moduleKey: 'devis' },
   { href: '/bc',                   key: 'menu.bc',             emoji: '📋', roles: ['ADMIN', 'GERANT'], moduleKey: 'bc' },
+  { href: '/br',                   key: 'menu.br',             emoji: '📥', roles: ['ADMIN', 'GERANT'], moduleKey: 'br' },
   { href: '/bl',                   key: 'menu.bl',             emoji: '🚚', roles: ['ADMIN', 'GERANT'], moduleKey: 'bl' },
   { href: '/factures',             key: 'menu.factures',       emoji: '🧾', roles: ['ADMIN', 'GERANT', 'COMPTABLE'], moduleKey: 'invoices' },
   { href: '/merge',                key: 'menu.merge',          emoji: '🔗', roles: ['ADMIN', 'GERANT'], moduleKey: 'pdf' },

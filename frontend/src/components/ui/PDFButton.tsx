@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Download, Eye, Loader2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-type DocType = 'devis' | 'bl' | 'invoice' | 'bc';
+type DocType = 'devis' | 'bl' | 'invoice' | 'bc' | 'br';
 type Lang = 'FR' | 'AR';
 
 interface PDFButtonProps {
@@ -21,6 +21,7 @@ const docTypeMap: Record<DocType, string> = {
   bl: 'bl',
   invoice: 'invoice',
   bc: 'bc',
+  br: 'br',
 };
 
 export default function PDFButton({

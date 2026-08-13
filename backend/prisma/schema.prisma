@@ -79,6 +79,11 @@ enum BLStatus {
   CANCELLED
 }
 
+enum BRStatus {
+  ACTIF
+  ANNULE
+}
+
 enum InvoiceDirection {
   ISSUED    // Facture émise au client
   RECEIVED  // Facture d'achat reçue du fournisseur
@@ -251,7 +256,7 @@ model User {
   // (en plus/à la place des règles par défaut du rôle) — ex: un EMPLOYE avec
   // allowed_modules=["devis","bc"] a accès complet (CRUD) à Devis et Bons de
   // commande uniquement, même si le rôle EMPLOYE n'y a normalement pas accès.
-  // Clés valides: devis, bc, bl, invoices, depenses, comptabilite,
+  // Clés valides: devis, bc, bl, br, invoices, depenses, comptabilite,
   // comptabilite-interne, pdf
   allowed_modules     String[] @default([])
   
@@ -270,6 +275,7 @@ model User {
   created_devis       Devis[]
   created_bcs         BonCommande[]
   created_bls         BonLivraison[]
+  created_brs         BonReception[]
   created_invoices    Invoice[]
   submitted_expenses  Expense[]     @relation("ExpenseSubmitter")
   approved_expenses   Expense[]     @relation("ExpenseApprover")
@@ -396,6 +402,7 @@ model Client {
   devis           Devis[]
   bcs             BonCommande[]
   bls             BonLivraison[]
+  brs             BonReception[]
   invoices        Invoice[]
   marches_prives  MarchePrive[]
 
@@ -489,6 +496,7 @@ model Project {
   devis           Devis[]
   bcs             BonCommande[]
   bls             BonLivraison[]
+  brs             BonReception[]
   invoices        Invoice[]
   expenses        Expense[]
   dettes          Dette[]
@@ -785,6 +793,7 @@ model BonCommande {
   signature       Signature?     @relation(fields: [signature_id], references: [id])
   lines           BCLine[]
   bls             BonLivraison[]
+  brs             BonReception[]
   invoices        Invoice[]
 
   @@index([client_id])
@@ -878,8 +887,52 @@ model BLLine {
   
   bl          BonLivraison @relation(fields: [bl_id], references: [id], onDelete: Cascade)
   product     Product?     @relation(fields: [product_id], references: [id])
-  
+
   @@map("bl_lines")
+}
+
+// ============================================================================
+// BON DE RÉCEPTION (BR) — Module additif et indépendant.
+// Document scanné/importé confirmant la réception de la marchandise commandée
+// via un BC déjà importé dans la plateforme. Toujours un import manuel simple
+// (fichier réel téléversé) — pas de génération interne, pas d'OCR.
+// ============================================================================
+
+model BonReception {
+  id                 String       @id @default(uuid())
+  number             String       @unique // BR-2026-0012
+
+  // Lien obligatoire vers le BC déjà importé auquel ce BR se rattache
+  bc_id              String
+  site               String?      // Chantier / site (hérité du BC)
+
+  // Fichier réel téléversé (scan/photo du bon de réception signé)
+  imported_file_url  String
+
+  // Relations
+  client_id          String
+  project_id         String?
+  created_by         String
+
+  // Dates
+  reception_date     DateTime     @default(now()) // Date de réception de la marchandise (sur le document)
+  issue_date         DateTime     @default(now()) // Date d'import dans la plateforme
+
+  status             BRStatus     @default(ACTIF)
+  notes              String?      @db.Text
+
+  created_at         DateTime     @default(now())
+  updated_at         DateTime     @updatedAt
+
+  bc                 BonCommande  @relation(fields: [bc_id], references: [id])
+  client             Client       @relation(fields: [client_id], references: [id])
+  project            Project?     @relation(fields: [project_id], references: [id])
+  creator            User         @relation(fields: [created_by], references: [id])
+
+  @@index([bc_id])
+  @@index([client_id])
+  @@index([status])
+  @@map("bons_reception")
 }
 
 // ============================================================================

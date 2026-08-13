@@ -144,6 +144,15 @@ export const bcApi = {
   import: (data: any) => api.post('/bc/import', data),
 };
 
+export const brApi = {
+  list: (params?: any) => api.get('/br', { params }),
+  get: (id: string) => api.get(`/br/${id}`),
+  update: (id: string, data: any) => api.patch(`/br/${id}`, data),
+  cancel: (id: string) => api.delete(`/br/${id}`),
+  delete: (id: string) => api.delete(`/br/${id}/permanent`),
+  import: (data: any) => api.post('/br/import', data),
+};
+
 export const blApi = {
   list: (params?: any) => api.get('/bl', { params }),
   get: (id: string) => api.get(`/bl/${id}`),
@@ -239,7 +248,7 @@ export const assignableUsersApi = {
 };
 
 export const pdfMergeApi = {
-  merge: (items: { type: 'devis' | 'bl' | 'invoice' | 'bc'; id: string }[], lang?: string) =>
+  merge: (items: { type: 'devis' | 'bl' | 'invoice' | 'bc' | 'br'; id: string }[], lang?: string) =>
     api.post('/pdf/merge', { items, lang: lang || 'FR' }, { responseType: 'blob' }),
 };
 

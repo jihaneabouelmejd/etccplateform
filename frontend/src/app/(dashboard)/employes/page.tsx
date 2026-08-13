@@ -26,6 +26,7 @@ const emptyCreateForm = { first_name: '', last_name: '', username: '', password:
 const MODULE_OPTIONS: { key: string; label: string; emoji: string }[] = [
   { key: 'devis',                 label: 'Devis',                emoji: '📄' },
   { key: 'bc',                    label: 'Bons de commande',     emoji: '📋' },
+  { key: 'br',                    label: 'Bons de réception',    emoji: '📥' },
   { key: 'bl',                    label: 'Bons de livraison',    emoji: '🚚' },
   { key: 'invoices',              label: 'Factures',             emoji: '🧾' },
   { key: 'depenses',              label: 'Dépenses',             emoji: '💰' },
