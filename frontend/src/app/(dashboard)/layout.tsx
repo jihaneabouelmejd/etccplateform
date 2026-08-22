@@ -18,6 +18,7 @@ const messagerieChildren = [
 
 const menuItems = [
   { href: '/dashboard',            key: 'menu.dashboard',      emoji: '📊', roles: ['ADMIN', 'GERANT', 'COMPTABLE', 'EMPLOYE'] },
+  { href: '/dashboard-gerant',     key: 'menu.dashboard_gerant', emoji: '📋', roles: ['ADMIN', 'GERANT'] },
   { href: '/messagerie',           key: 'menu.messagerie',     emoji: '📧', roles: ['ADMIN', 'GERANT', 'COMPTABLE', 'EMPLOYE'], children: messagerieChildren, moduleKey: 'messagerie' },
   { href: '/chantiers',            key: 'menu.chantiers',      emoji: '🏗️', roles: ['ADMIN', 'GERANT'] },
   { href: '/taches',               key: 'menu.taches',         emoji: '✅', roles: ['ADMIN', 'GERANT', 'EMPLOYE'] },

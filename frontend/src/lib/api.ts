@@ -110,6 +110,10 @@ export const projectsApi = {
   stats: () => api.get('/projects/stats'),
 };
 
+export const dashboardApi = {
+  gerantSummary: () => api.get('/dashboard/gerant-summary'),
+};
+
 export const signaturesApi = {
   list: () => api.get('/signatures'),
   create: (data: any) => api.post('/signatures', data),

@@ -27,6 +27,7 @@ import { PrestationsModule } from './modules/prestations/prestations.module';
 import { MailModule } from './modules/mail/mail.module';
 import { MarchesPrivesModule } from './modules/marches-prives/marches-prives.module';
 import { VeilleModule } from './modules/veille/veille.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { VeilleModule } from './modules/veille/veille.module';
     MailModule,
     MarchesPrivesModule,
     VeilleModule,
+    DashboardModule,
   ],
 })
 export class AppModule {}

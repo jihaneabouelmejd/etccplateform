@@ -108,6 +108,7 @@ const T: Record<Lang, Record<string, string>> = {
 
     /* ── SIDEBAR ── */
     'menu.dashboard':     'Dashboard',
+    'menu.dashboard_gerant': 'Vue d\'ensemble',
     'menu.chantiers':     'Chantiers',
     'menu.taches':        'Tâches',
     'menu.mon_bl':        'Mes BL',
@@ -552,6 +553,7 @@ const T: Record<Lang, Record<string, string>> = {
 
     /* ── SIDEBAR ── */
     'menu.dashboard':     'لوحة التحكم',
+    'menu.dashboard_gerant': 'نظرة عامة',
     'menu.chantiers':     'المشاريع',
     'menu.taches':        'المهام',
     'menu.mon_bl':        'وصولاتي',
