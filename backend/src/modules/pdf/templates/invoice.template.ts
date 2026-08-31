@@ -284,12 +284,18 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
 // keep these two values in sync if the print margins ever change.
 window.fitPageToA4 = function() {
   var ref = document.getElementById('a4-ref');
-  if (!ref) return;
+  var page = document.querySelector('.page');
+  if (!ref || !page) return;
   var target = ref.offsetHeight;
   document.body.style.zoom = 1;
+  page.style.width = '210mm';
   var actual = document.documentElement.scrollHeight;
   if (actual > target) {
     var scale = Math.max(0.55, (target / actual) * 0.98);
+    // Widen .page before shrinking so the visual width stays a full 210mm
+    // after zoom is applied — otherwise zoom shrinks width too, leaving a
+    // blank strip on the right of the printed page.
+    page.style.width = (210 / scale) + 'mm';
     document.body.style.zoom = scale;
   }
 };
