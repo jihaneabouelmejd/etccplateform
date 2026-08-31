@@ -329,6 +329,9 @@ export class InvoicesService {
     issue_date?: Date;
     number?: string;
     prestation_id?: string | null;
+    ref_devis_override?: string | null;
+    ref_bc_override?: string | null;
+    ref_bl_override?: string | null;
   }) {
     const invoice = await this.findOne(id);
 
@@ -362,6 +365,9 @@ export class InvoicesService {
           ...(input.notes !== undefined && { notes: input.notes }),
           ...(input.signature_id !== undefined && { signature_id: input.signature_id || null }),
           ...(input.prestation_id !== undefined && { prestation_id: input.prestation_id || null }),
+          ...(input.ref_devis_override !== undefined && { ref_devis_override: input.ref_devis_override || null }),
+          ...(input.ref_bc_override !== undefined && { ref_bc_override: input.ref_bc_override || null }),
+          ...(input.ref_bl_override !== undefined && { ref_bl_override: input.ref_bl_override || null }),
           ...totals,
           ...(input.lines && input.lines.length > 0 ? {
             lines: {

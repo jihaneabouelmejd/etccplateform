@@ -35,17 +35,23 @@
   }
 
   /* ── PAGE ── */
+  .page-frame {
+    width: 210mm;
+    margin: 32px auto;
+  }
+
   .page {
     background: var(--white);
     width: 210mm;
     min-height: 297mm;
-    margin: 32px auto;
     box-shadow: 0 24px 80px rgba(0,0,0,0.18);
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
+
+  #a4-ref { position: absolute; visibility: hidden; pointer-events: none; width: 0; height: 297mm; overflow: hidden; top: 0; left: 0; }
 
   /* ═══════════════════════════════════
      HEADER
@@ -537,54 +543,45 @@
   ═══════════════════════════════════ */
   @media print {
     body { background: white; }
+    .page-frame { margin: 0; width: 100%; }
     .page {
       box-shadow: none;
-      margin: 0;
       width: 100%;
     }
     @page { margin: 0; size: A4; }
   }
 
   /* ─── ÉDITION INLINE ─── */
-  .edit-bar {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
-    background: #1A1A1A; color: #F5C842;
-    padding: 7px 20px; font-family: 'Outfit', sans-serif;
-    font-size: 13px; display: flex; align-items: center; gap: 10px;
-  }
-  .edit-bar strong { font-weight: 600; }
-  .edit-bar span { opacity: 0.65; font-size: 12px; }
   [contenteditable="true"] {
     outline: none;
-    border-bottom: 2px dashed #F5C842;
-    padding-bottom: 1px;
     cursor: text;
     min-width: 20px;
+  }
+  [contenteditable="true"]:hover {
+    background: rgba(245,200,66,0.08);
+    border-radius: 3px;
   }
   [contenteditable="true"]:focus {
     background: rgba(245,200,66,0.12);
     border-radius: 3px;
   }
   @media print {
-    .edit-bar { display: none !important; }
     [contenteditable="true"] { border-bottom: none !important; background: none !important; }
   }
 </style>
 </head>
 <body>
 
-<div class="edit-bar">
-  ✏️ <strong>Mode édition</strong>
-  <span>Cliquez sur le numéro ou la date pour les modifier — disparaît à l'impression</span>
-</div>
+<div id="a4-ref"></div>
 
-<div class="page" style="margin-top:36px">
+<div class="page-frame" id="pageFrame" style="margin-top:36px">
+<div class="page" id="page">
 
   <!-- ══ HEADER ══ -->
   <header class="header">
     <div class="brand">
-      <div class="brand-logo">VOTRE<span>.</span>BRAND</div>
-      <div class="brand-tagline">Agence créative &amp; conseil stratégique</div>
+      <div class="brand-logo" contenteditable="true">VOTRE<span>.</span>BRAND</div>
+      <div class="brand-tagline" contenteditable="true">Agence créative &amp; conseil stratégique</div>
     </div>
     <div class="doc-identity">
       <span class="doc-label">Devis</span>
@@ -601,17 +598,17 @@
     </div>
     <div class="meta-cell">
       <span class="meta-label">Valide jusqu'au</span>
-      <div class="meta-value">15 décembre 2024</div>
-      <div class="meta-sub">30 jours à compter de l'émission</div>
+      <div class="meta-value" contenteditable="true">15 décembre 2024</div>
+      <div class="meta-sub" contenteditable="true">30 jours à compter de l'émission</div>
     </div>
     <div class="meta-cell">
       <span class="meta-label">Délai de réalisation</span>
-      <div class="meta-value">6 semaines</div>
-      <div class="meta-sub">À partir de la validation</div>
+      <div class="meta-value" contenteditable="true">6 semaines</div>
+      <div class="meta-sub" contenteditable="true">À partir de la validation</div>
     </div>
     <div class="meta-cell">
       <span class="meta-label">Référence client</span>
-      <div class="meta-value">PROJ-2024-117</div>
+      <div class="meta-value" contenteditable="true">PROJ-2024-117</div>
     </div>
   </div>
 
@@ -619,8 +616,8 @@
   <div class="parties">
     <div class="party-block emetteur">
       <span class="party-tag">Émetteur</span>
-      <div class="party-name">VotreBrand Studio</div>
-      <div class="party-details">
+      <div class="party-name" contenteditable="true">VotreBrand Studio</div>
+      <div class="party-details" contenteditable="true">
         12 rue de la Création, 75008 Paris<br>
         <strong>SIRET :</strong> 123 456 789 00012<br>
         <strong>TVA :</strong> FR12 123456789<br>
@@ -630,8 +627,8 @@
     </div>
     <div class="party-block client">
       <span class="party-tag">Client</span>
-      <div class="party-name">Société ABC Technologies</div>
-      <div class="party-details">
+      <div class="party-name" contenteditable="true">Société ABC Technologies</div>
+      <div class="party-details" contenteditable="true">
         45 avenue de l'Innovation, 69003 Lyon<br>
         <strong>SIRET :</strong> 987 654 321 00034<br>
         <strong>TVA :</strong> FR98 987654321<br>
@@ -644,7 +641,7 @@
   <!-- ══ OBJET ══ -->
   <div class="objet-row">
     <span class="objet-badge">Objet</span>
-    <span class="objet-text">Refonte complète de l'identité visuelle et création du site web corporate</span>
+    <span class="objet-text" contenteditable="true">Refonte complète de l'identité visuelle et création du site web corporate</span>
   </div>
 
   <!-- ══ TABLE ══ -->
@@ -663,52 +660,52 @@
         <tr>
           <td><span class="td-ref">01</span></td>
           <td>
-            <div class="td-title">Audit &amp; Stratégie de marque</div>
-            <div class="td-sub">Analyse de l'existant, benchmark concurrentiel, définition du positionnement et de la plateforme de marque.</div>
+            <div class="td-title" contenteditable="true">Audit &amp; Stratégie de marque</div>
+            <div class="td-sub" contenteditable="true">Analyse de l'existant, benchmark concurrentiel, définition du positionnement et de la plateforme de marque.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">2 500,00 €</td>
-          <td class="r">2 500,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">2 500,00 €</td>
+          <td class="r" contenteditable="true">2 500,00 €</td>
         </tr>
         <tr>
           <td><span class="td-ref">02</span></td>
           <td>
-            <div class="td-title">Création identité visuelle complète</div>
-            <div class="td-sub">Logo principal + déclinaisons, charte graphique, palette de couleurs, typographies, iconographie.</div>
+            <div class="td-title" contenteditable="true">Création identité visuelle complète</div>
+            <div class="td-sub" contenteditable="true">Logo principal + déclinaisons, charte graphique, palette de couleurs, typographies, iconographie.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">4 800,00 €</td>
-          <td class="r">4 800,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">4 800,00 €</td>
+          <td class="r" contenteditable="true">4 800,00 €</td>
         </tr>
         <tr>
           <td><span class="td-ref">03</span></td>
           <td>
-            <div class="td-title">Design UI/UX — Site web corporate</div>
-            <div class="td-sub">Maquettes Figma (desktop + mobile) pour 8 pages, prototype interactif navigable, design system.</div>
+            <div class="td-title" contenteditable="true">Design UI/UX — Site web corporate</div>
+            <div class="td-sub" contenteditable="true">Maquettes Figma (desktop + mobile) pour 8 pages, prototype interactif navigable, design system.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">6 200,00 €</td>
-          <td class="r">6 200,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">6 200,00 €</td>
+          <td class="r" contenteditable="true">6 200,00 €</td>
         </tr>
         <tr>
           <td><span class="td-ref">04</span></td>
           <td>
-            <div class="td-title">Développement web (intégration)</div>
-            <div class="td-sub">Intégration HTML/CSS/JS, CMS WordPress sur-mesure, responsive, optimisation SEO technique.</div>
+            <div class="td-title" contenteditable="true">Développement web (intégration)</div>
+            <div class="td-sub" contenteditable="true">Intégration HTML/CSS/JS, CMS WordPress sur-mesure, responsive, optimisation SEO technique.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">5 500,00 €</td>
-          <td class="r">5 500,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">5 500,00 €</td>
+          <td class="r" contenteditable="true">5 500,00 €</td>
         </tr>
         <tr>
           <td><span class="td-ref">05</span></td>
           <td>
-            <div class="td-title">Formation &amp; livraison des sources</div>
-            <div class="td-sub">Session de formation CMS (2h), remise des fichiers sources (AI, SVG, Figma), guide d'utilisation de la charte.</div>
+            <div class="td-title" contenteditable="true">Formation &amp; livraison des sources</div>
+            <div class="td-sub" contenteditable="true">Session de formation CMS (2h), remise des fichiers sources (AI, SVG, Figma), guide d'utilisation de la charte.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">800,00 €</td>
-          <td class="r">800,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">800,00 €</td>
+          <td class="r" contenteditable="true">800,00 €</td>
         </tr>
       </tbody>
     </table>
@@ -718,24 +715,24 @@
   <div class="bottom-section">
     <div class="notes-block">
       <h4>Notes &amp; informations</h4>
-      <p>Ce devis est établi sur la base du cahier des charges transmis le 10 novembre 2024. Toute demande complémentaire hors périmètre fera l'objet d'un avenant.</p>
+      <p contenteditable="true">Ce devis est établi sur la base du cahier des charges transmis le 10 novembre 2024. Toute demande complémentaire hors périmètre fera l'objet d'un avenant.</p>
     </div>
     <div class="totals-block">
       <div class="total-line">
         <span class="tl-label">Sous-total HT</span>
-        <span class="tl-value">19 800,00 €</span>
+        <span class="tl-value" contenteditable="true">19 800,00 €</span>
       </div>
       <div class="total-line tva">
-        <span class="tl-label">TVA 20 %</span>
-        <span class="tl-value">3 960,00 €</span>
+        <span class="tl-label" contenteditable="true">TVA 20 %</span>
+        <span class="tl-value" contenteditable="true">3 960,00 €</span>
       </div>
       <div class="total-line tva">
-        <span class="tl-label">Remise commerciale (5 %)</span>
-        <span class="tl-value">− 990,00 €</span>
+        <span class="tl-label" contenteditable="true">Remise commerciale (5 %)</span>
+        <span class="tl-value" contenteditable="true">− 990,00 €</span>
       </div>
       <div class="total-final">
         <span class="tf-label">Total TTC</span>
-        <span class="tf-value">22 770,00 €</span>
+        <span class="tf-value" contenteditable="true">22 770,00 €</span>
       </div>
     </div>
   </div>
@@ -744,15 +741,15 @@
   <div class="conditions-section">
     <div class="cond-block">
       <h5>Modalités de paiement</h5>
-      <p><strong>40 %</strong> à la commande<br><strong>40 %</strong> à mi-projet<br><strong>20 %</strong> à la livraison finale</p>
+      <p contenteditable="true"><strong>40 %</strong> à la commande<br><strong>40 %</strong> à mi-projet<br><strong>20 %</strong> à la livraison finale</p>
     </div>
     <div class="cond-block">
       <h5>Validité</h5>
-      <p>Ce devis est valable <strong>30 jours</strong> à compter de sa date d'émission. Passé ce délai, les tarifs pourront être révisés.</p>
+      <p contenteditable="true">Ce devis est valable <strong>30 jours</strong> à compter de sa date d'émission. Passé ce délai, les tarifs pourront être révisés.</p>
     </div>
     <div class="cond-block">
       <h5>Propriété intellectuelle</h5>
-      <p>Les droits de propriété sont cédés au client après <strong>règlement intégral</strong> de la prestation.</p>
+      <p contenteditable="true">Les droits de propriété sont cédés au client après <strong>règlement intégral</strong> de la prestation.</p>
     </div>
   </div>
 
@@ -774,8 +771,8 @@
 
   <!-- ══ FOOTER ══ -->
   <footer class="footer">
-    <span class="footer-brand">VOTREBRAND.</span>
-    <div class="footer-legal">
+    <span class="footer-brand" contenteditable="true">VOTREBRAND.</span>
+    <div class="footer-legal" contenteditable="true">
       VotreBrand Studio SAS — Capital 10 000 € — SIRET 123 456 789 00012 — NAF 7410Z<br>
       12 rue de la Création, 75008 Paris — contact@votrebrand.fr — www.votrebrand.fr
     </div>
@@ -783,5 +780,37 @@
   </footer>
 
 </div>
+</div>
+
+<script>
+(function(){
+  function fitPageToA4(){
+    var ref = document.getElementById('a4-ref');
+    var frame = document.getElementById('pageFrame');
+    var page = document.getElementById('page');
+    if (!ref || !frame || !page) return;
+    page.style.transform = 'none';
+    frame.style.height = '';
+    var target = ref.offsetHeight;
+    var actual = page.scrollHeight;
+    if (target && actual > target + 1) {
+      var scale = Math.max(0.55, target / actual);
+      page.style.transform = 'scale(' + scale + ')';
+      page.style.transformOrigin = 'top center';
+      frame.style.height = Math.round(target) + 'px';
+    }
+  }
+  var fitTimer;
+  window.scheduleFit = function(){ clearTimeout(fitTimer); fitTimer = setTimeout(fitPageToA4, 60); };
+
+  document.addEventListener('input', function(e){
+    if (e.target.closest && e.target.closest('[contenteditable="true"]')) window.scheduleFit();
+  });
+  window.addEventListener('load', fitPageToA4);
+  window.addEventListener('resize', function(){ window.scheduleFit(); });
+  window.addEventListener('beforeprint', fitPageToA4);
+})();
+</script>
+
 </body>
 </html>

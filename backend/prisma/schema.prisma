@@ -953,6 +953,11 @@ model Invoice {
   devis_id        String?
   site            String?          // Chantier / site des travaux (hérité du devis)
 
+  // Overrides manuels des références affichées sur le PDF (n'affectent pas le chaînage réel bl_id/bc_id/devis_id)
+  ref_devis_override String?       // Si renseigné, remplace le n° devis affiché
+  ref_bc_override     String?      // Si renseigné, remplace le n° BC affiché
+  ref_bl_override      String?     // Si renseigné, remplace le n° BL affiché
+
   // Fournisseur (si RECEIVED)
   fournisseur_id  String?
   scanned_file_url String?        // Facture scannée

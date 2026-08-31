@@ -32,17 +32,23 @@
     line-height: 1.6;
   }
 
+  .page-frame {
+    width: 210mm;
+    margin: 32px auto;
+  }
+
   .page {
     background: var(--white);
     width: 210mm;
     min-height: 297mm;
-    margin: 32px auto;
     box-shadow: 0 24px 80px rgba(0,0,0,0.18);
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
+
+  #a4-ref { position: absolute; visibility: hidden; pointer-events: none; width: 0; height: 297mm; overflow: hidden; top: 0; left: 0; }
 
   /* ── HEADER ── */
   .header {
@@ -428,27 +434,21 @@
 
   @media print {
     body { background: white; }
-    .page { box-shadow: none; margin: 0; width: 100%; }
+    .page-frame { margin: 0; width: 100%; }
+    .page { box-shadow: none; width: 100%; }
     @page { margin: 0; size: A4; }
-    .edit-bar { display: none !important; }
     [contenteditable="true"] { border-bottom: none !important; background: none !important; }
   }
 
   /* ─── ÉDITION INLINE ─── */
-  .edit-bar {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
-    background: #1A1A1A; color: #F5C842;
-    padding: 7px 20px; font-family: 'Outfit', sans-serif;
-    font-size: 13px; display: flex; align-items: center; gap: 10px;
-  }
-  .edit-bar strong { font-weight: 600; }
-  .edit-bar span { opacity: 0.65; font-size: 12px; }
   [contenteditable="true"] {
     outline: none;
-    border-bottom: 2px dashed #F5C842;
-    padding-bottom: 1px;
     cursor: text;
     min-width: 20px;
+  }
+  [contenteditable="true"]:hover {
+    background: rgba(245,200,66,0.08);
+    border-radius: 3px;
   }
   [contenteditable="true"]:focus {
     background: rgba(245,200,66,0.12);
@@ -458,18 +458,16 @@
 </head>
 <body>
 
-<div class="edit-bar">
-  ✏️ <strong>Mode édition</strong>
-  <span>Cliquez sur le numéro ou la date pour les modifier — disparaît à l'impression</span>
-</div>
+<div id="a4-ref"></div>
 
-<div class="page" style="margin-top:36px">
+<div class="page-frame" id="pageFrame" style="margin-top:36px">
+<div class="page" id="page">
 
   <!-- ══ HEADER SOMBRE ══ -->
   <header class="header">
     <div>
-      <div class="brand-logo">VOTRE<span>.</span>BRAND</div>
-      <div class="brand-tagline">Agence créative &amp; conseil stratégique</div>
+      <div class="brand-logo" contenteditable="true">VOTRE<span>.</span>BRAND</div>
+      <div class="brand-tagline" contenteditable="true">Agence créative &amp; conseil stratégique</div>
     </div>
     <div class="doc-identity">
       <span class="doc-label">Facture</span>
@@ -490,17 +488,17 @@
     </div>
     <div class="meta-cell">
       <span class="meta-label">Échéance de paiement</span>
-      <div class="meta-value">30 décembre 2024</div>
-      <div class="meta-sub">Net 45 jours</div>
+      <div class="meta-value" contenteditable="true">30 décembre 2024</div>
+      <div class="meta-sub" contenteditable="true">Net 45 jours</div>
     </div>
     <div class="meta-cell">
       <span class="meta-label">Devis de référence</span>
-      <div class="meta-value">#DEV-2024-042</div>
+      <div class="meta-value" contenteditable="true">#DEV-2024-042</div>
     </div>
     <div class="meta-cell">
       <span class="meta-label">Conditions</span>
-      <div class="meta-value">Virement bancaire</div>
-      <div class="meta-sub">SEPA / BIC BNPAFRPP</div>
+      <div class="meta-value" contenteditable="true">Virement bancaire</div>
+      <div class="meta-sub" contenteditable="true">SEPA / BIC BNPAFRPP</div>
     </div>
   </div>
 
@@ -508,8 +506,8 @@
   <div class="parties">
     <div class="party-block emetteur">
       <span class="party-tag">Prestataire</span>
-      <div class="party-name">VotreBrand Studio SAS</div>
-      <div class="party-details">
+      <div class="party-name" contenteditable="true">VotreBrand Studio SAS</div>
+      <div class="party-details" contenteditable="true">
         12 rue de la Création, 75008 Paris<br>
         <strong>SIRET :</strong> 123 456 789 00012<br>
         <strong>N° TVA :</strong> FR12 123456789<br>
@@ -519,8 +517,8 @@
     </div>
     <div class="party-block client">
       <span class="party-tag">Facturé à</span>
-      <div class="party-name">Société ABC Technologies</div>
-      <div class="party-details">
+      <div class="party-name" contenteditable="true">Société ABC Technologies</div>
+      <div class="party-details" contenteditable="true">
         45 avenue de l'Innovation, 69003 Lyon<br>
         <strong>SIRET :</strong> 987 654 321 00034<br>
         <strong>N° TVA :</strong> FR98 987654321<br>
@@ -547,57 +545,57 @@
         <tr>
           <td><span class="td-ref">01</span></td>
           <td>
-            <div class="td-title">Audit &amp; Stratégie de marque</div>
-            <div class="td-sub">Analyse complète, benchmark, plateforme de marque.</div>
+            <div class="td-title" contenteditable="true">Audit &amp; Stratégie de marque</div>
+            <div class="td-sub" contenteditable="true">Analyse complète, benchmark, plateforme de marque.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">2 500,00 €</td>
-          <td class="r">20 %</td>
-          <td class="r">2 500,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">2 500,00 €</td>
+          <td class="r" contenteditable="true">20 %</td>
+          <td class="r" contenteditable="true">2 500,00 €</td>
         </tr>
         <tr>
           <td><span class="td-ref">02</span></td>
           <td>
-            <div class="td-title">Création identité visuelle complète</div>
-            <div class="td-sub">Logo, charte graphique, guide d'utilisation.</div>
+            <div class="td-title" contenteditable="true">Création identité visuelle complète</div>
+            <div class="td-sub" contenteditable="true">Logo, charte graphique, guide d'utilisation.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">4 800,00 €</td>
-          <td class="r">20 %</td>
-          <td class="r">4 800,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">4 800,00 €</td>
+          <td class="r" contenteditable="true">20 %</td>
+          <td class="r" contenteditable="true">4 800,00 €</td>
         </tr>
         <tr>
           <td><span class="td-ref">03</span></td>
           <td>
-            <div class="td-title">Design UI/UX — Site web corporate</div>
-            <div class="td-sub">Maquettes Figma (desktop + mobile), prototype interactif.</div>
+            <div class="td-title" contenteditable="true">Design UI/UX — Site web corporate</div>
+            <div class="td-sub" contenteditable="true">Maquettes Figma (desktop + mobile), prototype interactif.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">6 200,00 €</td>
-          <td class="r">20 %</td>
-          <td class="r">6 200,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">6 200,00 €</td>
+          <td class="r" contenteditable="true">20 %</td>
+          <td class="r" contenteditable="true">6 200,00 €</td>
         </tr>
         <tr>
           <td><span class="td-ref">04</span></td>
           <td>
-            <div class="td-title">Développement &amp; intégration web</div>
-            <div class="td-sub">Intégration HTML/CSS/JS, CMS WordPress, SEO technique.</div>
+            <div class="td-title" contenteditable="true">Développement &amp; intégration web</div>
+            <div class="td-sub" contenteditable="true">Intégration HTML/CSS/JS, CMS WordPress, SEO technique.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">5 500,00 €</td>
-          <td class="r">20 %</td>
-          <td class="r">5 500,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">5 500,00 €</td>
+          <td class="r" contenteditable="true">20 %</td>
+          <td class="r" contenteditable="true">5 500,00 €</td>
         </tr>
         <tr>
           <td><span class="td-ref">05</span></td>
           <td>
-            <div class="td-title">Formation &amp; livraison des fichiers sources</div>
-            <div class="td-sub">Session de formation, remise des fichiers sources AI/SVG/Figma.</div>
+            <div class="td-title" contenteditable="true">Formation &amp; livraison des fichiers sources</div>
+            <div class="td-sub" contenteditable="true">Session de formation, remise des fichiers sources AI/SVG/Figma.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">800,00 €</td>
-          <td class="r">20 %</td>
-          <td class="r">800,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">800,00 €</td>
+          <td class="r" contenteditable="true">20 %</td>
+          <td class="r" contenteditable="true">800,00 €</td>
         </tr>
       </tbody>
     </table>
@@ -608,23 +606,23 @@
     <div class="totals-block">
       <div class="total-line">
         <span class="tl-label">Total HT</span>
-        <span class="tl-value">19 800,00 €</span>
+        <span class="tl-value" contenteditable="true">19 800,00 €</span>
       </div>
       <div class="total-line tva">
-        <span class="tl-label">TVA 20 % (base imposable 19 800 €)</span>
-        <span class="tl-value">3 960,00 €</span>
+        <span class="tl-label" contenteditable="true">TVA 20 % (base imposable 19 800 €)</span>
+        <span class="tl-value" contenteditable="true">3 960,00 €</span>
       </div>
       <div class="total-line tva">
-        <span class="tl-label">Remise commerciale (5 %)</span>
-        <span class="tl-value">− 990,00 €</span>
+        <span class="tl-label" contenteditable="true">Remise commerciale (5 %)</span>
+        <span class="tl-value" contenteditable="true">− 990,00 €</span>
       </div>
       <div class="total-line" style="border-bottom: 2px solid var(--black);">
         <span class="tl-label">Acompte versé</span>
-        <span class="tl-value">− 9 108,00 €</span>
+        <span class="tl-value" contenteditable="true">− 9 108,00 €</span>
       </div>
       <div class="total-final">
         <span class="tf-label">Reste à régler TTC</span>
-        <span class="tf-value">13 662,00 €</span>
+        <span class="tf-value" contenteditable="true">13 662,00 €</span>
       </div>
     </div>
   </div>
@@ -633,16 +631,16 @@
   <div class="payment-section">
     <div class="pay-block">
       <h5>Coordonnées bancaires</h5>
-      <p>
+      <p contenteditable="true">
         <strong>Titulaire :</strong> VotreBrand Studio SAS<br>
         <strong>Banque :</strong> BNP Paribas — Paris Opera<br>
         <strong>BIC :</strong> BNPAFRPPXXX
       </p>
-      <div class="iban-code">FR76 3000 4008 1800 0100 7537 060</div>
+      <div class="iban-code" contenteditable="true">FR76 3000 4008 1800 0100 7537 060</div>
     </div>
     <div class="pay-block">
       <h5>Pénalités de retard</h5>
-      <p>
+      <p contenteditable="true">
         Conformément à la loi, tout retard de paiement entraîne des pénalités au taux de <strong>3× le taux légal</strong> en vigueur, ainsi qu'une indemnité forfaitaire pour frais de recouvrement de <strong>40 €</strong> (art. L. 441-10 C. com.).
       </p>
     </div>
@@ -651,7 +649,7 @@
   <!-- ══ MENTIONS LÉGALES ══ -->
   <div class="mentions-section">
     <h5>Mentions légales obligatoires</h5>
-    <p>
+    <p contenteditable="true">
       Facture soumise à TVA — TVA non applicable en cas d'exonération. Escompte pour paiement anticipé : néant. Pas d'escompte accordé. Conformément à l'art. L. 441-9 du Code de commerce, la date d'émission fait foi. Paiement à réception accepté.
       <br>VotreBrand Studio SAS — SAS au capital de 10 000 € — RCS Paris B 123 456 789 — N° TVA intracommunautaire : FR12 123456789 — Code APE : 7410Z
     </p>
@@ -659,8 +657,8 @@
 
   <!-- ══ FOOTER ══ -->
   <footer class="footer">
-    <span class="footer-brand">VOTREBRAND.</span>
-    <div class="footer-legal">
+    <span class="footer-brand" contenteditable="true">VOTREBRAND.</span>
+    <div class="footer-legal" contenteditable="true">
       VotreBrand Studio SAS — SIRET 123 456 789 00012 — TVA FR12 123456789<br>
       12 rue de la Création, 75008 Paris — facturation@votrebrand.fr
     </div>
@@ -668,5 +666,38 @@
   </footer>
 
 </div>
+</div>
+
+<script>
+(function(){
+  // ── Auto-ajustement sur une seule page A4 ──
+  function fitPageToA4(){
+    var ref = document.getElementById('a4-ref');
+    var frame = document.getElementById('pageFrame');
+    var page = document.getElementById('page');
+    if (!ref || !frame || !page) return;
+    page.style.transform = 'none';
+    frame.style.height = '';
+    var target = ref.offsetHeight;
+    var actual = page.scrollHeight;
+    if (target && actual > target + 1) {
+      var scale = Math.max(0.55, target / actual);
+      page.style.transform = 'scale(' + scale + ')';
+      page.style.transformOrigin = 'top center';
+      frame.style.height = Math.round(target) + 'px';
+    }
+  }
+  var fitTimer;
+  window.scheduleFit = function(){ clearTimeout(fitTimer); fitTimer = setTimeout(fitPageToA4, 60); };
+
+  document.addEventListener('input', function(e){
+    if (e.target.closest && e.target.closest('[contenteditable="true"]')) window.scheduleFit();
+  });
+  window.addEventListener('load', fitPageToA4);
+  window.addEventListener('resize', function(){ window.scheduleFit(); });
+  window.addEventListener('beforeprint', fitPageToA4);
+})();
+</script>
+
 </body>
 </html>

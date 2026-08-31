@@ -2,7 +2,7 @@
   "name": "etcc-backend",
   "version": "0.1.0",
   "description": "Backend NestJS pour la plateforme ETCC",
-  "main": "dist/main.js",
+  "main": "dist/src/main.js",
   "engines": {
     "node": ">=20.18.1"
   },
@@ -10,7 +10,7 @@
     "build": "npx prisma generate && nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/src/main",
     "lint": "eslint \"{src,test}/**/*.ts\" --fix",
     "test": "jest",
     "prisma:generate": "npx prisma generate",

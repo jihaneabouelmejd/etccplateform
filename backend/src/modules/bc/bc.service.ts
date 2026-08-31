@@ -177,16 +177,52 @@ export class BCService {
     return bc;
   }
 
-  async update(id: string, input: { number?: string; issue_date?: string; prestation_id?: string | null; client_number?: string | null }) {
+  async update(id: string, input: {
+    number?: string;
+    issue_date?: string;
+    prestation_id?: string | null;
+    client_number?: string | null;
+    client_id?: string;
+    notes?: string | null;
+    signature_id?: string | null;
+    lines?: { description: string; quantity: number; unit_price?: number }[];
+  }) {
     await this.findOne(id);
-    return this.prisma.bonCommande.update({
-      where: { id },
-      data: {
-        ...(input.number && { number: input.number }),
-        ...(input.issue_date && { issue_date: new Date(input.issue_date) }),
-        ...(input.prestation_id !== undefined && { prestation_id: input.prestation_id || null }),
-        ...(input.client_number !== undefined && { client_number: input.client_number || null }),
-      },
+
+    return this.prisma.$transaction(async (tx) => {
+      let totals: any = {};
+      if (input.lines && input.lines.length > 0) {
+        const totalHt = input.lines.reduce((sum, l) => sum + l.quantity * (l.unit_price || 0), 0);
+        const totalTtc = Math.round(totalHt * 1.2 * 100) / 100;
+        totals = { total_ht: Math.round(totalHt * 100) / 100, total_ttc: totalTtc };
+        await tx.bCLine.deleteMany({ where: { bc_id: id } });
+      }
+
+      return tx.bonCommande.update({
+        where: { id },
+        data: {
+          ...(input.number && { number: input.number }),
+          ...(input.issue_date && { issue_date: new Date(input.issue_date) }),
+          ...(input.prestation_id !== undefined && { prestation_id: input.prestation_id || null }),
+          ...(input.client_number !== undefined && { client_number: input.client_number || null }),
+          ...(input.client_id !== undefined && { client_id: input.client_id }),
+          ...(input.notes !== undefined && { notes: input.notes || null }),
+          ...(input.signature_id !== undefined && { signature_id: input.signature_id || null }),
+          ...totals,
+          ...(input.lines && input.lines.length > 0 ? {
+            lines: {
+              create: input.lines.map((line, i) => ({
+                description: line.description,
+                quantity: line.quantity,
+                unit_price: line.unit_price ?? null,
+                total_ht: line.unit_price ? line.quantity * line.unit_price : null,
+                order: i,
+              })),
+            },
+          } : {}),
+        },
+        include: { lines: { orderBy: { order: 'asc' } }, client: { select: { commercial_name: true } } },
+      });
     });
   }
 

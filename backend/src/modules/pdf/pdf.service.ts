@@ -389,6 +389,12 @@ export class PDFService {
       const backendOrigin = process.env.APP_URL || 'http://localhost:4000';
       const htmlWithBase = html.replace('<head>', `<head><base href="${backendOrigin}">`);
       await page.setContent(htmlWithBase, { waitUntil: 'networkidle0', timeout: 30000 });
+      // Re-run the single-page fit (if the template defines one) right before printing,
+      // in case fonts/images finished loading after the template's own inline call.
+      await page.evaluate(() => {
+        // @ts-ignore - fitPageToA4 is defined inline by templates that support single-page fit
+        if (typeof (window as any).fitPageToA4 === 'function') (window as any).fitPageToA4();
+      });
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,

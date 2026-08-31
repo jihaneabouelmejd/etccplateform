@@ -32,17 +32,23 @@
     line-height: 1.6;
   }
 
+  .page-frame {
+    width: 210mm;
+    margin: 32px auto;
+  }
+
   .page {
     background: var(--white);
     width: 210mm;
     min-height: 297mm;
-    margin: 32px auto;
     box-shadow: 0 24px 80px rgba(0,0,0,0.18);
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
+
+  #a4-ref { position: absolute; visibility: hidden; pointer-events: none; width: 0; height: 297mm; overflow: hidden; top: 0; left: 0; }
 
   /* ── HEADER diagonal ── */
   .header {
@@ -457,27 +463,21 @@
 
   @media print {
     body { background: white; }
-    .page { box-shadow: none; margin: 0; width: 100%; }
+    .page-frame { margin: 0; width: 100%; }
+    .page { box-shadow: none; width: 100%; }
     @page { margin: 0; size: A4; }
-    .edit-bar { display: none !important; }
     [contenteditable="true"] { border-bottom: none !important; background: none !important; }
   }
 
   /* ─── ÉDITION INLINE ─── */
-  .edit-bar {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
-    background: #1A1A1A; color: #F5C842;
-    padding: 7px 20px; font-family: 'Outfit', sans-serif;
-    font-size: 13px; display: flex; align-items: center; gap: 10px;
-  }
-  .edit-bar strong { font-weight: 600; }
-  .edit-bar span { opacity: 0.65; font-size: 12px; }
   [contenteditable="true"] {
     outline: none;
-    border-bottom: 2px dashed #F5C842;
-    padding-bottom: 1px;
     cursor: text;
     min-width: 20px;
+  }
+  [contenteditable="true"]:hover {
+    background: rgba(245,200,66,0.08);
+    border-radius: 3px;
   }
   [contenteditable="true"]:focus {
     background: rgba(245,200,66,0.12);
@@ -487,19 +487,17 @@
 </head>
 <body>
 
-<div class="edit-bar">
-  ✏️ <strong>Mode édition</strong>
-  <span>Cliquez sur le numéro ou la date pour les modifier — disparaît à l'impression</span>
-</div>
+<div id="a4-ref"></div>
 
-<div class="page" style="margin-top:36px">
+<div class="page-frame" id="pageFrame" style="margin-top:36px">
+<div class="page" id="page">
 
   <!-- ══ HEADER ══ -->
   <header class="header">
     <div class="header-top">
       <div>
-        <div class="brand-logo">VOTRE<span>.</span>BRAND</div>
-        <div class="brand-tagline">Agence créative &amp; conseil stratégique</div>
+        <div class="brand-logo" contenteditable="true">VOTRE<span>.</span>BRAND</div>
+        <div class="brand-tagline" contenteditable="true">Agence créative &amp; conseil stratégique</div>
       </div>
       <div class="doc-identity">
         <span class="doc-label">Bon de livraison</span>
@@ -557,17 +555,17 @@
     </div>
     <div class="meta-cell">
       <span class="meta-label">Livraison prévue</span>
-      <div class="meta-value">10 décembre 2024</div>
-      <div class="meta-sub">Délai contractuel</div>
+      <div class="meta-value" contenteditable="true">10 décembre 2024</div>
+      <div class="meta-sub" contenteditable="true">Délai contractuel</div>
     </div>
     <div class="meta-cell">
       <span class="meta-label">BC de référence</span>
-      <div class="meta-value">#BC-2024-156</div>
+      <div class="meta-value" contenteditable="true">#BC-2024-156</div>
     </div>
     <div class="meta-cell">
       <span class="meta-label">Transporteur / Suivi</span>
-      <div class="meta-value">Livraison digitale</div>
-      <div class="meta-sub">Lien sécurisé partagé</div>
+      <div class="meta-value" contenteditable="true">Livraison digitale</div>
+      <div class="meta-sub" contenteditable="true">Lien sécurisé partagé</div>
     </div>
   </div>
 
@@ -575,8 +573,8 @@
   <div class="parties">
     <div class="party-block expediteur">
       <span class="party-tag">Expéditeur</span>
-      <div class="party-name">VotreBrand Studio SAS</div>
-      <div class="party-details">
+      <div class="party-name" contenteditable="true">VotreBrand Studio SAS</div>
+      <div class="party-details" contenteditable="true">
         12 rue de la Création, 75008 Paris<br>
         <strong>Contact :</strong> Sophie Lemaire<br>
         <strong>Tél :</strong> +33 1 23 45 67 89<br>
@@ -585,8 +583,8 @@
     </div>
     <div class="party-block destinataire">
       <span class="party-tag">Destinataire</span>
-      <div class="party-name">ABC Technologies SAS</div>
-      <div class="party-details">
+      <div class="party-name" contenteditable="true">ABC Technologies SAS</div>
+      <div class="party-details" contenteditable="true">
         45 avenue de l'Innovation, 69003 Lyon<br>
         <strong>Contact :</strong> Marie Dupont<br>
         <strong>Tél :</strong> +33 4 56 78 90 12<br>
@@ -612,57 +610,57 @@
         <tr>
           <td><span class="ref-code">VB-AUD-01</span></td>
           <td>
-            <div class="td-title">Rapport Audit &amp; Stratégie</div>
-            <div class="td-sub">Fichier PDF — Plateforme de marque complète</div>
+            <div class="td-title" contenteditable="true">Rapport Audit &amp; Stratégie</div>
+            <div class="td-sub" contenteditable="true">Fichier PDF — Plateforme de marque complète</div>
           </td>
-          <td class="c">1</td>
-          <td class="c">1</td>
-          <td class="c"><span class="qty-badge qty-ok">✓ Livré</span></td>
-          <td class="obs-cell">Conforme aux attentes</td>
+          <td class="c" contenteditable="true">1</td>
+          <td class="c" contenteditable="true">1</td>
+          <td class="c"><span class="qty-badge qty-ok" contenteditable="true">✓ Livré</span></td>
+          <td class="obs-cell" contenteditable="true">Conforme aux attentes</td>
         </tr>
         <tr>
           <td><span class="ref-code">VB-IDV-02</span></td>
           <td>
-            <div class="td-title">Pack identité visuelle</div>
-            <div class="td-sub">Fichiers AI, SVG, PNG — Charte graphique PDF</div>
+            <div class="td-title" contenteditable="true">Pack identité visuelle</div>
+            <div class="td-sub" contenteditable="true">Fichiers AI, SVG, PNG — Charte graphique PDF</div>
           </td>
-          <td class="c">1</td>
-          <td class="c">1</td>
-          <td class="c"><span class="qty-badge qty-ok">✓ Livré</span></td>
-          <td class="obs-cell">Tous formats inclus</td>
+          <td class="c" contenteditable="true">1</td>
+          <td class="c" contenteditable="true">1</td>
+          <td class="c"><span class="qty-badge qty-ok" contenteditable="true">✓ Livré</span></td>
+          <td class="obs-cell" contenteditable="true">Tous formats inclus</td>
         </tr>
         <tr>
           <td><span class="ref-code">VB-UX-03</span></td>
           <td>
-            <div class="td-title">Fichiers design UI/UX Figma</div>
-            <div class="td-sub">Lien Figma partagé — 8 pages desktop + mobile</div>
+            <div class="td-title" contenteditable="true">Fichiers design UI/UX Figma</div>
+            <div class="td-sub" contenteditable="true">Lien Figma partagé — 8 pages desktop + mobile</div>
           </td>
-          <td class="c">1</td>
-          <td class="c">1</td>
-          <td class="c"><span class="qty-badge qty-ok">✓ Livré</span></td>
-          <td class="obs-cell">Prototype navigable inclus</td>
+          <td class="c" contenteditable="true">1</td>
+          <td class="c" contenteditable="true">1</td>
+          <td class="c"><span class="qty-badge qty-ok" contenteditable="true">✓ Livré</span></td>
+          <td class="obs-cell" contenteditable="true">Prototype navigable inclus</td>
         </tr>
         <tr>
           <td><span class="ref-code">VB-DEV-04</span></td>
           <td>
-            <div class="td-title">Site web — Accès CMS &amp; hébergement</div>
-            <div class="td-sub">Accès WordPress + documentation technique</div>
+            <div class="td-title" contenteditable="true">Site web — Accès CMS &amp; hébergement</div>
+            <div class="td-sub" contenteditable="true">Accès WordPress + documentation technique</div>
           </td>
-          <td class="c">1</td>
-          <td class="c">0</td>
-          <td class="c"><span class="qty-badge qty-partial">⏳ En cours</span></td>
-          <td class="obs-cell">Livraison prévue 10 déc.</td>
+          <td class="c" contenteditable="true">1</td>
+          <td class="c" contenteditable="true">0</td>
+          <td class="c"><span class="qty-badge qty-partial" contenteditable="true">⏳ En cours</span></td>
+          <td class="obs-cell" contenteditable="true">Livraison prévue 10 déc.</td>
         </tr>
         <tr>
           <td><span class="ref-code">VB-FOR-05</span></td>
           <td>
-            <div class="td-title">Session de formation CMS</div>
-            <div class="td-sub">Visioconférence 2h — Support PDF</div>
+            <div class="td-title" contenteditable="true">Session de formation CMS</div>
+            <div class="td-sub" contenteditable="true">Visioconférence 2h — Support PDF</div>
           </td>
-          <td class="c">1</td>
-          <td class="c">0</td>
-          <td class="c"><span class="qty-badge qty-missing">✗ Non livré</span></td>
-          <td class="obs-cell">À planifier après mise en ligne</td>
+          <td class="c" contenteditable="true">1</td>
+          <td class="c" contenteditable="true">0</td>
+          <td class="c"><span class="qty-badge qty-missing" contenteditable="true">✗ Non livré</span></td>
+          <td class="obs-cell" contenteditable="true">À planifier après mise en ligne</td>
         </tr>
       </tbody>
     </table>
@@ -672,23 +670,23 @@
   <div class="recap-bar">
     <div class="recap-item">
       <span class="recap-label">Articles commandés</span>
-      <div class="recap-value">5</div>
+      <div class="recap-value" contenteditable="true">5</div>
     </div>
     <div class="recap-item">
       <span class="recap-label">Livrés ce jour</span>
-      <div class="recap-value green">3</div>
+      <div class="recap-value green" contenteditable="true">3</div>
     </div>
     <div class="recap-item">
       <span class="recap-label">En attente</span>
-      <div class="recap-value yellow">2</div>
+      <div class="recap-value yellow" contenteditable="true">2</div>
     </div>
     <div class="recap-item">
       <span class="recap-label">Taux de livraison</span>
-      <div class="recap-value yellow">60 %</div>
+      <div class="recap-value yellow" contenteditable="true">60 %</div>
     </div>
     <div class="recap-item">
       <span class="recap-label">Livraison complète</span>
-      <div class="recap-value">10 déc.</div>
+      <div class="recap-value" contenteditable="true">10 déc.</div>
     </div>
   </div>
 
@@ -698,25 +696,25 @@
       <h5>Contrôle à la réception</h5>
       <div class="check-row">
         <div class="check-box checked">✓</div>
-        <span>Livrables conformes au bon de commande</span>
+        <span contenteditable="true">Livrables conformes au bon de commande</span>
       </div>
       <div class="check-row">
         <div class="check-box checked">✓</div>
-        <span>Fichiers sources complets et exploitables</span>
+        <span contenteditable="true">Fichiers sources complets et exploitables</span>
       </div>
       <div class="check-row">
         <div class="check-box"></div>
-        <span>Livraison totale effectuée (partielle ce jour)</span>
+        <span contenteditable="true">Livraison totale effectuée (partielle ce jour)</span>
       </div>
       <div class="check-row">
         <div class="check-box"></div>
-        <span>Réserves émises (préciser ci-dessous)</span>
+        <span contenteditable="true">Réserves émises (préciser ci-dessous)</span>
       </div>
     </div>
     <div class="condition-block">
       <h5>Réserves &amp; observations du réceptionneur</h5>
       <div style="border: 1.5px dashed var(--border); border-radius: 6px; height: 72px; padding: 8px 12px;">
-        <p style="font-size:10px; color:var(--gray-mid); font-style:italic; font-family:'Cormorant Garamond',serif">
+        <p contenteditable="true" style="font-size:10px; color:var(--gray-mid); font-style:italic; font-family:'Cormorant Garamond',serif">
           Aucune réserve — ou décrire les anomalies constatées à la réception…
         </p>
       </div>
@@ -743,8 +741,8 @@
 
   <!-- ══ FOOTER ══ -->
   <footer class="footer">
-    <span class="footer-brand">VOTREBRAND.</span>
-    <div class="footer-legal">
+    <span class="footer-brand" contenteditable="true">VOTREBRAND.</span>
+    <div class="footer-legal" contenteditable="true">
       VotreBrand Studio SAS — SIRET 123 456 789 00012<br>
       12 rue de la Création, 75008 Paris — livraison@votrebrand.fr
     </div>
@@ -752,5 +750,38 @@
   </footer>
 
 </div>
+</div>
+
+<script>
+(function(){
+  // ── Auto-ajustement sur une seule page A4 ──
+  function fitPageToA4(){
+    var ref = document.getElementById('a4-ref');
+    var frame = document.getElementById('pageFrame');
+    var page = document.getElementById('page');
+    if (!ref || !frame || !page) return;
+    page.style.transform = 'none';
+    frame.style.height = '';
+    var target = ref.offsetHeight;
+    var actual = page.scrollHeight;
+    if (target && actual > target + 1) {
+      var scale = Math.max(0.55, target / actual);
+      page.style.transform = 'scale(' + scale + ')';
+      page.style.transformOrigin = 'top center';
+      frame.style.height = Math.round(target) + 'px';
+    }
+  }
+  var fitTimer;
+  window.scheduleFit = function(){ clearTimeout(fitTimer); fitTimer = setTimeout(fitPageToA4, 60); };
+
+  document.addEventListener('input', function(e){
+    if (e.target.closest && e.target.closest('[contenteditable="true"]')) window.scheduleFit();
+  });
+  window.addEventListener('load', fitPageToA4);
+  window.addEventListener('resize', function(){ window.scheduleFit(); });
+  window.addEventListener('beforeprint', fitPageToA4);
+})();
+</script>
+
 </body>
 </html>

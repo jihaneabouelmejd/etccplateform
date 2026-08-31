@@ -77,7 +77,7 @@ export default function FacturesPage() {
 
   // Edit invoice modal
   const [editTarget, setEditTarget] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ issue_date: '', due_date: '', payment_terms: '', notes: '', discount_rate: 0, signature_id: '', number: '', prestation_id: '' });
+  const [editForm, setEditForm] = useState({ issue_date: '', due_date: '', payment_terms: '', notes: '', discount_rate: 0, signature_id: '', number: '', prestation_id: '', ref_devis_override: '', ref_bc_override: '', ref_bl_override: '' });
   const [prestations, setPrestations] = useState<any[]>([]);
   const [editLines, setEditLines] = useState<Array<{ desc: string; qty: number; pu: number }>>([]);
   const [editSigs, setEditSigs] = useState<any[]>([]);
@@ -324,6 +324,9 @@ export default function FacturesPage() {
       signature_id: full.signature_id || '',
       number: full.number || '',
       prestation_id: full.prestation_id || '',
+      ref_devis_override: full.ref_devis_override || '',
+      ref_bc_override: full.ref_bc_override || '',
+      ref_bl_override: full.ref_bl_override || '',
     });
     setEditLines((full.lines || []).map((l: any) => ({ desc: l.description, qty: Number(l.quantity), pu: Number(l.unit_price) })));
     setEditError('');
@@ -344,6 +347,9 @@ export default function FacturesPage() {
         signature_id: editForm.signature_id || null,
         number: editForm.number || undefined,
         prestation_id: editForm.prestation_id || null,
+        ref_devis_override: editForm.ref_devis_override || null,
+        ref_bc_override: editForm.ref_bc_override || null,
+        ref_bl_override: editForm.ref_bl_override || null,
         lines: editLines.filter(l => l.desc).map(l => ({ description: l.desc, quantity: l.qty, unit_price: l.pu })),
       });
       fetchData();
@@ -1149,6 +1155,29 @@ export default function FacturesPage() {
                     <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Références (override manuel) */}
+              <div style={{ border:'1.5px solid #E8D4B0', borderRadius:10, padding:14, marginBottom:16 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:2 }}>Références affichées sur le PDF</label>
+                <p style={{ margin:'0 0 10px', fontSize:11, color:'#B8A090' }}>Laisser vide pour garder la référence liée automatiquement (devis/BC/BL).</p>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
+                  <div>
+                    <label style={{ display:'block', fontSize:10, fontWeight:600, color:'#8E5915', marginBottom:4 }}>N° Devis</label>
+                    <input value={editForm.ref_devis_override} onChange={e => setEditForm({...editForm, ref_devis_override:e.target.value})} placeholder="DEV-2026-..."
+                      style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1.5px solid #E8D4B0', fontSize:12, outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+                  </div>
+                  <div>
+                    <label style={{ display:'block', fontSize:10, fontWeight:600, color:'#8E5915', marginBottom:4 }}>N° BC</label>
+                    <input value={editForm.ref_bc_override} onChange={e => setEditForm({...editForm, ref_bc_override:e.target.value})} placeholder="BC-2026-..."
+                      style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1.5px solid #E8D4B0', fontSize:12, outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+                  </div>
+                  <div>
+                    <label style={{ display:'block', fontSize:10, fontWeight:600, color:'#8E5915', marginBottom:4 }}>N° BL</label>
+                    <input value={editForm.ref_bl_override} onChange={e => setEditForm({...editForm, ref_bl_override:e.target.value})} placeholder="BL-2026-..."
+                      style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1.5px solid #E8D4B0', fontSize:12, outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+                  </div>
+                </div>
               </div>
 
               {/* Signature */}

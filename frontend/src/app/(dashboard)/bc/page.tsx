@@ -78,21 +78,71 @@ export default function BCPage() {
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
 
-  // ── Edit numéro/date ─────────────────────────────────────────────────────
+  // ── Edit BC (numéro/date/client/lignes/notes/signature) ─────────────────
   const [editTarget, setEditTarget]       = useState<any>(null);
+  const [editLoading, setEditLoading]     = useState(false);
   const [editNumber, setEditNumber]       = useState('');
   const [editDate, setEditDate]           = useState('');
   const [editSaving, setEditSaving]       = useState(false);
   const [editPrestationId, setEditPrestationId] = useState('');
   const [editClientNumber, setEditClientNumber] = useState('');
+  const [editClientId, setEditClientId]   = useState('');
+  const [editNotes, setEditNotes]         = useState('');
+  const [editSignatureId, setEditSignatureId] = useState('');
+  const [editLines, setEditLines]         = useState<ImportLine[]>([emptyLine()]);
 
-  const openEdit = (bc: any) => { setEditTarget(bc); setEditNumber(bc.number || ''); setEditDate(bc.issue_date ? bc.issue_date.split('T')[0] : ''); setEditPrestationId(bc.prestation_id || ''); setEditClientNumber(bc.client_number || ''); };
+  const updateEditLine = (idx: number, field: keyof ImportLine, val: string) =>
+    setEditLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: val } : l));
+
+  const openEdit = async (bc: any) => {
+    setEditTarget(bc);
+    setEditNumber(bc.number || '');
+    setEditDate(bc.issue_date ? bc.issue_date.split('T')[0] : '');
+    setEditPrestationId(bc.prestation_id || '');
+    setEditClientNumber(bc.client_number || '');
+    setEditClientId(bc.client_id || '');
+    setEditNotes(bc.notes || '');
+    setEditSignatureId(bc.signature_id || '');
+    setEditLines([emptyLine()]);
+    setEditLoading(true);
+    try {
+      const res = await bcApi.get(bc.id);
+      const full = res.data;
+      setEditClientId(full.client_id || '');
+      setEditNotes(full.notes || '');
+      setEditSignatureId(full.signature_id || '');
+      if (full.lines && full.lines.length > 0) {
+        setEditLines(full.lines.map((l: any) => ({
+          description: l.description || '',
+          quantity: String(l.quantity ?? '1'),
+          unit_price: l.unit_price != null ? String(l.unit_price) : '',
+        })));
+      }
+    } catch {} finally { setEditLoading(false); }
+  };
+
   const handleEditSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTarget) return;
     setEditSaving(true);
     try {
-      await bcApi.update(editTarget.id, { number: editNumber, issue_date: editDate, prestation_id: editPrestationId || null, client_number: editClientNumber || null });
+      const validLines = editLines.filter(l => l.description.trim());
+      await bcApi.update(editTarget.id, {
+        number: editNumber,
+        issue_date: editDate,
+        prestation_id: editPrestationId || null,
+        client_number: editClientNumber || null,
+        client_id: editClientId || undefined,
+        notes: editNotes || null,
+        signature_id: editSignatureId || null,
+        ...(validLines.length > 0 ? {
+          lines: validLines.map(l => ({
+            description: l.description,
+            quantity: parseFloat(l.quantity) || 1,
+            unit_price: l.unit_price ? parseFloat(l.unit_price) : undefined,
+          })),
+        } : {}),
+      });
       fetchData();
       setEditTarget(null);
     } finally { setEditSaving(false); }
@@ -879,47 +929,114 @@ export default function BCPage() {
       )}
 
       {/* ════════════════════════════════════════════════════════════════════
-          POPUP : Edit numéro/date
+          POPUP : Edit BC (numéro/date/client/lignes/notes/signature)
       ════════════════════════════════════════════════════════════════════ */}
       {editTarget && (
         <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div onClick={() => setEditTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }} />
-          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:14, width:380, padding:28, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:14, width:640, maxWidth:'92vw', maxHeight:'88vh', overflowY:'auto', padding:28, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
             <h3 style={{ margin:'0 0 20px', fontSize:15, fontWeight:700, color:'#1A141A' }}>✏️ Modifier {editTarget.number}</h3>
+            {editLoading ? (
+              <p style={{ fontSize:13, color:'#A33C00' }}>Chargement...</p>
+            ) : (
             <form onSubmit={handleEditSave}>
-              <div style={{ marginBottom:14 }}>
-                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Numéro</label>
-                <input value={editNumber} onChange={e => setEditNumber(e.target.value)}
-                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+                <div>
+                  <label style={labelStyle}>Numéro</label>
+                  <input value={editNumber} onChange={e => setEditNumber(e.target.value)}
+                    style={{ ...inputStyle, fontFamily:'monospace' }} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Date d'émission</label>
+                  <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={inputStyle} />
+                </div>
               </div>
+
               <div style={{ marginBottom:14 }}>
-                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Date d'émission</label>
-                <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
-                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box' }} />
-              </div>
-              <div style={{ marginBottom:14 }}>
-                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>N° BC client</label>
-                <input value={editClientNumber} onChange={e => setEditClientNumber(e.target.value)}
-                  placeholder="Ex: MAD1-CO014589"
-                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
-              </div>
-              <div style={{ marginBottom:20 }}>
-                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Prestation</label>
-                <select value={editPrestationId} onChange={e => setEditPrestationId(e.target.value)}
-                  style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', boxSizing:'border-box', background:'white' }}>
-                  <option value="">— Aucune —</option>
-                  {prestations.map(p => (
-                    <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                <label style={labelStyle}>Client</label>
+                <select value={editClientId} onChange={e => setEditClientId(e.target.value)} style={inputStyle}>
+                  <option value="">— Ne pas changer —</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.commercial_name}</option>
                   ))}
                 </select>
               </div>
+
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:14 }}>
+                <div>
+                  <label style={labelStyle}>N° BC client</label>
+                  <input value={editClientNumber} onChange={e => setEditClientNumber(e.target.value)}
+                    placeholder="Ex: MAD1-CO014589"
+                    style={{ ...inputStyle, fontFamily:'monospace' }} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Prestation</label>
+                  <select value={editPrestationId} onChange={e => setEditPrestationId(e.target.value)} style={inputStyle}>
+                    <option value="">— Aucune —</option>
+                    {prestations.map(p => (
+                      <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Lignes du BC */}
+              <div style={{ marginBottom:18 }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                  <label style={{ ...labelStyle, marginBottom:0 }}>Lignes du BC</label>
+                  <button type="button" onClick={() => setEditLines(p => [...p, emptyLine()])}
+                    style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:6, border:'1.5px solid #EDDEC1', background:'white', color:'#A33C00', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                    <PlusCircle size={13} /> Ajouter
+                  </button>
+                </div>
+                <div style={{ border:'1px solid #EDDEC1', borderRadius:10, overflow:'hidden' }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', background:'#FBF6EE', padding:'8px 12px', borderBottom:'1px solid #EDDEC1' }}>
+                    {['Description','Qté','P.U. HT',''].map((h, i) => (
+                      <span key={i} style={{ fontSize:10, fontWeight:700, color:'#A33C00', textTransform:'uppercase', letterSpacing:0.5 }}>{h}</span>
+                    ))}
+                  </div>
+                  {editLines.map((line, idx) => (
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', padding:'8px 12px', borderBottom: idx < editLines.length-1 ? '1px solid #EDDEC1' : 'none', alignItems:'center' }}>
+                      <input placeholder="Description..." value={line.description}
+                        onChange={e => updateEditLine(idx, 'description', e.target.value)}
+                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                      <input type="number" min="0.01" step="0.01" placeholder="1" value={line.quantity}
+                        onChange={e => updateEditLine(idx, 'quantity', e.target.value)}
+                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                      <input type="number" min="0" step="0.01" placeholder="Prix HT" value={line.unit_price}
+                        onChange={e => updateEditLine(idx, 'unit_price', e.target.value)}
+                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                      <button type="button" onClick={() => { if (editLines.length > 1) setEditLines(p => p.filter((_,i) => i !== idx)); }}
+                        disabled={editLines.length === 1}
+                        style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: editLines.length===1 ? 0.3 : 1 }}>
+                        <X size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ marginBottom:18 }}>
+                <label style={labelStyle}>Notes</label>
+                <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3}
+                  style={{ ...inputStyle, resize:'vertical' as const, fontFamily:'inherit' }} />
+              </div>
+
+              {signatures.length > 0 && (
+                <div style={{ marginBottom:22 }}>
+                  <label style={labelStyle}>Signature ETCC</label>
+                  <SignaturePicker value={editSignatureId} onChange={setEditSignatureId} />
+                </div>
+              )}
+
               <div style={{ display:'flex', gap:10 }}>
-                <button type="button" onClick={() => setEditTarget(null)} style={{ flex:1, padding:'9px', borderRadius:8, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:13, fontWeight:600, cursor:'pointer' }}>Annuler</button>
-                <button type="submit" disabled={editSaving} style={{ flex:2, padding:'9px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#F4B315,#E59312)', color:'white', fontSize:13, fontWeight:700, cursor:'pointer', opacity:editSaving?0.7:1 }}>
+                <button type="button" onClick={() => setEditTarget(null)} style={{ ...btnSecondary, flex:1 }}>Annuler</button>
+                <button type="submit" disabled={editSaving} style={{ ...btnPrimary, flex:2, opacity:editSaving?0.7:1 }}>
                   {editSaving ? 'Enregistrement...' : 'Enregistrer'}
                 </button>
               </div>
             </form>
+            )}
           </div>
         </div>
       )}

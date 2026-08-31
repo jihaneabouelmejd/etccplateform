@@ -30,17 +30,23 @@
     line-height: 1.6;
   }
 
+  .page-frame {
+    width: 210mm;
+    margin: 32px auto;
+  }
+
   .page {
     background: var(--white);
     width: 210mm;
     min-height: 297mm;
-    margin: 32px auto;
     box-shadow: 0 24px 80px rgba(0,0,0,0.18);
     position: relative;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
+
+  #a4-ref { position: absolute; visibility: hidden; pointer-events: none; width: 0; height: 297mm; overflow: hidden; top: 0; left: 0; }
 
   /* ── HEADER avec bande jaune latérale ── */
   .header {
@@ -400,27 +406,21 @@
 
   @media print {
     body { background: white; }
-    .page { box-shadow: none; margin: 0; width: 100%; }
+    .page-frame { margin: 0; width: 100%; }
+    .page { box-shadow: none; width: 100%; }
     @page { margin: 0; size: A4; }
-    .edit-bar { display: none !important; }
     [contenteditable="true"] { border-bottom: none !important; background: none !important; }
   }
 
   /* ─── ÉDITION INLINE ─── */
-  .edit-bar {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
-    background: #1A1A1A; color: #F5C842;
-    padding: 7px 20px; font-family: 'Outfit', sans-serif;
-    font-size: 13px; display: flex; align-items: center; gap: 10px;
-  }
-  .edit-bar strong { font-weight: 600; }
-  .edit-bar span { opacity: 0.65; font-size: 12px; }
   [contenteditable="true"] {
     outline: none;
-    border-bottom: 2px dashed #F5C842;
-    padding-bottom: 1px;
     cursor: text;
     min-width: 20px;
+  }
+  [contenteditable="true"]:hover {
+    background: rgba(245,200,66,0.08);
+    border-radius: 3px;
   }
   [contenteditable="true"]:focus {
     background: rgba(245,200,66,0.12);
@@ -430,20 +430,18 @@
 </head>
 <body>
 
-<div class="edit-bar">
-  ✏️ <strong>Mode édition</strong>
-  <span>Cliquez sur le numéro ou la date pour les modifier — disparaît à l'impression</span>
-</div>
+<div id="a4-ref"></div>
 
-<div class="page" style="margin-top:36px">
+<div class="page-frame" id="pageFrame" style="margin-top:36px">
+<div class="page" id="page">
 
   <!-- ══ HEADER ══ -->
   <header class="header">
     <div class="header-accent"></div>
     <div class="header-inner">
       <div>
-        <div class="brand-logo">VOTRE<span>.</span>BRAND</div>
-        <div class="brand-tagline">Agence créative &amp; conseil stratégique</div>
+        <div class="brand-logo" contenteditable="true">VOTRE<span>.</span>BRAND</div>
+        <div class="brand-tagline" contenteditable="true">Agence créative &amp; conseil stratégique</div>
       </div>
       <div class="doc-identity">
         <span class="doc-label">Bon de commande</span>
@@ -462,16 +460,16 @@
     </div>
     <div class="meta-cell">
       <span class="meta-label">Délai de livraison souhaité</span>
-      <div class="meta-value">10 décembre 2024</div>
-      <div class="meta-sub">25 jours ouvrés</div>
+      <div class="meta-value" contenteditable="true">10 décembre 2024</div>
+      <div class="meta-sub" contenteditable="true">25 jours ouvrés</div>
     </div>
     <div class="meta-cell">
       <span class="meta-label">Modalité de paiement</span>
-      <div class="meta-value">30 jours fin de mois</div>
+      <div class="meta-value" contenteditable="true">30 jours fin de mois</div>
     </div>
     <div class="meta-cell">
       <span class="meta-label">Devis accepté</span>
-      <div class="meta-value">#DEV-2024-042</div>
+      <div class="meta-value" contenteditable="true">#DEV-2024-042</div>
     </div>
   </div>
 
@@ -479,8 +477,8 @@
   <div class="parties">
     <div class="party-block acheteur">
       <span class="party-tag">Acheteur (Donneur d'ordre)</span>
-      <div class="party-name">ABC Technologies SAS</div>
-      <div class="party-details">
+      <div class="party-name" contenteditable="true">ABC Technologies SAS</div>
+      <div class="party-details" contenteditable="true">
         45 avenue de l'Innovation, 69003 Lyon<br>
         <strong>SIRET :</strong> 987 654 321 00034<br>
         <strong>Contact achat :</strong> Jean Martin — Responsable achats<br>
@@ -490,8 +488,8 @@
     </div>
     <div class="party-block fournisseur">
       <span class="party-tag">Fournisseur (Prestataire)</span>
-      <div class="party-name">VotreBrand Studio SAS</div>
-      <div class="party-details">
+      <div class="party-name" contenteditable="true">VotreBrand Studio SAS</div>
+      <div class="party-details" contenteditable="true">
         12 rue de la Création, 75008 Paris<br>
         <strong>SIRET :</strong> 123 456 789 00012<br>
         <strong>Contact :</strong> Sophie Lemaire — Chargée de compte<br>
@@ -505,23 +503,23 @@
   <div class="delivery-highlight">
     <div class="dh-item">
       <span class="dh-label">Adresse de livraison</span>
-      <div class="dh-value">45 av. de l'Innovation</div>
-      <div class="dh-sub">69003 Lyon — France</div>
+      <div class="dh-value" contenteditable="true">45 av. de l'Innovation</div>
+      <div class="dh-sub" contenteditable="true">69003 Lyon — France</div>
     </div>
     <div class="dh-item">
       <span class="dh-label">Mode de livraison</span>
-      <div class="dh-value">Livraison digitale</div>
-      <div class="dh-sub">Par email &amp; lien de téléchargement</div>
+      <div class="dh-value" contenteditable="true">Livraison digitale</div>
+      <div class="dh-sub" contenteditable="true">Par email &amp; lien de téléchargement</div>
     </div>
     <div class="dh-item">
       <span class="dh-label">Incoterms</span>
-      <div class="dh-value">DAP — Lyon</div>
-      <div class="dh-sub">Rendu au lieu de destination</div>
+      <div class="dh-value" contenteditable="true">DAP — Lyon</div>
+      <div class="dh-sub" contenteditable="true">Rendu au lieu de destination</div>
     </div>
     <div class="dh-item">
       <span class="dh-label">Priorité</span>
-      <div class="dh-value" style="color: var(--yellow);">Urgente</div>
-      <div class="dh-sub">Délai contractuel</div>
+      <div class="dh-value" style="color: var(--yellow);" contenteditable="true">Urgente</div>
+      <div class="dh-sub" contenteditable="true">Délai contractuel</div>
     </div>
   </div>
 
@@ -542,57 +540,57 @@
         <tr>
           <td><span class="ref-code">VB-AUD-01</span></td>
           <td>
-            <div class="td-title">Audit &amp; Stratégie de marque</div>
-            <div class="td-sub">Analyse de l'existant et plateforme de marque.</div>
+            <div class="td-title" contenteditable="true">Audit &amp; Stratégie de marque</div>
+            <div class="td-sub" contenteditable="true">Analyse de l'existant et plateforme de marque.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">Forfait</td>
-          <td class="r">2 500,00 €</td>
-          <td class="r">2 500,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">Forfait</td>
+          <td class="r" contenteditable="true">2 500,00 €</td>
+          <td class="r" contenteditable="true">2 500,00 €</td>
         </tr>
         <tr>
           <td><span class="ref-code">VB-IDV-02</span></td>
           <td>
-            <div class="td-title">Identité visuelle complète</div>
-            <div class="td-sub">Logo, charte graphique, design system.</div>
+            <div class="td-title" contenteditable="true">Identité visuelle complète</div>
+            <div class="td-sub" contenteditable="true">Logo, charte graphique, design system.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">Forfait</td>
-          <td class="r">4 800,00 €</td>
-          <td class="r">4 800,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">Forfait</td>
+          <td class="r" contenteditable="true">4 800,00 €</td>
+          <td class="r" contenteditable="true">4 800,00 €</td>
         </tr>
         <tr>
           <td><span class="ref-code">VB-UX-03</span></td>
           <td>
-            <div class="td-title">Design UI/UX — Site web 8 pages</div>
-            <div class="td-sub">Maquettes Figma responsive + prototype navigable.</div>
+            <div class="td-title" contenteditable="true">Design UI/UX — Site web 8 pages</div>
+            <div class="td-sub" contenteditable="true">Maquettes Figma responsive + prototype navigable.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">Forfait</td>
-          <td class="r">6 200,00 €</td>
-          <td class="r">6 200,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">Forfait</td>
+          <td class="r" contenteditable="true">6 200,00 €</td>
+          <td class="r" contenteditable="true">6 200,00 €</td>
         </tr>
         <tr>
           <td><span class="ref-code">VB-DEV-04</span></td>
           <td>
-            <div class="td-title">Développement &amp; intégration web</div>
-            <div class="td-sub">CMS WordPress sur-mesure, responsive, SEO.</div>
+            <div class="td-title" contenteditable="true">Développement &amp; intégration web</div>
+            <div class="td-sub" contenteditable="true">CMS WordPress sur-mesure, responsive, SEO.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">Forfait</td>
-          <td class="r">5 500,00 €</td>
-          <td class="r">5 500,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">Forfait</td>
+          <td class="r" contenteditable="true">5 500,00 €</td>
+          <td class="r" contenteditable="true">5 500,00 €</td>
         </tr>
         <tr>
           <td><span class="ref-code">VB-FOR-05</span></td>
           <td>
-            <div class="td-title">Formation &amp; remise des sources</div>
-            <div class="td-sub">Formation CMS 2h + remise fichiers sources.</div>
+            <div class="td-title" contenteditable="true">Formation &amp; remise des sources</div>
+            <div class="td-sub" contenteditable="true">Formation CMS 2h + remise fichiers sources.</div>
           </td>
-          <td class="r">1</td>
-          <td class="r">Forfait</td>
-          <td class="r">800,00 €</td>
-          <td class="r">800,00 €</td>
+          <td class="r" contenteditable="true">1</td>
+          <td class="r" contenteditable="true">Forfait</td>
+          <td class="r" contenteditable="true">800,00 €</td>
+          <td class="r" contenteditable="true">800,00 €</td>
         </tr>
       </tbody>
     </table>
@@ -602,24 +600,24 @@
   <div class="bottom-section">
     <div class="notes-block">
       <h4>Instructions particulières</h4>
-      <p>Toute modification de la commande après validation devra faire l'objet d'un avenant écrit signé par les deux parties. Les livraisons partielles sont acceptées sur accord préalable.</p>
+      <p contenteditable="true">Toute modification de la commande après validation devra faire l'objet d'un avenant écrit signé par les deux parties. Les livraisons partielles sont acceptées sur accord préalable.</p>
     </div>
     <div class="totals-block">
       <div class="total-line">
         <span class="tl-label">Total HT</span>
-        <span class="tl-value">19 800,00 €</span>
+        <span class="tl-value" contenteditable="true">19 800,00 €</span>
       </div>
       <div class="total-line">
-        <span class="tl-label">TVA 20 %</span>
-        <span class="tl-value">3 960,00 €</span>
+        <span class="tl-label" contenteditable="true">TVA 20 %</span>
+        <span class="tl-value" contenteditable="true">3 960,00 €</span>
       </div>
       <div class="total-line">
-        <span class="tl-label">Remise (5 %)</span>
-        <span class="tl-value">− 990,00 €</span>
+        <span class="tl-label" contenteditable="true">Remise (5 %)</span>
+        <span class="tl-value" contenteditable="true">− 990,00 €</span>
       </div>
       <div class="total-final">
         <span class="tf-label">Total TTC commandé</span>
-        <span class="tf-value">22 770,00 €</span>
+        <span class="tf-value" contenteditable="true">22 770,00 €</span>
       </div>
     </div>
   </div>
@@ -628,15 +626,15 @@
   <div class="conditions-section">
     <div class="cond-block">
       <h5>Conditions générales</h5>
-      <p>Cette commande est régie par les <strong>CGV</strong> du prestataire annexées au devis de référence, sauf dérogation écrite.</p>
+      <p contenteditable="true">Cette commande est régie par les <strong>CGV</strong> du prestataire annexées au devis de référence, sauf dérogation écrite.</p>
     </div>
     <div class="cond-block">
       <h5>Pénalités de retard</h5>
-      <p>Tout retard de livraison non justifié entraîne des pénalités de <strong>0,5 % / semaine</strong> du montant de la commande.</p>
+      <p contenteditable="true">Tout retard de livraison non justifié entraîne des pénalités de <strong>0,5 % / semaine</strong> du montant de la commande.</p>
     </div>
     <div class="cond-block">
       <h5>Transfert de propriété</h5>
-      <p>Le transfert de propriété intervient à la <strong>réception et validation</strong> des livrables par l'acheteur.</p>
+      <p contenteditable="true">Le transfert de propriété intervient à la <strong>réception et validation</strong> des livrables par l'acheteur.</p>
     </div>
   </div>
 
@@ -658,8 +656,8 @@
 
   <!-- ══ FOOTER ══ -->
   <footer class="footer">
-    <span class="footer-brand">VOTREBRAND.</span>
-    <div class="footer-legal">
+    <span class="footer-brand" contenteditable="true">VOTREBRAND.</span>
+    <div class="footer-legal" contenteditable="true">
       ABC Technologies SAS — SIRET 987 654 321 00034 — 45 av. de l'Innovation, 69003 Lyon<br>
       Document émis par le service achats — achats@abc-tech.fr
     </div>
@@ -667,5 +665,38 @@
   </footer>
 
 </div>
+</div>
+
+<script>
+(function(){
+  // ── Auto-ajustement sur une seule page A4 ──
+  function fitPageToA4(){
+    var ref = document.getElementById('a4-ref');
+    var frame = document.getElementById('pageFrame');
+    var page = document.getElementById('page');
+    if (!ref || !frame || !page) return;
+    page.style.transform = 'none';
+    frame.style.height = '';
+    var target = ref.offsetHeight;
+    var actual = page.scrollHeight;
+    if (target && actual > target + 1) {
+      var scale = Math.max(0.55, target / actual);
+      page.style.transform = 'scale(' + scale + ')';
+      page.style.transformOrigin = 'top center';
+      frame.style.height = Math.round(target) + 'px';
+    }
+  }
+  var fitTimer;
+  window.scheduleFit = function(){ clearTimeout(fitTimer); fitTimer = setTimeout(fitPageToA4, 60); };
+
+  document.addEventListener('input', function(e){
+    if (e.target.closest && e.target.closest('[contenteditable="true"]')) window.scheduleFit();
+  });
+  window.addEventListener('load', fitPageToA4);
+  window.addEventListener('resize', function(){ window.scheduleFit(); });
+  window.addEventListener('beforeprint', fitPageToA4);
+})();
+</script>
+
 </body>
 </html>

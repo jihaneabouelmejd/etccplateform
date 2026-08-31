@@ -13,7 +13,7 @@ const btnSecondary = { padding:'9px 18px', borderRadius:8, border:'1.5px solid #
 const btnPrimary = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#F4B315,#E59312)', color:'#1A141A', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 const btnDanger = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EF4444,#DC2626)', color:'white', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 
-const emptyForm = { commercial_name: '', legal_name: '', ice: '', contact_person: '', phone: '', email: '', address: '' };
+const emptyForm = { commercial_name: '', legal_name: '', ice: '', rc: '', if: '', contact_person: '', phone: '', email: '', address: '', city: '' };
 
 export default function ClientsPage() {
   const { t, dir } = useLanguage();
@@ -45,7 +45,7 @@ export default function ClientsPage() {
 
   const openCreate = () => { setForm(emptyForm); setFormError(''); setEditTarget(null); setShowForm(true); };
   const openEdit = (c: any) => {
-    setForm({ commercial_name: c.commercial_name || '', legal_name: c.legal_name || '', ice: c.ice || '', contact_person: c.contact_person || '', phone: c.phone || '', email: c.email || '', address: c.address || '' });
+    setForm({ commercial_name: c.commercial_name || '', legal_name: c.legal_name || '', ice: c.ice || '', rc: c.rc || '', if: c.if || '', contact_person: c.contact_person || '', phone: c.phone || '', email: c.email || '', address: c.address || '', city: c.city || '' });
     setFormError(''); setEditTarget(c); setShowForm(true);
   };
 
@@ -57,10 +57,13 @@ export default function ClientsPage() {
         commercial_name: form.commercial_name,
         legal_name: form.legal_name || undefined,
         ice: form.ice || undefined,
+        rc: form.rc || undefined,
+        if: form.if || undefined,
         contact_person: form.contact_person || undefined,
         phone: form.phone || undefined,
         email: form.email || undefined,
         address: form.address,
+        city: form.city || undefined,
       };
       if (editTarget) {
         await clientsApi.update(editTarget.id, payload);
@@ -222,6 +225,16 @@ export default function ClientsPage() {
                     placeholder="000000000000000" style={{...inputStyle, fontFamily:'monospace'}} />
                 </div>
                 <div>
+                  <label style={labelStyle}>RC</label>
+                  <input value={form.rc} onChange={e => setForm({...form, rc:e.target.value})}
+                    placeholder="N° registre de commerce" style={{...inputStyle, fontFamily:'monospace'}} />
+                </div>
+                <div>
+                  <label style={labelStyle}>IF</label>
+                  <input value={form.if} onChange={e => setForm({...form, if:e.target.value})}
+                    placeholder="Identifiant fiscal" style={{...inputStyle, fontFamily:'monospace'}} />
+                </div>
+                <div>
                   <label style={labelStyle}>Contact principal</label>
                   <input value={form.contact_person} onChange={e => setForm({...form, contact_person:e.target.value})}
                     placeholder="Mohamed Alami" style={inputStyle} />
@@ -235,6 +248,11 @@ export default function ClientsPage() {
                   <label style={labelStyle}>Email</label>
                   <input type="email" value={form.email} onChange={e => setForm({...form, email:e.target.value})}
                     placeholder="contact@client.ma" style={inputStyle} />
+                </div>
+                <div>
+                  <label style={labelStyle}>Ville</label>
+                  <input value={form.city} onChange={e => setForm({...form, city:e.target.value})}
+                    placeholder="Casablanca" style={inputStyle} />
                 </div>
                 <div style={{ gridColumn:'1/-1' }}>
                   <label style={labelStyle}>Adresse du client *</label>

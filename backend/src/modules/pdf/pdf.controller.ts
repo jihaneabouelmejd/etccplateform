@@ -253,9 +253,10 @@ export class PDFController {
       if (!invoice.client) throw new NotFoundException('Client introuvable pour cette facture');
       pdfBuffer = await this.pdfService.generateInvoicePDF({
         number: invoice.number,
-        bl_number: invoice.bl?.number || undefined,
-        bc_number: invoice.bc?.number || undefined,
+        bl_number: (invoice as any).ref_bl_override || invoice.bl?.number || undefined,
+        bc_number: (invoice as any).ref_bc_override || invoice.bc?.number || undefined,
         bc_client_number: invoice.bc?.client_number || undefined,
+        devis_number: (invoice as any).ref_devis_override || undefined,
         site: (invoice as any).site || undefined,
         issue_date: invoice.issue_date.toISOString(),
         due_date: invoice.due_date?.toISOString() || undefined,
@@ -428,9 +429,10 @@ export class PDFController {
           if (!invoice.client) throw new NotFoundException(`Client introuvable pour facture ${item.id}`);
           buf = await this.pdfService.generateInvoicePDF({
             number: invoice.number,
-            bl_number: invoice.bl?.number || undefined,
-            bc_number: invoice.bc?.number || undefined,
+            bl_number: (invoice as any).ref_bl_override || invoice.bl?.number || undefined,
+            bc_number: (invoice as any).ref_bc_override || invoice.bc?.number || undefined,
             bc_client_number: invoice.bc?.client_number || undefined,
+            devis_number: (invoice as any).ref_devis_override || undefined,
             issue_date: invoice.issue_date.toISOString(),
             due_date: invoice.due_date?.toISOString() || undefined,
             client: {

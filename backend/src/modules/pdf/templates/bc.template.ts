@@ -282,5 +282,24 @@ export function bcTemplate(data: BCTemplateInput): string {
   <div class="fpg">Page <span>1</span></div>
 </div>
 
-</div></body></html>`;
+</div>
+<div id="a4-ref" style="position:absolute;visibility:hidden;pointer-events:none;width:0;height:277mm;overflow:hidden;top:0;left:0;"></div>
+<script>
+// Auto-shrinks the document to fit on a single A4 page when content overflows.
+// 277mm = A4 height (297mm) minus the 10mm top/bottom print margins set in pdf.service.ts —
+// keep these two values in sync if the print margins ever change.
+window.fitPageToA4 = function() {
+  var ref = document.getElementById('a4-ref');
+  if (!ref) return;
+  var target = ref.offsetHeight;
+  document.body.style.zoom = 1;
+  var actual = document.documentElement.scrollHeight;
+  if (actual > target) {
+    var scale = Math.max(0.55, (target / actual) * 0.98);
+    document.body.style.zoom = scale;
+  }
+};
+window.fitPageToA4();
+</script>
+</body></html>`;
 }
