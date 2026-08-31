@@ -7,9 +7,51 @@ interface CompanyData {
   logo_url?: string|null; bank?: string|null; rib?: string|null; iban?: string|null; swift?: string|null;
   website?: string|null;
 }
-interface InvoiceTemplateInput extends InvoicePDFData { company: CompanyData; lang: PDFLanguage; }
 
-const CSS = `
+// Personnalisation libre du PDF, stockée par facture (Invoice.custom_layout, JSONB).
+export interface CustomLayout {
+  labelOverrides?: Record<string, string>;
+  extraSections?: { id?: string; title?: string; content?: string; position?: BlockKey | string }[];
+  blockOrder?: string[];
+  hiddenBlocks?: string[];
+  theme?: { accentColor?: string; font?: string };
+}
+
+interface InvoiceTemplateInput extends InvoicePDFData {
+  company: CompanyData;
+  lang: PDFLanguage;
+  custom_layout?: CustomLayout | null;
+}
+
+type BlockKey = 'meta' | 'parties' | 'table' | 'totals' | 'mlettres' | 'pay' | 'sigs';
+const DEFAULT_ORDER: BlockKey[] = ['meta', 'parties', 'table', 'totals', 'mlettres', 'pay', 'sigs'];
+
+function esc(s: unknown): string {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Décale chaque canal RGB d'un hex de `amt` (positif = plus clair, négatif = plus foncé), borné [0,255].
+function shadeHex(hex: string, amt: number): string {
+  let h = (hex || '#F5C842').replace('#', '').trim();
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  if (!/^[0-9a-fA-F]{6}$/.test(h)) h = 'F5C842';
+  const num = parseInt(h, 16);
+  const clamp = (v: number) => Math.max(0, Math.min(255, v));
+  const r = clamp((num >> 16) + amt);
+  const g = clamp(((num >> 8) & 0x00ff) + amt);
+  const b = clamp((num & 0x0000ff) + amt);
+  return '#' + (0x1000000 + r * 0x10000 + g * 0x100 + b).toString(16).slice(1).toUpperCase();
+}
+
+// Remplace les couleurs et la police de marque dans CSS_TEMPLATE par le thème choisi pour cette facture.
+function buildCss(accent: string, accentDeep: string, font: string): string {
+  return CSS_TEMPLATE
+    .split('#F5C842').join(accent)
+    .split('#D4A017').join(accentDeep)
+    .split('Arial,Helvetica,sans-serif').join(font);
+}
+
+const CSS_TEMPLATE = `
 *{box-sizing:border-box;margin:0;padding:0;}
 body{
   font-family:Arial,Helvetica,sans-serif;font-size:13px;
@@ -95,6 +137,11 @@ body{
 .mlettres .mll{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#D4A017;display:block;margin-bottom:4px;}
 .mlettres .mlv{font-size:12px;font-style:italic;font-weight:600;color:#1A1A1A;}
 
+/* RUBRIQUE (bloc libre ajouté par l'utilisateur) */
+.rubrique{margin:0 48px 18px;padding:12px 16px;background:#FFFBF0;border:1.5px dashed #D4A017;border-radius:5px;}
+.rubrique .rtag{font-size:8px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#D4A017;display:block;margin-bottom:5px;}
+.rubrique .rcontent{font-size:11.5px;color:#1A1A1A;line-height:1.7;white-space:pre-wrap;}
+
 /* PAIEMENT */
 .pay{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:0 48px 18px;}
 .pay-block{background:#F4F4F4;border-radius:5px;padding:14px 18px;}
@@ -128,9 +175,22 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
   const amountToSpell = data.balance > 0 ? data.balance : data.total_ttc;
   const amountInWords = montantEnLettresMAD(amountToSpell);
 
+  const cl = data.custom_layout || {};
+  const ov = cl.labelOverrides || {};
+  const L = (key: string, fallback: string): string => {
+    const v = ov[key];
+    return v ? esc(v) : fallback;
+  };
+
+  // Thème (couleur d'accent + police), appliqué à toute la CSS via substitution des tokens de marque.
+  const accent = /^#[0-9a-fA-F]{3,6}$/.test(cl.theme?.accentColor || '') ? (cl.theme!.accentColor as string) : '#F5C842';
+  const accentDeep = shadeHex(accent, -40);
+  const font = cl.theme?.font && cl.theme.font.trim() ? cl.theme.font : 'Arial,Helvetica,sans-serif';
+  const CSS = buildCss(accent, accentDeep, font);
+
   const rawName = c.legal_name || c.name || '';
   const brandName = rawName.length >= 2
-    ? `<span style="color:#0C0C0C">${rawName[0]}</span><span style="color:#F5C842">${rawName[1]}</span><span style="color:#0C0C0C">${rawName.slice(2)}</span>`
+    ? `<span style="color:#0C0C0C">${rawName[0]}</span><span style="color:${accent}">${rawName[1]}</span><span style="color:#0C0C0C">${rawName.slice(2)}</span>`
     : `<span>${rawName}</span>`;
 
   const stampSrc = data.signature_url || c.logo_url || null;
@@ -155,6 +215,152 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
     data.bl_number    ? `BL : <strong>${data.bl_number}</strong>` : '',
   ].filter(Boolean).join(' &nbsp;|&nbsp; ');
 
+  const tflLabel = data.acompte_amount > 0 ? L('lblSolde', 'Solde à régler') : L('lblNetAPayer', 'Net à payer');
+  const mlettresLabel = isAR
+    ? L('lblMontantLettresAr', 'Montant en lettres')
+    : (data.acompte_amount > 0
+      ? L('lblMontantLettresSolde', 'Arrêtée la présente facture, solde à régler à la somme de')
+      : L('lblMontantLettresFull', 'Arrêtée la présente facture à la somme de'));
+
+  // Blocs standards, chacun réordonnable / masquable via custom_layout.blockOrder / hiddenBlocks.
+  const blocksMap: Record<BlockKey, string> = {
+    meta: `
+<div class="meta">
+  <div class="mc">
+    <span class="ml">${L('lblEmission', "Date d'émission")}</span>
+    <div class="mv">${fmtDate(data.issue_date, data.lang)}</div>
+  </div>
+  ${data.due_date ? `<div class="mc"><span class="ml">${L('lblEcheance', 'Échéance')}</span><div class="mv">${fmtDate(data.due_date, data.lang)}</div></div>` : ''}
+  ${refs ? `<div class="mc"><span class="ml">${L('lblReferences', 'Références')}</span><div class="mv" style="font-size:11px;">${refs}</div></div>` : ''}
+  ${data.site ? `<div class="mc"><span class="ml">${L('lblSite', 'Site / Chantier')}</span><div class="mv" style="font-size:12px;">${data.site}</div></div>` : ''}
+</div>`,
+
+    parties: `
+<div class="parties">
+  <div class="party emit">
+    <span class="ptag">${L('lblEmetteur', 'Émetteur')}</span>
+    <div class="pname">${c.legal_name || c.name}</div>
+    <div class="pdet">
+      ${c.address ? `${c.address}<br>` : ''}
+      ${c.ice ? `<strong>${L('lblICE', 'ICE')} :</strong> ${c.ice}<br>` : ''}
+      ${(c as any).if ? `<strong>${L('lblIF', 'IF')} :</strong> ${(c as any).if}<br>` : ''}
+      ${c.phone ? `<strong>${L('lblTel', 'Tél')} :</strong> ${c.phone}<br>` : ''}
+      ${c.email ? `<strong>${L('lblEmail', 'Email')} :</strong> ${c.email}` : ''}
+    </div>
+  </div>
+  <div class="party clt">
+    <span class="ptag">${L('lblClient', 'Client')}</span>
+    <div class="pname">${data.client.commercial_name}</div>
+    <div class="pdet">
+      ${data.client.address ? `${data.client.address}${data.client.city ? ', ' + data.client.city : ''}<br>` : ''}
+      ${data.client.ice ? `<strong>${L('lblICE', 'ICE')} :</strong> ${data.client.ice}<br>` : ''}
+      ${data.client.rc ? `<strong>${L('lblRC', 'RC')} :</strong> ${data.client.rc}<br>` : ''}
+      ${data.client.phone ? `<strong>${L('lblTel', 'Tél')} :</strong> ${data.client.phone}<br>` : ''}
+      ${data.client.email ? `<strong>${L('lblEmail', 'Email')} :</strong> ${data.client.email}` : ''}
+    </div>
+  </div>
+</div>`,
+
+    table: `
+<div class="twrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:40px">${L('thNum', 'N°')}</th>
+        <th>${L('thDesignation', 'Désignation / Prestation')}</th>
+        <th class="r" style="width:55px">${L('thQte', 'Qté')}</th>
+        <th class="r" style="width:90px">${L('thPu', 'P.U. HT')}</th>
+        <th class="r" style="width:50px">${L('thTva', 'TVA')}</th>
+        <th class="r" style="width:90px">${L('thTotal', 'Total HT')}</th>
+      </tr>
+    </thead>
+    <tbody>${lines}</tbody>
+  </table>
+</div>`,
+
+    totals: `
+<div class="bottom">
+  <div class="totals">
+    ${data.discount_rate > 0 ? `
+    <div class="tline"><span class="tl">${L('lblTotalHtBrut', 'Total HT brut')}</span><span class="tv">${f(data.total_ht_brut)} DH</span></div>
+    <div class="tline disc"><span class="tl">${L('lblRemise', 'Remise')} (${f(data.discount_rate)} %)</span><span class="tv">− ${f(data.discount_amount)} DH</span></div>` : ''}
+    <div class="tline"><span class="tl">${L('lblTotalHtNet', 'Total HT net')}</span><span class="tv">${f(data.total_ht_net)} DH</span></div>
+    <div class="tline"><span class="tl">${L('lblTva', 'TVA')} ${f(data.tva_rate)} %</span><span class="tv">${f(data.tva_amount)} DH</span></div>
+    <div class="tline"><span class="tl">${L('lblTotalTtc', 'Total TTC')}</span><span class="tv">${f(data.total_ttc)} DH</span></div>
+    ${data.acompte_amount > 0 ? `<div class="tline bal"><span class="tl">${L('lblAcompte', 'Acompte versé')}</span><span class="tv">− ${f(data.acompte_amount)} DH</span></div>` : ''}
+    <div class="tfinal">
+      <span class="tfl">${tflLabel}</span>
+      <span class="tfv">${f(data.balance > 0 ? data.balance : data.total_ttc)} DH</span>
+    </div>
+  </div>
+</div>`,
+
+    mlettres: `
+<div class="mlettres">
+  <span class="mll">${mlettresLabel}</span>
+  <span class="mlv">${amountInWords}</span>
+</div>`,
+
+    pay: `
+<div class="pay">
+  <div class="pay-block">
+    <h5>${L('lblModalites', 'Modalités de paiement')}</h5>
+    <p>${data.payment_method ? `<strong>${L('lblMode', 'Mode')} :</strong> ${data.payment_method}<br>` : ''}${data.payment_terms || 'À réception de facture.'}</p>
+  </div>
+  <div class="pay-block">
+    <h5>${L('lblCoordonnees', 'Coordonnées bancaires')}</h5>
+    ${c.bank ? `<p><strong>${L('lblBanque', 'Banque')} :</strong> ${c.bank}</p>` : ''}
+    ${c.rib ? `<p class="iban">${c.rib}</p>` : ''}
+    ${c.iban ? `<p class="iban">${c.iban}</p>` : ''}
+  </div>
+</div>`,
+
+    sigs: `
+<div class="sigs">
+  <div class="sblock">
+    <h5>${L('lblSignature', 'Signature émetteur — ETCC')}</h5>
+    <div class="sarea">
+      ${signBlock}
+    </div>
+  </div>
+</div>`,
+  };
+
+  // Rubriques libres ajoutées par l'utilisateur, insérées juste après le bloc `position` visé
+  // (ou en fin de document si aucune position valide/visible n'est indiquée).
+  const renderRubrique = (sec: NonNullable<CustomLayout['extraSections']>[number], idx: number): string => {
+    const title = sec.title && sec.title.trim() ? esc(sec.title) : `Rubrique ${idx + 1}`;
+    const content = sec.content ? esc(sec.content).replace(/\n/g, '<br>') : '';
+    return `
+<div class="rubrique">
+  <span class="rtag">${title}</span>
+  <div class="rcontent">${content}</div>
+</div>`;
+  };
+
+  const extraSections = Array.isArray(cl.extraSections) ? cl.extraSections : [];
+  const hidden = new Set(Array.isArray(cl.hiddenBlocks) ? cl.hiddenBlocks : []);
+  const requestedOrder = Array.isArray(cl.blockOrder) ? cl.blockOrder.filter((k): k is BlockKey => DEFAULT_ORDER.includes(k as BlockKey)) : [];
+  const order: BlockKey[] = requestedOrder.length
+    ? [...requestedOrder, ...DEFAULT_ORDER.filter((k) => !requestedOrder.includes(k))]
+    : DEFAULT_ORDER;
+
+  let bodyBlocks = '';
+  const insertedSections = new Set<number>();
+  order.forEach((key) => {
+    if (hidden.has(key)) return;
+    bodyBlocks += blocksMap[key] || '';
+    extraSections.forEach((sec, idx) => {
+      if (sec.position === key) {
+        bodyBlocks += renderRubrique(sec, idx);
+        insertedSections.add(idx);
+      }
+    });
+  });
+  extraSections.forEach((sec, idx) => {
+    if (!insertedSections.has(idx)) bodyBlocks += renderRubrique(sec, idx);
+  });
+
   return `<!DOCTYPE html><html lang="${isAR ? 'ar' : 'fr'}"><head>
 <meta charset="utf-8">
 <style>${CSS}</style>
@@ -163,114 +369,21 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
 
 <div class="header">
   <div class="brand">
-    <div class="brand-name">${brandName}<span style="color:#F5C842">.</span></div>
+    <div class="brand-name">${brandName}<span style="color:${accent}">.</span></div>
   </div>
   <div class="doc-id">
-    <span class="doc-type">Facture</span>
+    <span class="doc-type">${L('lblDocType', 'Facture')}</span>
     <div class="doc-num">${data.number}</div>
   </div>
 </div>
 <div class="bar"></div>
 
-<div class="meta">
-  <div class="mc">
-    <span class="ml">Date d'émission</span>
-    <div class="mv">${fmtDate(data.issue_date, data.lang)}</div>
-  </div>
-  ${data.due_date ? `<div class="mc"><span class="ml">Échéance</span><div class="mv">${fmtDate(data.due_date, data.lang)}</div></div>` : ''}
-  ${refs ? `<div class="mc"><span class="ml">Références</span><div class="mv" style="font-size:11px;">${refs}</div></div>` : ''}
-  ${data.site ? `<div class="mc"><span class="ml">Site / Chantier</span><div class="mv" style="font-size:12px;">${data.site}</div></div>` : ''}
-</div>
-
-<div class="parties">
-  <div class="party emit">
-    <span class="ptag">Émetteur</span>
-    <div class="pname">${c.legal_name || c.name}</div>
-    <div class="pdet">
-      ${c.address ? `${c.address}<br>` : ''}
-      ${c.ice ? `<strong>ICE :</strong> ${c.ice}<br>` : ''}
-      ${(c as any).if ? `<strong>IF :</strong> ${(c as any).if}<br>` : ''}
-      ${c.phone ? `<strong>Tél :</strong> ${c.phone}<br>` : ''}
-      ${c.email ? `<strong>Email :</strong> ${c.email}` : ''}
-    </div>
-  </div>
-  <div class="party clt">
-    <span class="ptag">Client</span>
-    <div class="pname">${data.client.commercial_name}</div>
-    <div class="pdet">
-      ${data.client.address ? `${data.client.address}${data.client.city ? ', ' + data.client.city : ''}<br>` : ''}
-      ${data.client.ice ? `<strong>ICE :</strong> ${data.client.ice}<br>` : ''}
-      ${data.client.rc ? `<strong>RC :</strong> ${data.client.rc}<br>` : ''}
-      ${data.client.phone ? `<strong>Tél :</strong> ${data.client.phone}<br>` : ''}
-      ${data.client.email ? `<strong>Email :</strong> ${data.client.email}` : ''}
-    </div>
-  </div>
-</div>
-
-<div class="twrap">
-  <table>
-    <thead>
-      <tr>
-        <th style="width:40px">N°</th>
-        <th>Désignation / Prestation</th>
-        <th class="r" style="width:55px">Qté</th>
-        <th class="r" style="width:90px">P.U. HT</th>
-        <th class="r" style="width:50px">TVA</th>
-        <th class="r" style="width:90px">Total HT</th>
-      </tr>
-    </thead>
-    <tbody>${lines}</tbody>
-  </table>
-</div>
-
-<div class="bottom">
-  <div class="totals">
-    ${data.discount_rate > 0 ? `
-    <div class="tline"><span class="tl">Total HT brut</span><span class="tv">${f(data.total_ht_brut)} DH</span></div>
-    <div class="tline disc"><span class="tl">Remise (${f(data.discount_rate)} %)</span><span class="tv">− ${f(data.discount_amount)} DH</span></div>` : ''}
-    <div class="tline"><span class="tl">Total HT net</span><span class="tv">${f(data.total_ht_net)} DH</span></div>
-    <div class="tline"><span class="tl">TVA ${f(data.tva_rate)} %</span><span class="tv">${f(data.tva_amount)} DH</span></div>
-    <div class="tline"><span class="tl">Total TTC</span><span class="tv">${f(data.total_ttc)} DH</span></div>
-    ${data.acompte_amount > 0 ? `<div class="tline bal"><span class="tl">Acompte versé</span><span class="tv">− ${f(data.acompte_amount)} DH</span></div>` : ''}
-    <div class="tfinal">
-      <span class="tfl">${data.acompte_amount > 0 ? 'Solde à régler' : 'Net à payer'}</span>
-      <span class="tfv">${f(data.balance > 0 ? data.balance : data.total_ttc)} DH</span>
-    </div>
-  </div>
-</div>
-
-<div class="mlettres">
-  <span class="mll">${isAR ? 'Montant en lettres' : (data.acompte_amount > 0 ? 'Arrêtée la présente facture, solde à régler à la somme de' : 'Arrêtée la présente facture à la somme de')}</span>
-  <span class="mlv">${amountInWords}</span>
-</div>
-
-<div class="pay">
-  <div class="pay-block">
-    <h5>Modalités de paiement</h5>
-    <p>${data.payment_method ? `<strong>Mode :</strong> ${data.payment_method}<br>` : ''}${data.payment_terms || 'À réception de facture.'}</p>
-  </div>
-  <div class="pay-block">
-    <h5>Coordonnées bancaires</h5>
-    ${c.bank ? `<p><strong>Banque :</strong> ${c.bank}</p>` : ''}
-    ${c.rib ? `<p class="iban">${c.rib}</p>` : ''}
-    ${c.iban ? `<p class="iban">${c.iban}</p>` : ''}
-  </div>
-</div>
-
-
-<div class="sigs">
-  <div class="sblock">
-    <h5>Signature émetteur — ETCC</h5>
-    <div class="sarea">
-      ${signBlock}
-    </div>
-  </div>
-</div>
+${bodyBlocks}
 
 <div class="footer">
   <span class="fbrand">${c.name}.</span>
   <div class="fleg">
-    ${c.legal_name || c.name} — ICE : ${c.ice || '—'}${c.rc ? ' — RC : ' + c.rc : ''}${(c as any).if ? ' — IF : ' + (c as any).if : ''}<br>
+    ${c.legal_name || c.name} — ${L('lblICE', 'ICE')} : ${c.ice || '—'}${c.rc ? ' — ' + L('lblRC', 'RC') + ' : ' + c.rc : ''}${(c as any).if ? ' — ' + L('lblIF', 'IF') + ' : ' + (c as any).if : ''}<br>
     ${c.address || ''} ${c.phone ? '— ' + c.phone : ''} ${c.email ? '— ' + c.email : ''}
   </div>
   <div class="fpg">Page <span>1</span></div>

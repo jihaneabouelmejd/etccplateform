@@ -999,10 +999,15 @@ model Invoice {
   reconciliation_note String?
   
   notes           String?          @db.Text
-  
+
+  // Personnalisation libre du PDF (rubriques ajoutées, libellés modifiés, couleurs/police, ordre/visibilité des blocs)
+  // Structure: { labelOverrides?: Record<string,string>, extraSections?: {id,title,content,position}[],
+  //              blockOrder?: string[], hiddenBlocks?: string[], theme?: { accentColor?: string, font?: string } }
+  custom_layout   Json?
+
   created_at      DateTime         @default(now())
   updated_at      DateTime         @updatedAt
-  
+
   // Relations
   bl              BonLivraison?    @relation(fields: [bl_id], references: [id])
   bc              BonCommande?     @relation(fields: [bc_id], references: [id])

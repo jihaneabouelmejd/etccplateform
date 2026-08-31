@@ -3,7 +3,7 @@ import puppeteer from 'puppeteer';
 import { CompanyService } from '../company/company.service';
 import { devisTemplate } from './templates/devis.template';
 import { blTemplate } from './templates/bl.template';
-import { invoiceTemplate } from './templates/invoice.template';
+import { invoiceTemplate, CustomLayout } from './templates/invoice.template';
 import { bcTemplate } from './templates/bc.template';
 
 // ─── Cloudinary (pour télécharger les fichiers importés en signé) ────────────
@@ -125,6 +125,7 @@ export interface InvoicePDFData {
   payment_terms?: string;
   notes?: string;
   signature_url?: string;
+  custom_layout?: CustomLayout | null;
 }
 
 export interface BCPDFData {

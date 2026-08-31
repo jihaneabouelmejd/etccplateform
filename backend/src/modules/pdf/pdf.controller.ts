@@ -288,6 +288,7 @@ export class PDFController {
         payment_terms: invoice.payment_terms || undefined,
         notes: invoice.notes || undefined,
         signature_url: invoice.signature?.image_url || undefined,
+        custom_layout: (invoice as any).custom_layout || undefined,
       }, lang);
     }
     res.setHeader('Content-Type', 'application/pdf');
@@ -463,6 +464,7 @@ export class PDFController {
             payment_terms: invoice.payment_terms || undefined,
             notes: invoice.notes || undefined,
             signature_url: invoice.signature?.image_url || undefined,
+            custom_layout: (invoice as any).custom_layout || undefined,
           }, lang);
         }
 

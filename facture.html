@@ -438,6 +438,8 @@
     .page { box-shadow: none; width: 100%; }
     @page { margin: 0; size: A4; }
     [contenteditable="true"] { border-bottom: none !important; background: none !important; }
+    .toolbar, .block-controls, .add-rubrique-row { display: none !important; }
+    .block-wrap { outline: none !important; }
   }
 
   /* ─── ÉDITION INLINE ─── */
@@ -454,9 +456,166 @@
     background: rgba(245,200,66,0.12);
     border-radius: 3px;
   }
+
+  /* ─── BLOCS DÉPLAÇABLES / SUPPRIMABLES ─── */
+  .block-wrap {
+    position: relative;
+  }
+  .block-wrap:hover {
+    outline: 1.5px dashed rgba(245,200,66,0.6);
+    outline-offset: 3px;
+  }
+  .block-controls {
+    position: absolute;
+    top: -14px;
+    right: 8px;
+    z-index: 20;
+    display: none;
+    gap: 4px;
+    background: var(--black);
+    border-radius: 6px;
+    padding: 3px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  }
+  .block-wrap:hover .block-controls,
+  .block-wrap:focus-within .block-controls {
+    display: flex;
+  }
+  .block-controls button {
+    width: 22px; height: 22px;
+    border: none; border-radius: 4px;
+    background: transparent;
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .block-controls button:hover { background: rgba(255,255,255,0.15); color: var(--yellow); }
+  .block-controls button.danger:hover { color: #FF6B6B; }
+
+  /* ─── RUBRIQUE LIBRE ─── */
+  .rubrique-block {
+    margin: 0 52px 22px;
+    padding: 16px 20px;
+    border: 1.5px dashed var(--yellow-deep);
+    border-radius: 6px;
+    background: var(--yellow-pale);
+  }
+  .rubrique-block .rtitle {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--yellow-deep);
+    margin-bottom: 8px;
+  }
+  .rubrique-block .rcontent {
+    font-size: 12.5px;
+    color: var(--dark);
+    line-height: 1.7;
+  }
+
+  .add-rubrique-row {
+    margin: 0 52px 22px;
+    text-align: center;
+  }
+  .add-rubrique-btn {
+    border: 1.5px dashed var(--gray-mid);
+    background: transparent;
+    color: var(--gray);
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .add-rubrique-btn:hover { border-color: var(--yellow-deep); color: var(--yellow-deep); }
+
+  /* ─── TOOLBAR FLOTTANTE ─── */
+  .toolbar {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+    background: var(--black);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+    font-family: 'Outfit', sans-serif;
+  }
+  .toolbar .tb-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .toolbar label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.5);
+  }
+  .toolbar input[type="color"] {
+    width: 26px; height: 26px;
+    border: none; border-radius: 5px;
+    background: none; cursor: pointer; padding: 0;
+  }
+  .toolbar select {
+    font-family: inherit;
+    font-size: 11px;
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 5px;
+    padding: 5px 6px;
+  }
+  .toolbar button.tb-action {
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    background: var(--yellow);
+    color: var(--black);
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    cursor: pointer;
+  }
+  .toolbar button.tb-action:hover { background: var(--yellow-deep); }
+  .toolbar button.tb-print {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+  }
+  .toolbar button.tb-print:hover { background: rgba(255,255,255,0.2); }
+
+  @media print { .toolbar { display: none !important; } }
 </style>
 </head>
 <body>
+
+<div class="toolbar">
+  <div class="tb-group">
+    <label for="accentPicker">Accent</label>
+    <input type="color" id="accentPicker" value="#f5c842">
+  </div>
+  <div class="tb-group">
+    <label for="fontPicker">Police</label>
+    <select id="fontPicker">
+      <option value="'Outfit', sans-serif" selected>Outfit</option>
+      <option value="'Cormorant Garamond', serif">Cormorant</option>
+      <option value="Arial, Helvetica, sans-serif">Arial</option>
+      <option value="Georgia, 'Times New Roman', serif">Georgia</option>
+    </select>
+  </div>
+  <button type="button" class="tb-action" id="addRubriqueBtn">+ Rubrique</button>
+  <button type="button" class="tb-action tb-print" id="printBtn">Imprimer / PDF</button>
+</div>
 
 <div id="a4-ref"></div>
 
@@ -470,42 +629,52 @@
       <div class="brand-tagline" contenteditable="true">Agence créative &amp; conseil stratégique</div>
     </div>
     <div class="doc-identity">
-      <span class="doc-label">Facture</span>
+      <span class="doc-label" contenteditable="true">Facture</span>
       <div class="doc-number" contenteditable="true" title="Cliquez pour modifier le numéro">#FAC-2024-087</div>
       <div class="status-badge unpaid">
         <span class="status-dot"></span>
-        En attente
+        <span contenteditable="true">En attente</span>
       </div>
     </div>
   </header>
   <div class="yellow-strip"></div>
 
   <!-- ══ MÉTA ══ -->
-  <div class="meta-row">
+  <div class="meta-row block-wrap">
+    <div class="block-controls">
+      <button type="button" class="mv-up" title="Monter">▲</button>
+      <button type="button" class="mv-down" title="Descendre">▼</button>
+      <button type="button" class="danger del" title="Supprimer">✕</button>
+    </div>
     <div class="meta-cell">
-      <span class="meta-label">Date de facturation</span>
+      <span class="meta-label" contenteditable="true">Date de facturation</span>
       <div class="meta-value" contenteditable="true" title="Cliquez pour modifier la date">15 novembre 2024</div>
     </div>
     <div class="meta-cell">
-      <span class="meta-label">Échéance de paiement</span>
+      <span class="meta-label" contenteditable="true">Échéance de paiement</span>
       <div class="meta-value" contenteditable="true">30 décembre 2024</div>
       <div class="meta-sub" contenteditable="true">Net 45 jours</div>
     </div>
     <div class="meta-cell">
-      <span class="meta-label">Devis de référence</span>
+      <span class="meta-label" contenteditable="true">Devis de référence</span>
       <div class="meta-value" contenteditable="true">#DEV-2024-042</div>
     </div>
     <div class="meta-cell">
-      <span class="meta-label">Conditions</span>
+      <span class="meta-label" contenteditable="true">Conditions</span>
       <div class="meta-value" contenteditable="true">Virement bancaire</div>
       <div class="meta-sub" contenteditable="true">SEPA / BIC BNPAFRPP</div>
     </div>
   </div>
 
   <!-- ══ PARTIES ══ -->
-  <div class="parties">
+  <div class="parties block-wrap">
+    <div class="block-controls">
+      <button type="button" class="mv-up" title="Monter">▲</button>
+      <button type="button" class="mv-down" title="Descendre">▼</button>
+      <button type="button" class="danger del" title="Supprimer">✕</button>
+    </div>
     <div class="party-block emetteur">
-      <span class="party-tag">Prestataire</span>
+      <span class="party-tag" contenteditable="true">Prestataire</span>
       <div class="party-name" contenteditable="true">VotreBrand Studio SAS</div>
       <div class="party-details" contenteditable="true">
         12 rue de la Création, 75008 Paris<br>
@@ -516,7 +685,7 @@
       </div>
     </div>
     <div class="party-block client">
-      <span class="party-tag">Facturé à</span>
+      <span class="party-tag" contenteditable="true">Facturé à</span>
       <div class="party-name" contenteditable="true">Société ABC Technologies</div>
       <div class="party-details" contenteditable="true">
         45 avenue de l'Innovation, 69003 Lyon<br>
@@ -529,16 +698,21 @@
   </div>
 
   <!-- ══ TABLE ══ -->
-  <div class="table-wrap">
+  <div class="table-wrap block-wrap">
+    <div class="block-controls">
+      <button type="button" class="mv-up" title="Monter">▲</button>
+      <button type="button" class="mv-down" title="Descendre">▼</button>
+      <button type="button" class="danger del" title="Supprimer">✕</button>
+    </div>
     <table>
       <thead>
         <tr>
-          <th style="width:55px">Réf.</th>
-          <th>Désignation</th>
-          <th class="r" style="width:55px">Qté</th>
-          <th class="r" style="width:80px">P.U. HT</th>
-          <th class="r" style="width:55px">TVA</th>
-          <th class="r" style="width:90px">Total HT</th>
+          <th style="width:55px" contenteditable="true">Réf.</th>
+          <th contenteditable="true">Désignation</th>
+          <th class="r" style="width:55px" contenteditable="true">Qté</th>
+          <th class="r" style="width:80px" contenteditable="true">P.U. HT</th>
+          <th class="r" style="width:55px" contenteditable="true">TVA</th>
+          <th class="r" style="width:90px" contenteditable="true">Total HT</th>
         </tr>
       </thead>
       <tbody>
@@ -602,10 +776,15 @@
   </div>
 
   <!-- ══ TOTAUX ══ -->
-  <div class="bottom-section">
+  <div class="bottom-section block-wrap">
+    <div class="block-controls">
+      <button type="button" class="mv-up" title="Monter">▲</button>
+      <button type="button" class="mv-down" title="Descendre">▼</button>
+      <button type="button" class="danger del" title="Supprimer">✕</button>
+    </div>
     <div class="totals-block">
       <div class="total-line">
-        <span class="tl-label">Total HT</span>
+        <span class="tl-label" contenteditable="true">Total HT</span>
         <span class="tl-value" contenteditable="true">19 800,00 €</span>
       </div>
       <div class="total-line tva">
@@ -617,20 +796,25 @@
         <span class="tl-value" contenteditable="true">− 990,00 €</span>
       </div>
       <div class="total-line" style="border-bottom: 2px solid var(--black);">
-        <span class="tl-label">Acompte versé</span>
+        <span class="tl-label" contenteditable="true">Acompte versé</span>
         <span class="tl-value" contenteditable="true">− 9 108,00 €</span>
       </div>
       <div class="total-final">
-        <span class="tf-label">Reste à régler TTC</span>
+        <span class="tf-label" contenteditable="true">Reste à régler TTC</span>
         <span class="tf-value" contenteditable="true">13 662,00 €</span>
       </div>
     </div>
   </div>
 
   <!-- ══ PAIEMENT ══ -->
-  <div class="payment-section">
+  <div class="payment-section block-wrap">
+    <div class="block-controls">
+      <button type="button" class="mv-up" title="Monter">▲</button>
+      <button type="button" class="mv-down" title="Descendre">▼</button>
+      <button type="button" class="danger del" title="Supprimer">✕</button>
+    </div>
     <div class="pay-block">
-      <h5>Coordonnées bancaires</h5>
+      <h5 contenteditable="true">Coordonnées bancaires</h5>
       <p contenteditable="true">
         <strong>Titulaire :</strong> VotreBrand Studio SAS<br>
         <strong>Banque :</strong> BNP Paribas — Paris Opera<br>
@@ -639,7 +823,7 @@
       <div class="iban-code" contenteditable="true">FR76 3000 4008 1800 0100 7537 060</div>
     </div>
     <div class="pay-block">
-      <h5>Pénalités de retard</h5>
+      <h5 contenteditable="true">Pénalités de retard</h5>
       <p contenteditable="true">
         Conformément à la loi, tout retard de paiement entraîne des pénalités au taux de <strong>3× le taux légal</strong> en vigueur, ainsi qu'une indemnité forfaitaire pour frais de recouvrement de <strong>40 €</strong> (art. L. 441-10 C. com.).
       </p>
@@ -647,12 +831,22 @@
   </div>
 
   <!-- ══ MENTIONS LÉGALES ══ -->
-  <div class="mentions-section">
-    <h5>Mentions légales obligatoires</h5>
+  <div class="mentions-section block-wrap">
+    <div class="block-controls">
+      <button type="button" class="mv-up" title="Monter">▲</button>
+      <button type="button" class="mv-down" title="Descendre">▼</button>
+      <button type="button" class="danger del" title="Supprimer">✕</button>
+    </div>
+    <h5 contenteditable="true">Mentions légales obligatoires</h5>
     <p contenteditable="true">
       Facture soumise à TVA — TVA non applicable en cas d'exonération. Escompte pour paiement anticipé : néant. Pas d'escompte accordé. Conformément à l'art. L. 441-9 du Code de commerce, la date d'émission fait foi. Paiement à réception accepté.
       <br>VotreBrand Studio SAS — SAS au capital de 10 000 € — RCS Paris B 123 456 789 — N° TVA intracommunautaire : FR12 123456789 — Code APE : 7410Z
     </p>
+  </div>
+
+  <!-- ══ AJOUT DE RUBRIQUE ══ -->
+  <div class="add-rubrique-row">
+    <button type="button" class="add-rubrique-btn" id="addRubriqueBtnInline">+ Ajouter une rubrique</button>
   </div>
 
   <!-- ══ FOOTER ══ -->
@@ -696,6 +890,94 @@
   window.addEventListener('load', fitPageToA4);
   window.addEventListener('resize', function(){ window.scheduleFit(); });
   window.addEventListener('beforeprint', fitPageToA4);
+
+  // ── Accent color / font ──
+  var accentPicker = document.getElementById('accentPicker');
+  var fontPicker = document.getElementById('fontPicker');
+
+  function hexToRgb(hex){
+    var m = hex.replace('#','');
+    var r = parseInt(m.substring(0,2),16), g = parseInt(m.substring(2,4),16), b = parseInt(m.substring(4,6),16);
+    return { r: r, g: g, b: b };
+  }
+  function shade(hex, amt){
+    var c = hexToRgb(hex);
+    var f = function(v){ return Math.max(0, Math.min(255, Math.round(v + amt))); };
+    return 'rgb(' + f(c.r) + ',' + f(c.g) + ',' + f(c.b) + ')';
+  }
+  accentPicker && accentPicker.addEventListener('input', function(){
+    var hex = accentPicker.value;
+    document.documentElement.style.setProperty('--yellow', hex);
+    document.documentElement.style.setProperty('--yellow-deep', shade(hex, -35));
+    document.documentElement.style.setProperty('--yellow-light', shade(hex, 60));
+    document.documentElement.style.setProperty('--yellow-pale', shade(hex, 75));
+    window.scheduleFit();
+  });
+  fontPicker && fontPicker.addEventListener('change', function(){
+    document.body.style.fontFamily = fontPicker.value;
+    window.scheduleFit();
+  });
+
+  // ── Impression / export PDF ──
+  var printBtn = document.getElementById('printBtn');
+  printBtn && printBtn.addEventListener('click', function(){ window.print(); });
+
+  // ── Blocs : monter / descendre / supprimer ──
+  document.addEventListener('click', function(e){
+    var btn = e.target.closest && e.target.closest('.block-controls button');
+    if (!btn) return;
+    var block = btn.closest('.block-wrap');
+    if (!block) return;
+    if (btn.classList.contains('del')) {
+      if (confirm('Supprimer ce bloc de la facture ?')) {
+        block.remove();
+        window.scheduleFit();
+      }
+    } else if (btn.classList.contains('mv-up')) {
+      var prev = block.previousElementSibling;
+      if (prev && prev.classList.contains('block-wrap')) {
+        block.parentNode.insertBefore(block, prev);
+        window.scheduleFit();
+      }
+    } else if (btn.classList.contains('mv-down')) {
+      var next = block.nextElementSibling;
+      if (next && next.classList.contains('block-wrap')) {
+        block.parentNode.insertBefore(next, block);
+        window.scheduleFit();
+      }
+    }
+  });
+
+  // ── Ajouter une rubrique ──
+  function addRubrique(){
+    var page = document.getElementById('page');
+    var addRow = document.querySelector('.add-rubrique-row');
+    var block = document.createElement('div');
+    block.className = 'block-wrap rubrique-block';
+    block.innerHTML =
+      '<div class="block-controls">' +
+        '<button type="button" class="mv-up" title="Monter">▲</button>' +
+        '<button type="button" class="mv-down" title="Descendre">▼</button>' +
+        '<button type="button" class="danger del" title="Supprimer">✕</button>' +
+      '</div>' +
+      '<div class="rtitle" contenteditable="true">Nouvelle rubrique</div>' +
+      '<div class="rcontent" contenteditable="true">Écrivez ici le contenu de cette rubrique (note, clause, précision, etc.).</div>';
+    page.insertBefore(block, addRow);
+    window.scheduleFit();
+    var title = block.querySelector('.rtitle');
+    if (title) {
+      var range = document.createRange();
+      range.selectNodeContents(title);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      title.focus();
+    }
+  }
+  var addBtnToolbar = document.getElementById('addRubriqueBtn');
+  var addBtnInline = document.getElementById('addRubriqueBtnInline');
+  addBtnToolbar && addBtnToolbar.addEventListener('click', addRubrique);
+  addBtnInline && addBtnInline.addEventListener('click', addRubrique);
 })();
 </script>
 

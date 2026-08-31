@@ -332,6 +332,7 @@ export class InvoicesService {
     ref_devis_override?: string | null;
     ref_bc_override?: string | null;
     ref_bl_override?: string | null;
+    custom_layout?: any;
   }) {
     const invoice = await this.findOne(id);
 
@@ -368,6 +369,7 @@ export class InvoicesService {
           ...(input.ref_devis_override !== undefined && { ref_devis_override: input.ref_devis_override || null }),
           ...(input.ref_bc_override !== undefined && { ref_bc_override: input.ref_bc_override || null }),
           ...(input.ref_bl_override !== undefined && { ref_bl_override: input.ref_bl_override || null }),
+          ...(input.custom_layout !== undefined && { custom_layout: input.custom_layout ?? null }),
           ...totals,
           ...(input.lines && input.lines.length > 0 ? {
             lines: {

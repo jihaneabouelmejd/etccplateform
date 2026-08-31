@@ -22,6 +22,29 @@ const btnPri = { padding:'9px 20px', borderRadius:8, border:'none', background:'
 const btnDng = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EF4444,#DC2626)', color:'white', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 const TVA_RATE = 0.20;
 
+// Personnalisation libre du PDF de facture (custom_layout) : blocs standards réordonnables/masquables,
+// libellés remplaçables, rubriques additionnelles — voir invoice.template.ts côté backend.
+const DEFAULT_BLOCK_ORDER = ['meta', 'parties', 'table', 'totals', 'mlettres', 'pay', 'sigs'];
+const BLOCK_LABELS: Record<string, string> = {
+  meta: 'Dates & références', parties: 'Émetteur / Client', table: 'Tableau des lignes',
+  totals: 'Totaux', mlettres: 'Montant en lettres', pay: 'Paiement', sigs: 'Signature',
+};
+const LABEL_FIELDS: Array<{ key: string; label: string; placeholder: string }> = [
+  { key: 'lblDocType', label: 'Titre du document', placeholder: 'Facture' },
+  { key: 'lblEmetteur', label: 'Étiquette "Émetteur"', placeholder: 'Émetteur' },
+  { key: 'lblClient', label: 'Étiquette "Client"', placeholder: 'Client' },
+  { key: 'thDesignation', label: 'Colonne "Désignation"', placeholder: 'Désignation / Prestation' },
+  { key: 'thQte', label: 'Colonne "Qté"', placeholder: 'Qté' },
+  { key: 'thPu', label: 'Colonne "P.U. HT"', placeholder: 'P.U. HT' },
+  { key: 'thTva', label: 'Colonne "TVA"', placeholder: 'TVA' },
+  { key: 'thTotal', label: 'Colonne "Total HT"', placeholder: 'Total HT' },
+  { key: 'lblTotalTtc', label: 'Étiquette "Total TTC"', placeholder: 'Total TTC' },
+  { key: 'lblNetAPayer', label: 'Étiquette "Net à payer"', placeholder: 'Net à payer' },
+  { key: 'lblModalites', label: 'Titre "Modalités de paiement"', placeholder: 'Modalités de paiement' },
+  { key: 'lblCoordonnees', label: 'Titre "Coordonnées bancaires"', placeholder: 'Coordonnées bancaires' },
+  { key: 'lblSignature', label: 'Titre signature', placeholder: 'Signature émetteur — ETCC' },
+];
+
 export default function FacturesPage() {
   const { t, dir } = useLanguage();
   const { user } = useAuth();
@@ -83,6 +106,12 @@ export default function FacturesPage() {
   const [editSigs, setEditSigs] = useState<any[]>([]);
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState('');
+  // Personnalisation PDF par facture (custom_layout)
+  const [editTheme, setEditTheme] = useState<{ accentColor: string; font: string }>({ accentColor: '', font: '' });
+  const [editLabelOverrides, setEditLabelOverrides] = useState<Record<string, string>>({});
+  const [editBlockOrder, setEditBlockOrder] = useState<string[]>(DEFAULT_BLOCK_ORDER);
+  const [editHiddenBlocks, setEditHiddenBlocks] = useState<string[]>([]);
+  const [editRubriques, setEditRubriques] = useState<Array<{ id: string; title: string; content: string; position: string }>>([]);
 
   // Factures d'achat en attente (uploads employés)
   const [pendingFacs, setPendingFacs]       = useState<any[]>([]);
@@ -330,6 +359,20 @@ export default function FacturesPage() {
     });
     setEditLines((full.lines || []).map((l: any) => ({ desc: l.description, qty: Number(l.quantity), pu: Number(l.unit_price) })));
     setEditError('');
+    const cl = full.custom_layout || {};
+    setEditTheme({ accentColor: cl.theme?.accentColor || '', font: cl.theme?.font || '' });
+    setEditLabelOverrides(cl.labelOverrides || {});
+    setEditBlockOrder(
+      Array.isArray(cl.blockOrder) && cl.blockOrder.length
+        ? [...cl.blockOrder, ...DEFAULT_BLOCK_ORDER.filter((k: string) => !cl.blockOrder.includes(k))]
+        : DEFAULT_BLOCK_ORDER
+    );
+    setEditHiddenBlocks(Array.isArray(cl.hiddenBlocks) ? cl.hiddenBlocks : []);
+    setEditRubriques(
+      Array.isArray(cl.extraSections)
+        ? cl.extraSections.map((s: any, i: number) => ({ id: s.id || 'r' + i, title: s.title || '', content: s.content || '', position: s.position || '' }))
+        : []
+    );
     signaturesApi.list().then(r => setEditSigs(r.data || [])).catch(() => {});
   };
 
@@ -338,6 +381,21 @@ export default function FacturesPage() {
     if (!editTarget) return;
     setEditSaving(true); setEditError('');
     try {
+      const customLayout: any = {};
+      if (editTheme.accentColor || editTheme.font) {
+        customLayout.theme = {
+          ...(editTheme.accentColor ? { accentColor: editTheme.accentColor } : {}),
+          ...(editTheme.font ? { font: editTheme.font } : {}),
+        };
+      }
+      const cleanedLabels = Object.fromEntries(Object.entries(editLabelOverrides).filter(([, v]) => v && String(v).trim()));
+      if (Object.keys(cleanedLabels).length) customLayout.labelOverrides = cleanedLabels;
+      if (editHiddenBlocks.length) customLayout.hiddenBlocks = editHiddenBlocks;
+      if (JSON.stringify(editBlockOrder) !== JSON.stringify(DEFAULT_BLOCK_ORDER)) customLayout.blockOrder = editBlockOrder;
+      const cleanedRubriques = editRubriques.filter(r => r.title.trim() || r.content.trim())
+        .map(r => ({ id: r.id, title: r.title, content: r.content, position: r.position || undefined }));
+      if (cleanedRubriques.length) customLayout.extraSections = cleanedRubriques;
+
       await invoicesApi.update(editTarget.id, {
         issue_date: editForm.issue_date ? new Date(editForm.issue_date) : undefined,
         due_date: editForm.due_date ? new Date(editForm.due_date) : undefined,
@@ -350,6 +408,7 @@ export default function FacturesPage() {
         ref_devis_override: editForm.ref_devis_override || null,
         ref_bc_override: editForm.ref_bc_override || null,
         ref_bl_override: editForm.ref_bl_override || null,
+        custom_layout: Object.keys(customLayout).length ? customLayout : null,
         lines: editLines.filter(l => l.desc).map(l => ({ description: l.desc, quantity: l.qty, unit_price: l.pu })),
       });
       fetchData();
@@ -1177,6 +1236,97 @@ export default function FacturesPage() {
                     <input value={editForm.ref_bl_override} onChange={e => setEditForm({...editForm, ref_bl_override:e.target.value})} placeholder="BL-2026-..."
                       style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1.5px solid #E8D4B0', fontSize:12, outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
                   </div>
+                </div>
+              </div>
+
+              {/* Personnalisation libre du PDF (par facture) */}
+              <div style={{ border:'1.5px solid #E8D4B0', borderRadius:10, padding:14, marginBottom:16 }}>
+                <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:2 }}>Personnalisation du PDF</label>
+                <p style={{ margin:'0 0 12px', fontSize:11, color:'#B8A090' }}>Couleurs, libellés, blocs et rubriques — propres à cette facture uniquement.</p>
+
+                {/* Thème */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
+                  <div>
+                    <label style={{ display:'block', fontSize:10, fontWeight:600, color:'#8E5915', marginBottom:4 }}>Couleur d'accent</label>
+                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                      <input type="color" value={editTheme.accentColor || '#F5C842'} onChange={e => setEditTheme({ ...editTheme, accentColor: e.target.value })}
+                        style={{ width:38, height:32, padding:0, border:'1.5px solid #E8D4B0', borderRadius:6, cursor:'pointer' }} />
+                      {editTheme.accentColor && (
+                        <button type="button" onClick={() => setEditTheme({ ...editTheme, accentColor: '' })}
+                          style={{ background:'none', border:'none', cursor:'pointer', fontSize:11, color:'#B8A090' }}>Réinitialiser</button>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display:'block', fontSize:10, fontWeight:600, color:'#8E5915', marginBottom:4 }}>Police</label>
+                    <select value={editTheme.font} onChange={e => setEditTheme({ ...editTheme, font: e.target.value })}
+                      style={{ width:'100%', padding:'8px 10px', borderRadius:7, border:'1.5px solid #E8D4B0', fontSize:12, outline:'none', boxSizing:'border-box', background:'white' }}>
+                      <option value="">Par défaut (Arial)</option>
+                      <option value="'Helvetica Neue',Helvetica,Arial,sans-serif">Helvetica</option>
+                      <option value="Georgia,'Times New Roman',serif">Georgia</option>
+                      <option value="'Courier New',monospace">Courier</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Blocs : ordre + visibilité */}
+                <div style={{ marginBottom:16 }}>
+                  <label style={{ display:'block', fontSize:10, fontWeight:600, color:'#8E5915', marginBottom:6 }}>Blocs de la facture (ordre &amp; visibilité)</label>
+                  {editBlockOrder.map((key, i) => (
+                    <div key={key} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 8px', background:i % 2 ? '#FFFBF3' : 'transparent', borderRadius:6 }}>
+                      <input type="checkbox" checked={!editHiddenBlocks.includes(key)} onChange={e => {
+                        setEditHiddenBlocks(e.target.checked ? editHiddenBlocks.filter(k => k !== key) : [...editHiddenBlocks, key]);
+                      }} />
+                      <span style={{ flex:1, fontSize:12, color:'#5A4632' }}>{BLOCK_LABELS[key] || key}</span>
+                      <button type="button" disabled={i === 0} onClick={() => {
+                        const arr = [...editBlockOrder]; [arr[i - 1], arr[i]] = [arr[i], arr[i - 1]]; setEditBlockOrder(arr);
+                      }} style={{ background:'none', border:'none', cursor:i === 0 ? 'default' : 'pointer', opacity:i === 0 ? 0.3 : 1, fontSize:13 }}>▲</button>
+                      <button type="button" disabled={i === editBlockOrder.length - 1} onClick={() => {
+                        const arr = [...editBlockOrder]; [arr[i + 1], arr[i]] = [arr[i], arr[i + 1]]; setEditBlockOrder(arr);
+                      }} style={{ background:'none', border:'none', cursor:i === editBlockOrder.length - 1 ? 'default' : 'pointer', opacity:i === editBlockOrder.length - 1 ? 0.3 : 1, fontSize:13 }}>▼</button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Libellés */}
+                <div style={{ marginBottom:16 }}>
+                  <label style={{ display:'block', fontSize:10, fontWeight:600, color:'#8E5915', marginBottom:6 }}>Libellés (laisser vide = valeur par défaut)</label>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                    {LABEL_FIELDS.map(f => (
+                      <div key={f.key}>
+                        <label style={{ display:'block', fontSize:9.5, color:'#B8A090', marginBottom:3 }}>{f.label}</label>
+                        <input value={editLabelOverrides[f.key] || ''} onChange={e => setEditLabelOverrides({ ...editLabelOverrides, [f.key]: e.target.value })}
+                          placeholder={f.placeholder}
+                          style={{ width:'100%', padding:'7px 9px', borderRadius:6, border:'1.5px solid #E8D4B0', fontSize:11.5, outline:'none', boxSizing:'border-box' }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Rubriques libres */}
+                <div>
+                  <label style={{ display:'block', fontSize:10, fontWeight:600, color:'#8E5915', marginBottom:6 }}>Rubriques additionnelles</label>
+                  {editRubriques.map((r, i) => (
+                    <div key={r.id} style={{ border:'1px solid #F0DFC0', borderRadius:8, padding:10, marginBottom:8, background:'#FFFDF8' }}>
+                      <div style={{ display:'flex', gap:8, marginBottom:6 }}>
+                        <input value={r.title} onChange={e => { const arr = [...editRubriques]; arr[i] = { ...arr[i], title: e.target.value }; setEditRubriques(arr); }}
+                          placeholder="Titre de la rubrique" style={{ flex:1, padding:'7px 9px', borderRadius:6, border:'1.5px solid #E8D4B0', fontSize:12, outline:'none', boxSizing:'border-box' }} />
+                        <select value={r.position} onChange={e => { const arr = [...editRubriques]; arr[i] = { ...arr[i], position: e.target.value }; setEditRubriques(arr); }}
+                          style={{ padding:'7px 9px', borderRadius:6, border:'1.5px solid #E8D4B0', fontSize:11, outline:'none', background:'white' }}>
+                          <option value="">Fin du document</option>
+                          {DEFAULT_BLOCK_ORDER.map(k => <option key={k} value={k}>Après : {BLOCK_LABELS[k]}</option>)}
+                        </select>
+                        <button type="button" onClick={() => setEditRubriques(editRubriques.filter((_, idx) => idx !== i))}
+                          style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444' }}><Trash2 size={13} /></button>
+                      </div>
+                      <textarea value={r.content} onChange={e => { const arr = [...editRubriques]; arr[i] = { ...arr[i], content: e.target.value }; setEditRubriques(arr); }}
+                        rows={2} placeholder="Contenu..." style={{ width:'100%', padding:'7px 9px', borderRadius:6, border:'1.5px solid #E8D4B0', fontSize:11.5, outline:'none', resize:'vertical', boxSizing:'border-box' }} />
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setEditRubriques([...editRubriques, { id: 'r' + Date.now(), title: '', content: '', position: '' }])}
+                    style={{ background:'none', border:'none', cursor:'pointer', fontSize:12, color:'#E59312', fontWeight:600, display:'flex', alignItems:'center', gap:4 }}>
+                    <Plus size={12} /> Ajouter une rubrique
+                  </button>
                 </div>
               </div>
 
