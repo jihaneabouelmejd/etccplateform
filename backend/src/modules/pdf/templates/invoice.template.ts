@@ -128,9 +128,11 @@ body{
 .tline .tv{font-weight:500;color:#1A1A1A;}
 .tline.disc .tl,.tline.disc .tv{color:#DC2626;font-size:11px;}
 .tline.bal{border-bottom:2px solid #F5C842;}
-.tfinal{background:#F5C842;border-radius:5px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;margin-top:9px;}
-.tfl{font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:rgba(0,0,0,0.5);}
-.tfv{font-size:20px;font-weight:900;color:#0C0C0C;letter-spacing:-1px;}
+.tfinal{background:#F5C842;border-radius:5px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:9px;white-space:nowrap;}
+.tfl{font-size:9px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:rgba(0,0,0,0.5);white-space:nowrap;}
+.tfl.long{font-size:7.5px;letter-spacing:0.8px;}
+.tfv{font-size:20px;font-weight:900;color:#0C0C0C;letter-spacing:-1px;white-space:nowrap;}
+.tfv.long{font-size:16px;}
 
 /* MONTANT EN LETTRES */
 .mlettres{margin:0 48px 18px;padding:11px 16px;background:#FFFBF0;border:1.5px dashed #D4A017;border-radius:5px;}
@@ -172,7 +174,13 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
   const f = isAR ? fmtAr : fmt;
   const c = data.company;
   const isPaid = data.balance <= 0;
-  const amountToSpell = data.balance > 0 ? data.balance : data.total_ttc;
+  // Retenue de garantie (%) : n'apparaît sur le PDF que si un taux > 0 a été saisi sur la facture.
+  // Quand elle s'applique, la somme en lettres doit toujours correspondre au Total TTC
+  // (et non au montant net de retenue), donc calculée en amont ici.
+  const retenueRate = Number(data.retenue_garantie_rate || 0);
+  const retenueAmount = retenueRate > 0 ? Math.round(data.total_ttc * (retenueRate / 100) * 100) / 100 : 0;
+  const totalTtcAvecRetenue = data.total_ttc - retenueAmount - data.acompte_amount;
+  const amountToSpell = retenueRate > 0 ? data.total_ttc : (data.balance > 0 ? data.balance : data.total_ttc);
   const amountInWords = montantEnLettresMAD(amountToSpell);
 
   const cl = data.custom_layout || {};
@@ -215,13 +223,7 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
     data.bl_number    ? `BL : <strong>${data.bl_number}</strong>` : '',
   ].filter(Boolean).join(' &nbsp;|&nbsp; ');
 
-  // Retenue de garantie (%) : n'apparaît sur le PDF que si un taux > 0 a été saisi sur la facture.
-  // Quand elle s'applique, elle remplace le bloc final "Net à payer / Solde à régler"
-  // par "Montant TTC à régler avec retenue de garantie" (mis en avant en jaune).
-  const retenueRate = Number(data.retenue_garantie_rate || 0);
-  const retenueAmount = retenueRate > 0 ? Math.round(data.total_ttc * (retenueRate / 100) * 100) / 100 : 0;
-  const totalTtcAvecRetenue = data.total_ttc - retenueAmount - data.acompte_amount;
-
+  // (retenueRate / retenueAmount / totalTtcAvecRetenue calculés plus haut, avant amountToSpell)
   const tflLabel = retenueRate > 0
     ? L('lblTotalTtcRetenue', 'Montant TTC à régler avec retenue de garantie')
     : (data.acompte_amount > 0 ? L('lblSolde', 'Solde à régler') : L('lblNetAPayer', 'Net à payer'));
@@ -289,7 +291,7 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
 
     totals: `
 <div class="bottom">
-  <div class="totals">
+  <div class="totals" style="${retenueRate > 0 ? 'width:440px' : ''}">
     ${data.discount_rate > 0 ? `
     <div class="tline"><span class="tl">${L('lblTotalHtBrut', 'Total HT brut')}</span><span class="tv">${f(data.total_ht_brut)} DH</span></div>
     <div class="tline disc"><span class="tl">${L('lblRemise', 'Remise')} (${f(data.discount_rate)} %)</span><span class="tv">− ${f(data.discount_amount)} DH</span></div>` : ''}
@@ -300,8 +302,8 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
     <div class="tline"><span class="tl">${L('lblRetenueGarantie', 'Retenue de garantie')} (${f(retenueRate)} %)</span><span class="tv">− ${f(retenueAmount)} DH</span></div>` : ''}
     ${data.acompte_amount > 0 ? `<div class="tline bal"><span class="tl">${L('lblAcompte', 'Acompte versé')}</span><span class="tv">− ${f(data.acompte_amount)} DH</span></div>` : ''}
     <div class="tfinal">
-      <span class="tfl">${tflLabel}</span>
-      <span class="tfv">${f(retenueRate > 0 ? totalTtcAvecRetenue : (data.balance > 0 ? data.balance : data.total_ttc))} DH</span>
+      <span class="tfl${retenueRate > 0 ? ' long' : ''}">${tflLabel}</span>
+      <span class="tfv${retenueRate > 0 ? ' long' : ''}">${f(retenueRate > 0 ? totalTtcAvecRetenue : (data.balance > 0 ? data.balance : data.total_ttc))} DH</span>
     </div>
   </div>
 </div>`,
