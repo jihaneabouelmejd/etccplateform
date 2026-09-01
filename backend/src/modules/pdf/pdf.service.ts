@@ -120,6 +120,7 @@ export interface InvoicePDFData {
   tva_amount: number;
   total_ttc: number;
   acompte_amount: number;
+  retenue_garantie_rate?: number;
   balance: number;
   payment_method?: string;
   payment_terms?: string;

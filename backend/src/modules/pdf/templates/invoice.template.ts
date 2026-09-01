@@ -215,6 +215,12 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
     data.bl_number    ? `BL : <strong>${data.bl_number}</strong>` : '',
   ].filter(Boolean).join(' &nbsp;|&nbsp; ');
 
+  // Retenue de garantie (%) : purement informatif, n'affecte pas balance/tfinal.
+  // N'apparaît sur le PDF que si un taux > 0 a été saisi sur la facture.
+  const retenueRate = Number(data.retenue_garantie_rate || 0);
+  const retenueAmount = retenueRate > 0 ? Math.round(data.total_ttc * (retenueRate / 100) * 100) / 100 : 0;
+  const totalTtcAvecRetenue = data.total_ttc - retenueAmount;
+
   const tflLabel = data.acompte_amount > 0 ? L('lblSolde', 'Solde à régler') : L('lblNetAPayer', 'Net à payer');
   const mlettresLabel = isAR
     ? L('lblMontantLettresAr', 'Montant en lettres')
@@ -287,6 +293,9 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
     <div class="tline"><span class="tl">${L('lblTotalHtNet', 'Total HT net')}</span><span class="tv">${f(data.total_ht_net)} DH</span></div>
     <div class="tline"><span class="tl">${L('lblTva', 'TVA')} ${f(data.tva_rate)} %</span><span class="tv">${f(data.tva_amount)} DH</span></div>
     <div class="tline"><span class="tl">${L('lblTotalTtc', 'Total TTC')}</span><span class="tv">${f(data.total_ttc)} DH</span></div>
+    ${retenueRate > 0 ? `
+    <div class="tline"><span class="tl">${L('lblRetenueGarantie', 'Retenue de garantie')} (${f(retenueRate)} %)</span><span class="tv">− ${f(retenueAmount)} DH</span></div>
+    <div class="tline"><span class="tl">${L('lblTotalTtcRetenue', 'Montant TTC à régler avec retenue de garantie')}</span><span class="tv">${f(totalTtcAvecRetenue)} DH</span></div>` : ''}
     ${data.acompte_amount > 0 ? `<div class="tline bal"><span class="tl">${L('lblAcompte', 'Acompte versé')}</span><span class="tv">− ${f(data.acompte_amount)} DH</span></div>` : ''}
     <div class="tfinal">
       <span class="tfl">${tflLabel}</span>

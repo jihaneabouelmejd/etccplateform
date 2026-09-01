@@ -103,6 +103,7 @@ export interface Invoice {
   total_ht_net: number;
   tva_amount: number;
   total_ttc: number;
+  retenue_garantie_rate?: number;
   balance: number;
   status: 'DRAFT' | 'SENT' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'CANCELLED';
   client?: Client;

@@ -15,6 +15,7 @@ interface CreateIssuedInvoiceInput {
   due_date?: Date;
   payment_terms?: string;
   acompte_amount?: number;
+  retenue_garantie_rate?: number;
   payment_method?: string;
   notes?: string;
   lines?: InvoiceLineInput[];
@@ -150,6 +151,7 @@ export class InvoicesService {
           payment_method: input.payment_method as any,
           payment_terms: input.payment_terms,
           acompte_amount: acompte,
+          retenue_garantie_rate: input.retenue_garantie_rate ?? 0,
           amount_paid: acompte,
           balance: totals.total_ttc - acompte,
           status: acompte >= totals.total_ttc ? 'PAID' : 'SENT',
@@ -333,6 +335,7 @@ export class InvoicesService {
     ref_bc_override?: string | null;
     ref_bl_override?: string | null;
     custom_layout?: any;
+    retenue_garantie_rate?: number;
   }) {
     const invoice = await this.findOne(id);
 
@@ -370,6 +373,7 @@ export class InvoicesService {
           ...(input.ref_bc_override !== undefined && { ref_bc_override: input.ref_bc_override || null }),
           ...(input.ref_bl_override !== undefined && { ref_bl_override: input.ref_bl_override || null }),
           ...(input.custom_layout !== undefined && { custom_layout: input.custom_layout ?? null }),
+          ...(input.retenue_garantie_rate !== undefined && { retenue_garantie_rate: input.retenue_garantie_rate }),
           ...totals,
           ...(input.lines && input.lines.length > 0 ? {
             lines: {

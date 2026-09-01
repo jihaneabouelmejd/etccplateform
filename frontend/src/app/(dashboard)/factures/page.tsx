@@ -100,7 +100,7 @@ export default function FacturesPage() {
 
   // Edit invoice modal
   const [editTarget, setEditTarget] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ issue_date: '', due_date: '', payment_terms: '', notes: '', discount_rate: 0, signature_id: '', number: '', prestation_id: '', ref_devis_override: '', ref_bc_override: '', ref_bl_override: '' });
+  const [editForm, setEditForm] = useState({ issue_date: '', due_date: '', payment_terms: '', notes: '', discount_rate: 0, retenue_garantie_rate: 0, signature_id: '', number: '', prestation_id: '', ref_devis_override: '', ref_bc_override: '', ref_bl_override: '' });
   const [prestations, setPrestations] = useState<any[]>([]);
   const [editLines, setEditLines] = useState<Array<{ desc: string; qty: number; pu: number }>>([]);
   const [editSigs, setEditSigs] = useState<any[]>([]);
@@ -350,6 +350,7 @@ export default function FacturesPage() {
       payment_terms: full.payment_terms || '',
       notes: full.notes || '',
       discount_rate: Number(full.discount_rate) || 0,
+      retenue_garantie_rate: Number(full.retenue_garantie_rate) || 0,
       signature_id: full.signature_id || '',
       number: full.number || '',
       prestation_id: full.prestation_id || '',
@@ -402,6 +403,7 @@ export default function FacturesPage() {
         payment_terms: editForm.payment_terms || undefined,
         notes: editForm.notes || undefined,
         discount_rate: editForm.discount_rate,
+        retenue_garantie_rate: editForm.retenue_garantie_rate,
         signature_id: editForm.signature_id || null,
         number: editForm.number || undefined,
         prestation_id: editForm.prestation_id || null,
@@ -1184,12 +1186,18 @@ export default function FacturesPage() {
                 </div>
               </div>
 
-              {/* Réduction + Conditions */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
+              {/* Réduction + Retenue de garantie + Conditions */}
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:16, marginBottom:16 }}>
                 <div>
                   <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Réduction (%)</label>
                   <input type="number" value={editForm.discount_rate} onChange={e => setEditForm({...editForm, discount_rate:parseFloat(e.target.value)||0})}
                     style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', fontFamily:'monospace', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Retenue de garantie (%)</label>
+                  <input type="number" value={editForm.retenue_garantie_rate} onChange={e => setEditForm({...editForm, retenue_garantie_rate:parseFloat(e.target.value)||0})}
+                    style={{ width:'100%', padding:'9px 12px', borderRadius:8, border:'1.5px solid #E8D4B0', fontSize:13, outline:'none', fontFamily:'monospace', boxSizing:'border-box' }} />
+                  <span style={{ fontSize:10, color:'#B08B5C' }}>Laisser à 0 pour ne rien afficher sur le PDF</span>
                 </div>
                 <div>
                   <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, marginBottom:6 }}>Conditions de paiement</label>
