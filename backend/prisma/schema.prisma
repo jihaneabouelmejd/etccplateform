@@ -1306,14 +1306,22 @@ model Dette {
   date         DateTime    @default(now())
   statut       DetteStatut @default(EN_COURS)
   project_id   String?
+
+  // Lien prestation (FK réelle vers Prestation)
+  prestation_id  String?
+  prestation_nom String?  // dénormalisé pour affichage rapide, resynchronisé à l'écriture
+
   notes        String?     @db.Text
   created_at   DateTime    @default(now())
   updated_at   DateTime    @updatedAt
 
   project      Project?         @relation(fields: [project_id], references: [id])
+  prestation   Prestation?      @relation(fields: [prestation_id], references: [id], onDelete: SetNull)
   paiements    PaiementDette[]
 
   @@index([statut])
+  @@index([project_id])
+  @@index([prestation_id])
   @@map("dettes")
 }
 
@@ -1393,6 +1401,7 @@ model Prestation {
   bls         BonLivraison[]
   invoices    Invoice[]
   expenses    Expense[]
+  dettes      Dette[]
 
   @@index([created_by])
   @@index([devis_id])

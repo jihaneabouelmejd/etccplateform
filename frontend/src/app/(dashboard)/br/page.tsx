@@ -544,7 +544,7 @@ export default function BRPage() {
       {editTarget && (
         <div style={{ position:'fixed', inset:0, zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div onClick={() => setEditTarget(null)} style={{ position:'absolute', inset:0, background:'rgba(26,20,26,0.6)', backdropFilter:'blur(4px)' }} />
-          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:14, width:380, padding:28, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+          <div style={{ position:'relative', zIndex:10, background:'white', borderRadius:14, width:380, maxWidth:'92vw', padding:28, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
             <h3 style={{ margin:'0 0 20px', fontSize:15, fontWeight:700, color:'#1A141A' }}>✏️ Modifier {editTarget.number}</h3>
             <form onSubmit={handleEditSave}>
               <div style={{ marginBottom:14 }}>

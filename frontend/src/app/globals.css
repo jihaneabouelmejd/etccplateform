@@ -219,11 +219,17 @@
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
+    padding-top: calc(12px + env(safe-area-inset-top));
     background: white;
     border-bottom: 1px solid #EDDEC1;
     position: sticky;
     top: 0;
     z-index: 50;
+  }
+
+  /* ── Zone de sécurité iOS (encoche / home indicator) ── */
+  .etcc-sidebar > div:last-child {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
   }
 
   /* ── Contenu principal — plus de margin-left ── */
@@ -358,6 +364,35 @@
     justify-content: center;
     gap: 4px;
   }
+
+  /* ── En-têtes de page (titre + boutons d'action) ──
+         Convention utilisée sur ~16 pages : titre à gauche,
+         groupe de boutons à droite, qui déborde en dessous de
+         768px. On les empile pour éviter le débordement horizontal. */
+  .flex.justify-between.items-start {
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .flex.justify-between.items-start > .flex.gap-2 {
+    flex-wrap: wrap;
+  }
+
+  /* ── Agenda : calendrier + panneau latéral fixe (360px) ──
+         Le panneau passe sous le calendrier au lieu de le compresser. */
+  [style*="1fr 360px"] { grid-template-columns: 1fr !important; }
+
+  /* ── Cartes "fichier importé" (mon-bl, mes-factures, etc.) ──
+         Empêche un nom de fichier long de pousser badge/bouton hors écran. */
+  .etcc-card-row > div { min-width: 0; }
+  .etcc-card-row > div > div:last-child { overflow-wrap: anywhere; }
+}
+
+/* ════════════════════════════════
+   Très petit écran < 360px — sidebar un peu plus étroite
+   ════════════════════════════════ */
+@media (max-width: 359px) {
+  .etcc-sidebar { width: 88vw !important; }
 }
 
 /* ════════════════════════════════

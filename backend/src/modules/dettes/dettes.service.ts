@@ -8,7 +8,11 @@ export class DettesService {
   async findAll(statut?: string) {
     return this.prisma.dette.findMany({
       where: statut ? { statut: statut as any } : undefined,
-      include: { project: { select: { id:true, name:true, code:true } }, paiements: { orderBy: { date:'desc' } } },
+      include: {
+        project: { select: { id:true, name:true, code:true } },
+        prestation: { select: { id:true, nom:true } },
+        paiements: { orderBy: { date:'desc' } },
+      },
       orderBy: { created_at: 'desc' },
     });
   }
@@ -16,7 +20,11 @@ export class DettesService {
   async findOne(id: string) {
     const d = await this.prisma.dette.findUnique({
       where: { id },
-      include: { project: { select: { id:true, name:true, code:true } }, paiements: { orderBy: { date:'desc' } } },
+      include: {
+        project: { select: { id:true, name:true, code:true } },
+        prestation: { select: { id:true, nom:true } },
+        paiements: { orderBy: { date:'desc' } },
+      },
     });
     if (!d) throw new NotFoundException('Dette introuvable');
     return d;
@@ -25,14 +33,20 @@ export class DettesService {
   async create(dto: any) {
     return this.prisma.dette.create({
       data: {
-        nom:         dto.nom,
-        description: dto.description,
-        montant:     dto.montant,
-        date:        dto.date ? new Date(dto.date) : new Date(),
-        project_id:  dto.project_id || undefined,
-        notes:       dto.notes || undefined,
+        nom:            dto.nom,
+        description:    dto.description,
+        montant:        dto.montant,
+        date:           dto.date ? new Date(dto.date) : new Date(),
+        project_id:     dto.project_id || undefined,
+        prestation_id:  dto.prestation_id || undefined,
+        prestation_nom: dto.prestation_nom || undefined,
+        notes:          dto.notes || undefined,
       },
-      include: { project: { select: { id:true, name:true, code:true } }, paiements: true },
+      include: {
+        project: { select: { id:true, name:true, code:true } },
+        prestation: { select: { id:true, nom:true } },
+        paiements: true,
+      },
     });
   }
 
@@ -41,14 +55,20 @@ export class DettesService {
     return this.prisma.dette.update({
       where: { id },
       data: {
-        nom:        dto.nom        ?? undefined,
-        description:dto.description?? undefined,
-        montant:    dto.montant    ?? undefined,
-        date:       dto.date ? new Date(dto.date) : undefined,
-        project_id: dto.project_id !== undefined ? (dto.project_id || null) : undefined,
-        notes:      dto.notes      !== undefined ? (dto.notes || null)       : undefined,
+        nom:            dto.nom            ?? undefined,
+        description:    dto.description    ?? undefined,
+        montant:        dto.montant         ?? undefined,
+        date:           dto.date ? new Date(dto.date) : undefined,
+        project_id:     dto.project_id     !== undefined ? (dto.project_id || null)     : undefined,
+        prestation_id:  dto.prestation_id  !== undefined ? (dto.prestation_id || null)  : undefined,
+        prestation_nom: dto.prestation_nom !== undefined ? (dto.prestation_nom || null) : undefined,
+        notes:          dto.notes          !== undefined ? (dto.notes || null)          : undefined,
       },
-      include: { project: { select: { id:true, name:true, code:true } }, paiements: { orderBy: { date:'desc' } } },
+      include: {
+        project: { select: { id:true, name:true, code:true } },
+        prestation: { select: { id:true, nom:true } },
+        paiements: { orderBy: { date:'desc' } },
+      },
     });
   }
 
@@ -81,6 +101,8 @@ export class DettesService {
             notes:             dto.notes || null,
             payment_method:    (dto.mode || 'ESPECES') as any,
             project_id:        dette.project_id || null,
+            prestation_id:     (dette as any).prestation_id || null,
+            prestation_nom:    (dette as any).prestation_nom || null,
             submitted_by:      userId,
             status:            'APPROVED',
             paiement_dette_id: paiement.id,

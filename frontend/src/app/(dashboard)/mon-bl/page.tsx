@@ -136,7 +136,7 @@ export default function MonBLPage() {
             const fileName = d.description?.replace('[BL-IMPORT] ', '') || 'Document';
             const date = new Date(d.created_at || d.date).toLocaleDateString('fr-FR');
             return (
-              <div key={d.id} style={{ background: 'white', border: '1px solid #EDDEC1', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexDirection: dir === 'rtl' ? 'row-reverse' : 'row' }}>
+              <div key={d.id} className="etcc-card-row" style={{ background: 'white', border: '1px solid #EDDEC1', borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexDirection: dir === 'rtl' ? 'row-reverse' : 'row' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexDirection: dir === 'rtl' ? 'row-reverse' : 'row' }}>
                   <div style={{ width: 40, height: 40, borderRadius: 10, background: '#FFF8E1', border: '1.5px solid #F5C842', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <FileText size={18} color="#D4A017" />
