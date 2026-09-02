@@ -175,12 +175,12 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
   const c = data.company;
   const isPaid = data.balance <= 0;
   // Retenue de garantie (%) : n'apparaît sur le PDF que si un taux > 0 a été saisi sur la facture.
-  // Quand elle s'applique, la somme en lettres doit toujours correspondre au Total TTC
-  // (et non au montant net de retenue), donc calculée en amont ici.
+  // Quand elle s'applique, la somme en lettres doit correspondre au montant TTC à régler
+  // avec retenue de garantie (le montant réellement dû, mis en avant en jaune) — pas au Total TTC brut.
   const retenueRate = Number(data.retenue_garantie_rate || 0);
   const retenueAmount = retenueRate > 0 ? Math.round(data.total_ttc * (retenueRate / 100) * 100) / 100 : 0;
   const totalTtcAvecRetenue = data.total_ttc - retenueAmount - data.acompte_amount;
-  const amountToSpell = retenueRate > 0 ? data.total_ttc : (data.balance > 0 ? data.balance : data.total_ttc);
+  const amountToSpell = retenueRate > 0 ? totalTtcAvecRetenue : (data.balance > 0 ? data.balance : data.total_ttc);
   const amountInWords = montantEnLettresMAD(amountToSpell);
 
   const cl = data.custom_layout || {};
@@ -229,9 +229,11 @@ export function invoiceTemplate(data: InvoiceTemplateInput): string {
     : (data.acompte_amount > 0 ? L('lblSolde', 'Solde à régler') : L('lblNetAPayer', 'Net à payer'));
   const mlettresLabel = isAR
     ? L('lblMontantLettresAr', 'Montant en lettres')
-    : (data.acompte_amount > 0
-      ? L('lblMontantLettresSolde', 'Arrêtée la présente facture, solde à régler à la somme de')
-      : L('lblMontantLettresFull', 'Arrêtée la présente facture à la somme de'));
+    : (retenueRate > 0
+      ? L('lblMontantLettresRetenue', 'Arrêtée la présente facture, montant TTC à régler avec retenue de garantie à la somme de')
+      : (data.acompte_amount > 0
+        ? L('lblMontantLettresSolde', 'Arrêtée la présente facture, solde à régler à la somme de')
+        : L('lblMontantLettresFull', 'Arrêtée la présente facture à la somme de')));
 
   // Blocs standards, chacun réordonnable / masquable via custom_layout.blockOrder / hiddenBlocks.
   const blocksMap: Record<BlockKey, string> = {
