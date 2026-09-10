@@ -32,6 +32,16 @@ export class BLController {
     return this.bl.createFromDevis(devisId, userId, signatureId || undefined);
   }
 
+  @Post('from-invoice/:invoiceId')
+  @Roles(Role.ADMIN, Role.GERANT)
+  createFromInvoice(
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser('id') userId: string,
+    @Body() data?: any,
+  ) {
+    return this.bl.createFromInvoice(invoiceId, userId, data);
+  }
+
   @Post('import')
   @Roles(Role.ADMIN, Role.GERANT)
   importBL(@Body() data: any, @CurrentUser('id') userId: string) {

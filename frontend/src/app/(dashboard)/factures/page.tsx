@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Check, AlertCircle, Trash2, Banknote, Camera, X, Upload, Eye, ImageOff, Sparkles, FileText, ChevronDown, Pencil } from 'lucide-react';
-import { invoicesApi, blApi, fournisseursApi, uploadApi, signaturesApi, prestationsApi } from '@/lib/api';
+import { Plus, Search, Check, AlertCircle, Trash2, Banknote, Camera, X, Upload, Eye, ImageOff, Sparkles, FileText, ChevronDown, Pencil, Truck, ClipboardList } from 'lucide-react';
+import { invoicesApi, blApi, bcApi, fournisseursApi, uploadApi, signaturesApi, prestationsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
 import FileViewerModal from '@/components/ui/FileViewerModal';
@@ -97,6 +97,7 @@ export default function FacturesPage() {
   const [statusDropdown, setStatusDropdown] = useState<string | null>(null); // invoice id
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [deletingScan, setDeletingScan] = useState(false);
+  const [generatingDoc, setGeneratingDoc] = useState<string | null>(null); // `${invoiceId}-bl` ou `${invoiceId}-bc`
 
   // Edit invoice modal
   const [editTarget, setEditTarget] = useState<any>(null);
@@ -338,6 +339,28 @@ export default function FacturesPage() {
       fetchData();
     } catch (e: any) { alert(e?.response?.data?.message || 'Erreur'); }
     finally { setUpdatingStatus(false); }
+  };
+
+  const handleGenerateBL = async (inv: any) => {
+    const blNumber = inv.number.replace('FAC', 'BL');
+    if (!confirm(`Générer un BL n° ${blNumber} pour la facture ${inv.number} ?`)) return;
+    setGeneratingDoc(`${inv.id}-bl`);
+    try {
+      await blApi.createFromInvoice(inv.id);
+      fetchData();
+    } catch (e: any) { alert(e?.response?.data?.message || 'Erreur lors de la génération du BL'); }
+    finally { setGeneratingDoc(null); }
+  };
+
+  const handleGenerateBC = async (inv: any) => {
+    const bcNumber = inv.number.replace('FAC', 'BC');
+    if (!confirm(`Générer un BC n° ${bcNumber} pour la facture ${inv.number} ?`)) return;
+    setGeneratingDoc(`${inv.id}-bc`);
+    try {
+      await bcApi.createFromInvoice(inv.id);
+      fetchData();
+    } catch (e: any) { alert(e?.response?.data?.message || 'Erreur lors de la génération du BC'); }
+    finally { setGeneratingDoc(null); }
   };
 
   const openEdit = async (inv: any) => {
@@ -741,6 +764,20 @@ export default function FacturesPage() {
                         </button>
                       )}
                       <PDFButton variant="inline" docType="invoice" docId={inv.id} docNumber={inv.number} />
+                      {canDel && !inv.bl && inv.status !== 'CANCELLED' && (
+                        <button onClick={() => handleGenerateBL(inv)} title="Générer un BL avec le même numéro"
+                          disabled={generatingDoc === `${inv.id}-bl`}
+                          className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all disabled:opacity-50">
+                          <Truck size={11} />
+                        </button>
+                      )}
+                      {canDel && !inv.bc && inv.status !== 'CANCELLED' && (
+                        <button onClick={() => handleGenerateBC(inv)} title="Générer un BC avec le même numéro"
+                          disabled={generatingDoc === `${inv.id}-bc`}
+                          className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all disabled:opacity-50">
+                          <ClipboardList size={11} />
+                        </button>
+                      )}
                       {canDel && (
                         <button onClick={() => openEdit(inv)} title="Modifier"
                           className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all">

@@ -120,6 +120,22 @@ export default function ComptabilitePage() {
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
+  /* ── date de paiement ───────────────────────────── */
+  const [savingPaidDate, setSavingPaidDate] = useState<string | null>(null);
+  const handleUpdatePaidDate = async (inv: any, dateStr: string) => {
+    setSavingPaidDate(inv.id);
+    try {
+      const updated = await invoicesApi.update(inv.id, { paid_at: dateStr || null });
+      const patch = (list: any[]) => list.map(i => i.id === inv.id ? { ...i, paid_at: updated.data?.paid_at ?? (dateStr || null) } : i);
+      setIssuedList(patch);
+      setPurchaseList(patch);
+    } catch (e: any) {
+      alert(e?.response?.data?.message || "Erreur lors de l'enregistrement de la date de paiement");
+    } finally {
+      setSavingPaidDate(null);
+    }
+  };
+
   /* ── suppression facture ────────────────────────── */
   const handleDeleteInvoice = async (inv: any) => {
     const isCancelled = inv.status === 'CANCELLED';
@@ -368,14 +384,14 @@ export default function ComptabilitePage() {
                 <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
                   <thead>
                     <tr style={{ background:'#FDF6E9' }}>
-                      {['Type','Reference','Client / Fournisseur','Date','HT','TVA','TTC','Statut','Actions'].map(h => (
+                      {['Type','Reference','Client / Fournisseur','Date','HT','TVA','TTC','Statut','Date paiement','Actions'].map(h => (
                         <th key={h} style={{ padding:'9px 12px', textAlign:'left', color:'#8E5915', fontWeight:700, fontSize:10, textTransform:'uppercase', whiteSpace:'nowrap', borderBottom:'1px solid #F5E6D3' }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {filteredInvoices.length===0 ? (
-                      <tr><td colSpan={9} style={{ padding:'32px', textAlign:'center', color:'#8E5915' }}>Aucune facture trouvee</td></tr>
+                      <tr><td colSpan={10} style={{ padding:'32px', textAlign:'center', color:'#8E5915' }}>Aucune facture trouvee</td></tr>
                     ) : filteredInvoices.map((inv,i) => {
                       const s = statusLabel[inv.status] || statusLabel.DRAFT;
                       return (
@@ -395,6 +411,23 @@ export default function ComptabilitePage() {
                           <td style={{ padding:'8px 12px', fontFamily:'monospace', fontWeight:700, color:'#1A141A', whiteSpace:'nowrap' }}>{fmt(Number(inv.total_ttc||0))}</td>
                           <td style={{ padding:'8px 12px' }}>
                             <span style={{ fontSize:9, padding:'2px 7px', borderRadius:20, border:'1px solid', background:s.bg, color:s.color, borderColor:s.border }}>{s.label}</span>
+                          </td>
+                          <td style={{ padding:'8px 12px', whiteSpace:'nowrap' }}>
+                            {['PAID','PARTIAL'].includes(inv.status) ? (
+                              <input
+                                type="date"
+                                defaultValue={inv.paid_at ? String(inv.paid_at).slice(0,10) : ''}
+                                disabled={savingPaidDate===inv.id}
+                                onBlur={e => {
+                                  const val = e.target.value;
+                                  const current = inv.paid_at ? String(inv.paid_at).slice(0,10) : '';
+                                  if (val !== current) handleUpdatePaidDate(inv, val);
+                                }}
+                                style={{ padding:'4px 6px', borderRadius:6, border:'1.5px solid #E8D4B0', fontSize:11, outline:'none', color:'#1A141A', opacity:savingPaidDate===inv.id?0.6:1, width:126 }}
+                              />
+                            ) : (
+                              <span style={{ color:'#B8A090', fontSize:11 }}>-</span>
+                            )}
                           </td>
                           <td style={{ padding:'8px 12px' }}>
                             <div style={{ display:'flex', flexDirection:'column', gap:4 }}>

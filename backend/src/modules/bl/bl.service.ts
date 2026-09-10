@@ -94,6 +94,67 @@ export class BLService {
   }
 
   /**
+   * Générer rétroactivement un BL depuis une facture existante, en reprenant
+   * le même numéro de séquence (ex: FAC-2026-0089 -> BL-2026-0089).
+   * Bloqué si la facture a déjà un BL lié.
+   */
+  async createFromInvoice(
+    invoiceId: string,
+    createdBy: string,
+    input?: {
+      lines?: BLLineInput[];
+      signature_id?: string;
+      delivery_date?: Date;
+      delivered_by?: string;
+      delivery_address?: string;
+      notes?: string;
+    },
+  ) {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: { lines: { orderBy: { order: 'asc' } } },
+    });
+    if (!invoice) throw new NotFoundException('Facture non trouvée');
+    if (invoice.bl_id) {
+      throw new BadRequestException('Cette facture est déjà liée à un BL');
+    }
+    if (!invoice.client_id) {
+      throw new BadRequestException('La facture doit être liée à un client pour générer un BL');
+    }
+
+    const lines: BLLineInput[] =
+      input?.lines && input.lines.length > 0
+        ? input.lines
+        : invoice.lines.map((l) => ({ description: l.description, quantity: Number(l.quantity) }));
+
+    const number = await this.deriveNumberFromSource(invoice.number);
+
+    const result = await this.create(
+      {
+        client_id: invoice.client_id,
+        project_id: invoice.project_id ?? undefined,
+        prestation_id: invoice.prestation_id ?? undefined,
+        signature_id: input?.signature_id ?? invoice.signature_id ?? undefined,
+        delivery_date: input?.delivery_date,
+        delivered_by: input?.delivered_by,
+        delivery_address: input?.delivery_address,
+        notes: input?.notes ?? `Généré rétroactivement depuis la facture ${invoice.number}`,
+        lines,
+        custom_number: number,
+      },
+      createdBy,
+    );
+
+    // Lier la facture au BL nouvellement créé
+    await this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { bl_id: result.bl.id },
+    });
+
+    return result;
+  }
+
+  /**
    * Importer un BL reçu en externe (scan OCR ou saisie manuelle) — ne touche pas au stock,
    * n'est jamais lié à un devis/BC de la plateforme (source IMPORTED_OCR / IMPORTED_MANUAL).
    */

@@ -79,6 +79,79 @@ export class BCService {
   }
 
   /**
+   * Générer rétroactivement un BC depuis une facture existante, en reprenant
+   * le même numéro de séquence (ex: FAC-2026-0089 -> BC-2026-0089).
+   * Bloqué si la facture a déjà un BC lié.
+   */
+  async createFromInvoice(
+    invoiceId: string,
+    createdBy: string,
+    input?: {
+      lines?: { description: string; quantity: number; unit_price?: number }[];
+      signature_id?: string;
+      client_number?: string;
+      notes?: string;
+    },
+  ) {
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: { lines: { orderBy: { order: 'asc' } } },
+    });
+    if (!invoice) throw new NotFoundException('Facture non trouvée');
+    if (invoice.bc_id) {
+      throw new BadRequestException('Cette facture est déjà liée à un BC');
+    }
+    if (!invoice.client_id) {
+      throw new BadRequestException('La facture doit être liée à un client pour générer un BC');
+    }
+
+    const lines =
+      input?.lines && input.lines.length > 0
+        ? input.lines
+        : invoice.lines.map((l) => ({
+            description: l.description,
+            quantity: Number(l.quantity),
+            unit_price: Number(l.unit_price),
+          }));
+
+    const number = await this.deriveNumberFromSource(invoice.number);
+
+    const bc = await this.prisma.bonCommande.create({
+      data: {
+        number,
+        source: 'INTERNAL',
+        client_id: invoice.client_id,
+        project_id: invoice.project_id ?? undefined,
+        prestation_id: invoice.prestation_id ?? undefined,
+        created_by: createdBy,
+        total_ht: invoice.total_ht_net,
+        total_ttc: invoice.total_ttc,
+        signature_id: input?.signature_id ?? invoice.signature_id ?? undefined,
+        client_number: input?.client_number ?? null,
+        notes: input?.notes ?? `Généré rétroactivement depuis la facture ${invoice.number}`,
+        lines: {
+          create: lines.map((l, i) => ({
+            description: l.description,
+            quantity: l.quantity,
+            unit_price: l.unit_price ?? null,
+            total_ht: l.unit_price ? l.quantity * l.unit_price : null,
+            order: i,
+          })),
+        },
+      } as any,
+      include: { lines: true, client: { select: { commercial_name: true } } },
+    });
+
+    // Lier la facture au BC nouvellement créé
+    await this.prisma.invoice.update({
+      where: { id: invoiceId },
+      data: { bc_id: bc.id },
+    });
+
+    return bc;
+  }
+
+  /**
    * Importer un BC du client (OCR ou manuel)
    * Peut optionnellement être lié à un devis existant via devis_id
    */

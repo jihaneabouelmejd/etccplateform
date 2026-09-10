@@ -154,7 +154,7 @@ export class DevisService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { number: 'desc' },
+        orderBy: { issue_date: 'desc' },
         include: {
           client: { select: { commercial_name: true } },
           project: { select: { name: true, code: true } },

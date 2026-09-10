@@ -336,6 +336,7 @@ export class InvoicesService {
     ref_bl_override?: string | null;
     custom_layout?: any;
     retenue_garantie_rate?: number;
+    paid_at?: Date | string | null;
   }) {
     const invoice = await this.findOne(id);
 
@@ -374,6 +375,7 @@ export class InvoicesService {
           ...(input.ref_bl_override !== undefined && { ref_bl_override: input.ref_bl_override || null }),
           ...(input.custom_layout !== undefined && { custom_layout: input.custom_layout ?? null }),
           ...(input.retenue_garantie_rate !== undefined && { retenue_garantie_rate: input.retenue_garantie_rate }),
+          ...(input.paid_at !== undefined && { paid_at: input.paid_at ? new Date(input.paid_at) : null }),
           ...totals,
           ...(input.lines && input.lines.length > 0 ? {
             lines: {
@@ -418,7 +420,7 @@ export class InvoicesService {
           amount_paid: newAmountPaid,
           balance: newBalance,
           status: newBalance <= 0 ? 'PAID' : 'PARTIAL',
-          paid_at: newBalance <= 0 ? new Date() : undefined,
+          paid_at: newBalance <= 0 ? (paymentData.date || new Date()) : undefined,
         },
       });
     });

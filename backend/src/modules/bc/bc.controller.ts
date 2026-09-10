@@ -26,6 +26,16 @@ export class BCController {
     return this.bc.createFromDevis(devisId, userId, signatureId || undefined);
   }
 
+  @Post('from-invoice/:invoiceId')
+  @Roles(Role.ADMIN, Role.GERANT)
+  createFromInvoice(
+    @Param('invoiceId') invoiceId: string,
+    @CurrentUser('id') userId: string,
+    @Body() data?: any,
+  ) {
+    return this.bc.createFromInvoice(invoiceId, userId, data);
+  }
+
   @Post('import')
   @Roles(Role.ADMIN, Role.GERANT)
   importBC(@Body() data: any, @CurrentUser('id') userId: string) {
