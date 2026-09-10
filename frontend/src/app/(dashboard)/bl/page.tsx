@@ -270,10 +270,33 @@ export default function BLPage() {
     fetchPendingBls();
   };
 
-  const handleBcSelect = (bcId: string) => {
-    const bc = bcs.find(b => b.id === bcId);
-    setSelectedBc(bc || null);
+  const handleBcSelect = async (bcId: string) => {
     setBlForm(f => ({ ...f, bc_id: bcId }));
+    if (!bcId) {
+      setSelectedBc(null);
+      setBlLines([{ desc: '', qty: 1 }]);
+      return;
+    }
+    // Pré-remplissage immédiat avec ce qu'on a déjà en liste (client, numéro...)
+    setSelectedBc(bcs.find(b => b.id === bcId) || null);
+    try {
+      const res = await bcApi.get(bcId);
+      const bc = res.data;
+      setSelectedBc(bc);
+      // Lignes, quantités : reprises telles quelles depuis le BC
+      setBlLines(bc.lines?.length
+        ? bc.lines.map((l: any) => ({ desc: l.description, qty: Number(l.quantity) }))
+        : [{ desc: '', qty: 1 }]);
+      // Date de livraison prévue + adresse du client : pré-remplies, modifiables ensuite
+      setBlForm(f => ({
+        ...f,
+        delivery_date: bc.expected_delivery ? new Date(bc.expected_delivery).toISOString().slice(0, 10) : f.delivery_date,
+        delivery_address: bc.client?.address || f.delivery_address,
+        prestation_id: bc.prestation_id || f.prestation_id,
+      }));
+    } catch {
+      // BC non trouvé/erreur réseau — on garde au moins le pré-remplissage optimiste ci-dessus
+    }
   };
 
   const handleDevisSelect = async (devisId: string) => {
@@ -617,6 +640,7 @@ export default function BLPage() {
                         <option key={bc.id} value={bc.id}>{bc.number} – {bc.client?.commercial_name || '-'}</option>
                       ))}
                     </select>
+                    {blForm.bc_id && <p style={{ fontSize:11, color:'#16A34A', marginTop:6 }}>✓ Lignes, quantités, date et adresse de livraison pré-remplies depuis le BC</p>}
                   </div>
                 ) : (
                   <div style={{ gridColumn:'1/-1' }}>

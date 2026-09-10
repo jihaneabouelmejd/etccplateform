@@ -42,7 +42,7 @@ export default function MergePage() {
     Promise.all([
       devisApi.list({ limit: 200 }),
       blApi.list({ limit: 200 }),
-      invoicesApi.list({ limit: 200 }),
+      invoicesApi.list({ limit: 200, direction: 'ISSUED' }),
       bcApi.list({ limit: 200 }),
       brApi.list({ limit: 200 }),
     ]).then(([d, b, i, bc, br]) => {
