@@ -76,6 +76,12 @@ export class BCController {
     return this.bc.updateStatus(id, status);
   }
 
+  @Patch(':id/file')
+  @Roles(Role.ADMIN, Role.GERANT)
+  updateFile(@Param('id') id: string, @Body('imported_file_url') url: string | null) {
+    return this.bc.updateFile(id, url);
+  }
+
   @Delete(':id')
   @Roles(Role.ADMIN, Role.GERANT)
   cancel(@Param('id') id: string) { return this.bc.cancel(id); }

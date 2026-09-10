@@ -160,6 +160,8 @@ export default function BCPage() {
   const [viewLoading, setViewLoading]     = useState(false);
   const [previewFileUrl, setPreviewFileUrl] = useState<string | null>(null);
   const viewRequestRef = useRef(0);
+  const [replacingFile, setReplacingFile] = useState(false);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Fetch ────────────────────────────────────────────────────────────────
   const fetchData = useCallback(() => {
@@ -317,6 +319,28 @@ export default function BCPage() {
   };
 
   const closeView = () => { viewRequestRef.current++; setViewTarget(null); setViewLoading(false); };
+
+  const handleReplaceFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !viewTarget) return;
+    setReplacingFile(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const uploadRes = await api.post('/upload', fd);
+      const url = uploadRes.data.url;
+      if (!url) throw new Error('Upload échoué');
+      await bcApi.updateFile(viewTarget.id, url);
+      setViewTarget((prev: any) => prev ? { ...prev, imported_file_url: url } : prev);
+      fetchData();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Erreur lors du remplacement du fichier';
+      alert(Array.isArray(msg) ? msg.join(', ') : String(msg));
+    } finally {
+      setReplacingFile(false);
+    }
+  };
 
   const handleStatusChange = async (bc: any, newStatus: string) => {
     setUpdatingStatus(true);
@@ -896,6 +920,11 @@ export default function BCPage() {
                           style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#3B82F6,#1D4ED8)', color:'white', fontSize:12, fontWeight:700, textDecoration:'none' }}>
                           <Download size={13} /> Télécharger
                         </a>
+                        <input ref={replaceFileInputRef} type="file" accept="application/pdf,image/*" style={{ display:'none' }} onChange={handleReplaceFile} />
+                        <button onClick={() => replaceFileInputRef.current?.click()} disabled={replacingFile}
+                          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1.5px solid #3B82F6', background:'white', color:'#1D4ED8', fontSize:12, fontWeight:700, cursor: replacingFile ? 'default' : 'pointer', opacity: replacingFile ? 0.6 : 1 }}>
+                          <Upload size={13} /> {replacingFile ? 'Envoi...' : 'Remplacer'}
+                        </button>
                       </div>
                     </div>
                   )}

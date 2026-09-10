@@ -144,6 +144,7 @@ export const bcApi = {
   createFromInvoice: (invoiceId: string, data?: any) => api.post(`/bc/from-invoice/${invoiceId}`, data || {}),
   update: (id: string, data: any) => api.patch(`/bc/${id}`, data),
   updateStatus: (id: string, status: string) => api.patch(`/bc/${id}/status`, { status }),
+  updateFile: (id: string, imported_file_url: string | null) => api.patch(`/bc/${id}/file`, { imported_file_url }),
   cancel: (id: string) => api.delete(`/bc/${id}`),
   delete: (id: string) => api.delete(`/bc/${id}/permanent`),
   import: (data: any) => api.post('/bc/import', data),

@@ -299,6 +299,11 @@ export class BCService {
     });
   }
 
+  async updateFile(id: string, imported_file_url: string | null) {
+    await this.findOne(id);
+    return this.prisma.bonCommande.update({ where: { id }, data: { imported_file_url } as any });
+  }
+
   async updateStatus(id: string, status: BCStatus) {
     return this.prisma.bonCommande.update({ where: { id }, data: { status } });
   }
