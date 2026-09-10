@@ -6,7 +6,7 @@ import { useLanguage } from '@/lib/i18n';
 import FileViewerModal from '@/components/ui/FileViewerModal';
 import { useRouter } from 'next/navigation';
 import PDFButton from '@/components/ui/PDFButton';
-import { bcApi, devisApi, clientsApi, signaturesApi, prestationsApi } from '@/lib/api';
+import { bcApi, devisApi, clientsApi, signaturesApi, prestationsApi, uploadApi } from '@/lib/api';
 import { formatDate, cn, formatCurrency } from '@/lib/utils';
 import api from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -324,6 +324,7 @@ export default function BCPage() {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !viewTarget) return;
+    const oldUrl = viewTarget.imported_file_url || null;
     setReplacingFile(true);
     try {
       const fd = new FormData();
@@ -334,6 +335,12 @@ export default function BCPage() {
       await bcApi.updateFile(viewTarget.id, url);
       setViewTarget((prev: any) => prev ? { ...prev, imported_file_url: url } : prev);
       fetchData();
+      // Nettoyage : on supprime l'ancien fichier maintenant qu'il n'est plus référencé.
+      // Best-effort — un échec ici ne doit pas gêner l'utilisateur, le remplacement
+      // a déjà réussi côté BC.
+      if (oldUrl && oldUrl !== url) {
+        uploadApi.deleteFile(oldUrl).catch(() => {});
+      }
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || 'Erreur lors du remplacement du fichier';
       alert(Array.isArray(msg) ? msg.join(', ') : String(msg));

@@ -200,6 +200,7 @@ export const uploadApi = {
     });
   },
   extract: (filename: string) => api.get('/upload/extract', { params: { filename } }),
+  deleteFile: (url: string) => api.post('/upload/delete', { url }),
 };
 
 export const depensesApi = {

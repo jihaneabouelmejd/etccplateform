@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Check, AlertCircle, Trash2, Banknote, Camera, X, Upload, Eye, ImageOff, Sparkles, FileText, ChevronDown, Pencil, Truck, ClipboardList } from 'lucide-react';
+import { Plus, Search, Check, AlertCircle, Trash2, Banknote, Camera, X, Upload, Eye, ImageOff, Sparkles, FileText, ChevronDown, Pencil, ClipboardList } from 'lucide-react';
 import { invoicesApi, blApi, bcApi, fournisseursApi, uploadApi, signaturesApi, prestationsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
 import { useLanguage } from '@/lib/i18n';
@@ -339,17 +339,6 @@ export default function FacturesPage() {
       fetchData();
     } catch (e: any) { alert(e?.response?.data?.message || 'Erreur'); }
     finally { setUpdatingStatus(false); }
-  };
-
-  const handleGenerateBL = async (inv: any) => {
-    const blNumber = inv.number.replace('FAC', 'BL');
-    if (!confirm(`Générer un BL n° ${blNumber} pour la facture ${inv.number} ?`)) return;
-    setGeneratingDoc(`${inv.id}-bl`);
-    try {
-      await blApi.createFromInvoice(inv.id);
-      fetchData();
-    } catch (e: any) { alert(e?.response?.data?.message || 'Erreur lors de la génération du BL'); }
-    finally { setGeneratingDoc(null); }
   };
 
   const handleGenerateBC = async (inv: any) => {
@@ -764,14 +753,6 @@ export default function FacturesPage() {
                         </button>
                       )}
                       <PDFButton variant="inline" docType="invoice" docId={inv.id} docNumber={inv.number} />
-                      {canDel && inv.status !== 'CANCELLED' && (
-                        <button onClick={() => !inv.bl && handleGenerateBL(inv)}
-                          title={inv.bl ? `Déjà liée au BL ${inv.bl.number}` : 'Générer un BL avec le même numéro'}
-                          disabled={!!inv.bl || generatingDoc === `${inv.id}-bl`}
-                          className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-honey-beige-soft">
-                          <Truck size={11} />
-                        </button>
-                      )}
                       {canDel && inv.status !== 'CANCELLED' && (
                         <button onClick={() => !inv.bc && handleGenerateBC(inv)}
                           title={inv.bc ? `Déjà liée au BC ${inv.bc.number}` : 'Générer un BC avec le même numéro'}

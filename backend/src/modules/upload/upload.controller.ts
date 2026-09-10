@@ -1,6 +1,6 @@
 import {
   Controller, Post, UploadedFile, UseInterceptors, UseGuards,
-  BadRequestException, Get, Param, Res, Query, InternalServerErrorException,
+  BadRequestException, Get, Param, Res, Query, Body, InternalServerErrorException,
   Logger, OnModuleInit, Headers, Redirect,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -372,6 +372,44 @@ export class UploadController implements OnModuleInit {
       size: file.size,
       storage: 'local',
     };
+  }
+
+  // ── POST /upload/delete — best-effort cleanup of a previously uploaded file ──
+  // Used when a file is replaced (e.g. "Remplacer" on a BC) so the old asset
+  // doesn't linger forever on Cloudinary / local disk. Never throws — a failed
+  // cleanup shouldn't block the caller, it's just housekeeping.
+  @Post('delete')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async deleteFile(@Body('url') url: string) {
+    if (!url) return { ok: false, reason: 'url manquante' };
+    try {
+      if (USE_CLOUDINARY && url.includes('cloudinary.com')) {
+        const m = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
+        if (!m) return { ok: false, reason: 'URL Cloudinary non reconnue' };
+        const resourceType = m[1];
+        // Pour raw (PDFs), le public_id inclut l'extension (voir uploadBufferToCloudinary).
+        // Pour image/video, l'extension visible dans l'URL est le format de livraison,
+        // pas le public_id — il faut la retirer avant d'appeler destroy().
+        const publicId = resourceType === 'raw' ? m[2] : m[2].replace(/\.[a-zA-Z0-9]+$/, '');
+        const result = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType, type: 'upload' });
+        this.logger.log(`[Delete] Cloudinary destroy(${publicId}, ${resourceType}) → ${JSON.stringify(result)}`);
+        return { ok: result?.result === 'ok' || result?.result === 'not found', detail: result?.result };
+      }
+      // Local fallback: url looks like /api/upload/files/<name> or /upload/files/<name>
+      const filename = url.split('/').pop();
+      if (filename) {
+        const filePath = join(uploadsPath, filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          return { ok: true };
+        }
+      }
+      return { ok: false, reason: 'Fichier local introuvable' };
+    } catch (err: any) {
+      this.logger.error(`[Delete] Failed: ${err.message}`);
+      return { ok: false, reason: err.message };
+    }
   }
 
   // ── GET /upload/extract?filename=<url_or_name> — OCR ─────────────────────
