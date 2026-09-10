@@ -764,17 +764,19 @@ export default function FacturesPage() {
                         </button>
                       )}
                       <PDFButton variant="inline" docType="invoice" docId={inv.id} docNumber={inv.number} />
-                      {canDel && !inv.bl && inv.status !== 'CANCELLED' && (
-                        <button onClick={() => handleGenerateBL(inv)} title="Générer un BL avec le même numéro"
-                          disabled={generatingDoc === `${inv.id}-bl`}
-                          className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all disabled:opacity-50">
+                      {canDel && inv.status !== 'CANCELLED' && (
+                        <button onClick={() => !inv.bl && handleGenerateBL(inv)}
+                          title={inv.bl ? `Déjà liée au BL ${inv.bl.number}` : 'Générer un BL avec le même numéro'}
+                          disabled={!!inv.bl || generatingDoc === `${inv.id}-bl`}
+                          className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-honey-beige-soft">
                           <Truck size={11} />
                         </button>
                       )}
-                      {canDel && !inv.bc && inv.status !== 'CANCELLED' && (
-                        <button onClick={() => handleGenerateBC(inv)} title="Générer un BC avec le même numéro"
-                          disabled={generatingDoc === `${inv.id}-bc`}
-                          className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all disabled:opacity-50">
+                      {canDel && inv.status !== 'CANCELLED' && (
+                        <button onClick={() => !inv.bc && handleGenerateBC(inv)}
+                          title={inv.bc ? `Déjà liée au BC ${inv.bc.number}` : 'Générer un BC avec le même numéro'}
+                          disabled={!!inv.bc || generatingDoc === `${inv.id}-bc`}
+                          className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-honey-beige-soft">
                           <ClipboardList size={11} />
                         </button>
                       )}
