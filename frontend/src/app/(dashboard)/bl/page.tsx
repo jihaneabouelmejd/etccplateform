@@ -88,6 +88,8 @@ export default function BLPage() {
   const [blImportFile, setBlImportFile]          = useState<File | null>(null);
   const [blImportFileUrl, setBlImportFileUrl]    = useState('');
   const [blUploadingFile, setBlUploadingFile]    = useState(false);
+  const [blExtractingLines, setBlExtractingLines] = useState(false);
+  const [blExtractMessage, setBlExtractMessage]   = useState('');
   const [blImportPreviewUrl, setBlImportPreviewUrl] = useState<string | null>(null);
   const blFileInputRef   = useRef<HTMLInputElement>(null);
   const blUploadAbortRef = useRef<AbortController | null>(null);
@@ -201,6 +203,30 @@ export default function BLPage() {
 
   const updateBlImportLine = (idx: number, field: 'description' | 'quantity', val: string) =>
     setBlImportLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: val } : l));
+
+  // Extraction IA des articles à partir du fichier importé (PDF/image) — remplace
+  // le placeholder "nom du fichier" par les vrais articles/quantités du document.
+  const handleBlExtractLines = async () => {
+    if (!blImportFileUrl) return;
+    setBlExtractingLines(true); setBlExtractMessage('');
+    try {
+      const res = await uploadApi.extractLines(blImportFileUrl);
+      const lines = res.data?.lines || [];
+      if (lines.length > 0) {
+        setBlImportLines(lines.map((l: any) => ({
+          description: l.description || '',
+          quantity: String(l.quantity ?? '1'),
+        })));
+        setBlExtractMessage(`✅ ${lines.length} article(s) extrait(s) — vérifiez avant d'importer`);
+      } else {
+        setBlExtractMessage(res.data?.message || 'Aucun article détecté — saisissez manuellement');
+      }
+    } catch (e: any) {
+      setBlExtractMessage(e?.response?.data?.message || "Erreur lors de l'extraction — saisissez manuellement");
+    } finally {
+      setBlExtractingLines(false);
+    }
+  };
 
   const handleBlImport = async () => {
     if (!blImportClientId) { setBlImportError('Sélectionnez un client'); return; }
@@ -936,8 +962,17 @@ export default function BLPage() {
                     </a>
                   </div>
                 )}
+                {blImportFileUrl && (
+                  <button type="button" onClick={handleBlExtractLines} disabled={blExtractingLines}
+                    style={{ marginTop:10, display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1.5px solid #E59312', background: blExtractingLines ? '#FFF8EE' : 'linear-gradient(135deg,#F4B315,#E59312)', color: blExtractingLines ? '#8E5915' : 'white', fontSize:12, fontWeight:700, cursor: blExtractingLines ? 'default' : 'pointer', opacity: blExtractingLines ? 0.7 : 1 }}>
+                    {blExtractingLines ? '⏳ Extraction en cours...' : '✨ Extraire les articles automatiquement (IA)'}
+                  </button>
+                )}
+                {blExtractMessage && (
+                  <p style={{ fontSize:11, color: blExtractMessage.startsWith('✅') ? '#059669' : '#8E5915', marginTop:8 }}>{blExtractMessage}</p>
+                )}
                 <p style={{ fontSize:11, color:'#8E5915', marginTop:10 }}>
-                  ℹ️ Le fichier est gardé comme justificatif. Saisissez ci-dessous les articles réels du BL (avec quantités) — ils seront utilisés pour la facture.
+                  ℹ️ Le fichier est gardé comme justificatif. Vérifiez/complétez les articles ci-dessous (avec quantités) — ils seront utilisés pour la facture.
                 </p>
               </div>
             )}

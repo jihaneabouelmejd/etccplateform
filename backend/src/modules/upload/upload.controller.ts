@@ -216,6 +216,105 @@ function parseInvoiceText(text: string): Record<string, any> {
   return result;
 }
 
+// ─── Extraction IA des articles (Claude) ──────────────────────────────────────
+// Contrairement à `runOcrOnFile` (regex/tesseract, seulement des champs d'en-tête
+// pour les factures), ceci extrait les VRAIES lignes d'articles (description,
+// quantité, prix unitaire) d'un BC/BL importé en photo/scan, via l'API Anthropic
+// (vision native pour images, support document natif pour PDF). Utilise fetch
+// natif (Node 20+) plutôt qu'un SDK, pour éviter une dépendance supplémentaire.
+const ANTHROPIC_API_KEY = (process.env.ANTHROPIC_API_KEY || '').trim();
+const ANTHROPIC_EXTRACT_MODEL = (process.env.ANTHROPIC_EXTRACT_MODEL || 'claude-sonnet-5').trim();
+
+const EXTRACT_LINES_PROMPT = `Ce document est un bon de commande ou un bon de livraison (le texte peut être en français, arabe ou anglais).
+Extrais UNIQUEMENT la liste des articles/lignes de commande — PAS l'en-tête (client, dates, numéros), PAS les lignes de sous-total/total HT/TVA/total TTC/remise.
+Réponds STRICTEMENT avec du JSON valide, sans aucun texte ni commentaire autour, exactement dans ce format :
+{"lines":[{"description":"Nom de l'article tel qu'écrit sur le document","quantity":1.5,"unit_price":120.5}]}
+Règles :
+- "quantity" est un nombre. Si illisible ou absent, mets 1.
+- "unit_price" est un nombre, ou null si le prix unitaire n'apparaît pas sur le document.
+- Une entrée par article distinct, dans l'ordre du document.
+- Si aucun article n'est identifiable, réponds {"lines":[]}.`;
+
+async function extractLinesWithClaude(filePath: string): Promise<{ success: boolean; lines: { description: string; quantity: number; unit_price?: number }[]; message?: string }> {
+  const ext = extname(filePath).toLowerCase();
+  const mimeType =
+    ext === '.pdf' ? 'application/pdf' :
+    ext === '.png' ? 'image/png' :
+    ext === '.webp' ? 'image/webp' :
+    (ext === '.jpg' || ext === '.jpeg') ? 'image/jpeg' :
+    null;
+
+  if (!mimeType) {
+    return { success: false, lines: [], message: "Format non supporté pour l'extraction IA (PDF, JPG, PNG ou WEBP uniquement)" };
+  }
+  if (!ANTHROPIC_API_KEY) {
+    return { success: false, lines: [], message: "Extraction IA non configurée (ANTHROPIC_API_KEY manquante côté serveur)" };
+  }
+
+  const buffer = fs.readFileSync(filePath);
+  if (buffer.length > 32 * 1024 * 1024) {
+    return { success: false, lines: [], message: "Fichier trop volumineux pour l'extraction IA (max 32 Mo)" };
+  }
+
+  const base64 = buffer.toString('base64');
+  const contentBlock = mimeType === 'application/pdf'
+    ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } }
+    : { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } };
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'pdfs-2024-09-25',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_EXTRACT_MODEL,
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: [contentBlock, { type: 'text', text: EXTRACT_LINES_PROMPT }] }],
+      }),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('[AI-Extract] Anthropic API error', res.status, errText.slice(0, 300));
+      return { success: false, lines: [], message: `Extraction IA échouée (HTTP ${res.status})` };
+    }
+
+    const json: any = await res.json();
+    const textOut = ((json.content || []) as any[]).map((c) => c.text || '').join('').trim();
+    const match = textOut.match(/\{[\s\S]*\}/);
+    if (!match) {
+      return { success: false, lines: [], message: 'Réponse IA illisible — saisissez les articles manuellement' };
+    }
+
+    let parsed: any;
+    try { parsed = JSON.parse(match[0]); } catch {
+      return { success: false, lines: [], message: 'Réponse IA mal formée — saisissez les articles manuellement' };
+    }
+
+    const rawLines = Array.isArray(parsed.lines) ? parsed.lines : [];
+    const lines = rawLines
+      .filter((l: any) => l && typeof l.description === 'string' && l.description.trim())
+      .map((l: any) => ({
+        description: String(l.description).trim(),
+        quantity: Number(l.quantity) > 0 ? Number(l.quantity) : 1,
+        unit_price: l.unit_price != null && !isNaN(Number(l.unit_price)) ? Number(l.unit_price) : undefined,
+      }));
+
+    return {
+      success: lines.length > 0,
+      lines,
+      message: lines.length ? undefined : 'Aucun article détecté — vérifiez le document ou saisissez manuellement',
+    };
+  } catch (err: any) {
+    console.error('[AI-Extract] Error:', err.message);
+    return { success: false, lines: [], message: 'Extraction IA échouée — saisissez manuellement' };
+  }
+}
+
 async function runOcrOnFile(filePath: string) {
   const ext = extname(filePath).toLowerCase();
   const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/i.test(ext);
@@ -440,6 +539,44 @@ export class UploadController implements OnModuleInit {
 
     try {
       return await runOcrOnFile(filePath);
+    } finally {
+      if (isTemp) { try { fs.unlinkSync(filePath); } catch {} }
+    }
+  }
+
+  // ── GET /upload/extract-lines?filename=<url> — extraction IA des articles ───
+  // Contrairement à /upload/extract (champs d'en-tête facture via regex), ceci
+  // renvoie les vraies lignes d'articles (description/quantité/prix) d'un BC/BL
+  // importé, via Claude (vision). Utilisé par les modales d'import BC/BL pour
+  // pré-remplir le tableau de lignes au lieu de laisser un nom de fichier en guise
+  // de description.
+  @Get('extract-lines')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async extractLines(@Query('filename') filename: string) {
+    if (!filename) throw new BadRequestException('filename requis');
+
+    let filePath: string;
+    let isTemp = false;
+
+    if (filename.startsWith('http://') || filename.startsWith('https://')) {
+      this.logger.log(`[AI-Extract] Downloading: ${filename}`);
+      try {
+        filePath = await downloadToTmp(filename);
+        isTemp = true;
+      } catch (err: any) {
+        this.logger.error(`[AI-Extract] Download failed: ${err.message}`);
+        return { success: false, lines: [], message: 'Impossible de télécharger le fichier pour analyse' };
+      }
+    } else {
+      filePath = join(uploadsPath, filename);
+      if (!fs.existsSync(filePath)) {
+        return { success: false, lines: [], message: `Fichier non trouve: ${filename}` };
+      }
+    }
+
+    try {
+      return await extractLinesWithClaude(filePath);
     } finally {
       if (isTemp) { try { fs.unlinkSync(filePath); } catch {} }
     }

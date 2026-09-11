@@ -75,6 +75,8 @@ export default function BCPage() {
   const [importFile, setImportFile]           = useState<File | null>(null);
   const [importFileUrl, setImportFileUrl]     = useState('');
   const [uploadingFile, setUploadingFile]     = useState(false);
+  const [extractingLines, setExtractingLines] = useState(false);
+  const [extractMessage, setExtractMessage]   = useState('');
   const fileInputRef  = useRef<HTMLInputElement>(null);
   const uploadAbortRef = useRef<AbortController | null>(null);
 
@@ -268,6 +270,31 @@ export default function BCPage() {
 
   const updateLine = (idx: number, field: keyof ImportLine, val: string) =>
     setImportLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: val } : l));
+
+  // Extraction IA des articles à partir du fichier importé (PDF/image) — remplace
+  // le placeholder "nom du fichier" par les vrais articles/quantités du document.
+  const handleExtractLines = async () => {
+    if (!importFileUrl) return;
+    setExtractingLines(true); setExtractMessage('');
+    try {
+      const res = await uploadApi.extractLines(importFileUrl);
+      const lines = res.data?.lines || [];
+      if (lines.length > 0) {
+        setImportLines(lines.map((l: any) => ({
+          description: l.description || '',
+          quantity: String(l.quantity ?? '1'),
+          unit_price: l.unit_price != null ? String(l.unit_price) : '',
+        })));
+        setExtractMessage(`✅ ${lines.length} article(s) extrait(s) — vérifiez avant d'importer`);
+      } else {
+        setExtractMessage(res.data?.message || 'Aucun article détecté — saisissez manuellement');
+      }
+    } catch (e: any) {
+      setExtractMessage(e?.response?.data?.message || "Erreur lors de l'extraction — saisissez manuellement");
+    } finally {
+      setExtractingLines(false);
+    }
+  };
 
   const handleImport = async () => {
     if (!importClientId) { setImportError('Sélectionnez un client'); return; }
@@ -743,8 +770,17 @@ export default function BCPage() {
                     </a>
                   </div>
                 )}
+                {importFileUrl && (
+                  <button type="button" onClick={handleExtractLines} disabled={extractingLines}
+                    style={{ marginTop:10, display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1.5px solid #EBB800', background: extractingLines ? '#FBF6EE' : 'linear-gradient(135deg,#F4B315,#E59312)', color: extractingLines ? '#A33C00' : 'white', fontSize:12, fontWeight:700, cursor: extractingLines ? 'default' : 'pointer', opacity: extractingLines ? 0.7 : 1 }}>
+                    {extractingLines ? '⏳ Extraction en cours...' : '✨ Extraire les articles automatiquement (IA)'}
+                  </button>
+                )}
+                {extractMessage && (
+                  <p style={{ fontSize:11, color: extractMessage.startsWith('✅') ? '#059669' : '#A33C00', marginTop:8 }}>{extractMessage}</p>
+                )}
                 <p style={{ fontSize:11, color:'#A33C00', marginTop:10 }}>
-                  ℹ️ Le fichier est gardé comme justificatif. Saisissez ci-dessous les articles réels du BC (avec quantités) — ils seront utilisés pour le BL et la facture.
+                  ℹ️ Le fichier est gardé comme justificatif. Vérifiez/complétez les articles ci-dessous (avec quantités) — ils seront utilisés pour le BL et la facture.
                 </p>
               </div>
             )}
