@@ -59,6 +59,7 @@ export class PDFController {
       },
       lines: devis.lines.map((l) => ({
         description: l.description,
+        unit: (l as any).unit || undefined,
         quantity: Number(l.quantity),
         unit_price: Number(l.unit_price),
         total_ht: Number(l.total_ht),

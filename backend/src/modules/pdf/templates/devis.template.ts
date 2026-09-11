@@ -177,6 +177,7 @@ export function devisTemplate(data: DevisTemplateInput): string {
       <td><span class="tdref">${String(i + 1).padStart(2, '0')}</span></td>
       <td><div class="tdtit">${l.description}</div></td>
       <td class="r">${f(l.quantity)}</td>
+      <td class="r">${l.unit || '—'}</td>
       <td class="r">${f(l.unit_price)} DH</td>
       <td class="r">${f(l.total_ht)} DH</td>
     </tr>`).join('');
@@ -243,9 +244,10 @@ export function devisTemplate(data: DevisTemplateInput): string {
       <tr>
         <th style="width:40px">N°</th>
         <th>Désignation / Prestation</th>
-        <th class="r" style="width:55px">Qté</th>
-        <th class="r" style="width:90px">P.U. HT</th>
-        <th class="r" style="width:90px">Total HT</th>
+        <th class="r" style="width:50px">Qté</th>
+        <th class="r" style="width:55px">Unité</th>
+        <th class="r" style="width:85px">P.U. HT</th>
+        <th class="r" style="width:85px">Total HT</th>
       </tr>
     </thead>
     <tbody>${lines}</tbody>

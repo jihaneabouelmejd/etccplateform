@@ -4,6 +4,7 @@ import { DevisStatus } from '@prisma/client';
 
 interface DevisLineInput {
   description: string;
+  unit?: string;
   quantity: number;
   unit_price: number;
 }
@@ -102,6 +103,7 @@ export class DevisService {
         lines: {
           create: input.lines.map((line, i) => ({
             description: line.description,
+            unit: line.unit || null,
             quantity: line.quantity,
             unit_price: line.unit_price,
             total_ht: line.quantity * line.unit_price,
@@ -193,6 +195,7 @@ export class DevisService {
     const discountRate = input.discount_rate ?? Number(devis.discount_rate);
     const lines = input.lines ?? devis.lines.map(l => ({
       description: l.description,
+      unit: (l as any).unit || undefined,
       quantity: Number(l.quantity),
       unit_price: Number(l.unit_price),
     }));
@@ -222,6 +225,7 @@ export class DevisService {
             lines: {
               create: input.lines.map((line, i) => ({
                 description: line.description,
+                unit: line.unit || null,
                 quantity: line.quantity,
                 unit_price: line.unit_price,
                 total_ht: line.quantity * line.unit_price,
@@ -299,6 +303,7 @@ export class DevisService {
         lines: {
           create: original.lines.map((line) => ({
             description: line.description,
+            unit: (line as any).unit || null,
             quantity: line.quantity,
             unit_price: line.unit_price,
             total_ht: line.total_ht,

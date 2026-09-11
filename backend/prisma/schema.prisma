@@ -739,6 +739,7 @@ model DevisLine {
   id          String  @id @default(uuid())
   devis_id    String
   description String
+  unit        String? // unité (m², m³, kg, U, ml...)
   quantity    Decimal @db.Decimal(10, 2)
   unit_price  Decimal @db.Decimal(10, 2)
   total_ht    Decimal @db.Decimal(12, 2)

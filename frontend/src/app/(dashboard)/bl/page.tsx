@@ -207,19 +207,15 @@ export default function BLPage() {
     if (blImportMode === 'file' && !blImportFileUrl) {
       setBlImportError('Veuillez téléverser un fichier PDF ou image'); return;
     }
-    if (blImportMode === 'manual') {
-      const valid = blImportLines.filter(l => l.description.trim());
-      if (!valid.length) { setBlImportError('Ajoutez au moins une ligne avec une description'); return; }
-    }
+    const validBlLines = blImportLines.filter(l => l.description.trim());
+    if (!validBlLines.length) { setBlImportError('Ajoutez au moins une ligne avec une description'); return; }
 
     setBlImporting(true); setBlImportError('');
     try {
-      const lines = blImportMode === 'file'
-        ? [{ description: blImportFile?.name || 'Document importé', quantity: 1 }]
-        : blImportLines.filter(l => l.description.trim()).map(l => ({
-            description: l.description.trim(),
-            quantity: parseFloat(l.quantity) || 1,
-          }));
+      const lines = validBlLines.map(l => ({
+        description: l.description.trim(),
+        quantity: parseFloat(l.quantity) || 1,
+      }));
 
       await blApi.import({
         client_id:         blImportClientId,
@@ -940,43 +936,44 @@ export default function BLPage() {
                     </a>
                   </div>
                 )}
+                <p style={{ fontSize:11, color:'#8E5915', marginTop:10 }}>
+                  ℹ️ Le fichier est gardé comme justificatif. Saisissez ci-dessous les articles réels du BL (avec quantités) — ils seront utilisés pour la facture.
+                </p>
               </div>
             )}
 
-            {/* ── Mode manuel : Lignes ─────────────────────────────────── */}
-            {blImportMode === 'manual' && (
-              <div style={{ marginBottom:18 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                  <label style={{ ...labelStyle, marginBottom:0 }}>Lignes du BL *</label>
-                  <button onClick={() => setBlImportLines(p => [...p, { description:'', quantity:'1' }])}
-                    style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:6, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                    <PlusCircle size={13} /> Ajouter
-                  </button>
-                </div>
-                <div style={{ border:'1px solid #E8D4B0', borderRadius:10, overflow:'hidden' }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 36px', background:'#FFF8EE', padding:'8px 12px', borderBottom:'1px solid #E8D4B0' }}>
-                    {['Description','Qté',''].map((h, i) => (
-                      <span key={i} style={{ fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5 }}>{h}</span>
-                    ))}
-                  </div>
-                  {blImportLines.map((line, idx) => (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 36px', padding:'8px 12px', borderBottom: idx < blImportLines.length-1 ? '1px solid #E8D4B0' : 'none', alignItems:'center' }}>
-                      <input placeholder="Description..." value={line.description}
-                        onChange={e => updateBlImportLine(idx, 'description', e.target.value)}
-                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                      <input type="number" min="0.01" step="0.01" placeholder="1" value={line.quantity}
-                        onChange={e => updateBlImportLine(idx, 'quantity', e.target.value)}
-                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                      <button onClick={() => { if (blImportLines.length > 1) setBlImportLines(p => p.filter((_,i) => i !== idx)); }}
-                        disabled={blImportLines.length === 1}
-                        style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: blImportLines.length===1 ? 0.3 : 1 }}>
-                        <X size={12} />
-                      </button>
-                    </div>
+            {/* ── Lignes / Articles du BL (toujours affiché) ─────────────── */}
+            <div style={{ marginBottom:18 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <label style={{ ...labelStyle, marginBottom:0 }}>Articles du BL *</label>
+                <button onClick={() => setBlImportLines(p => [...p, { description:'', quantity:'1' }])}
+                  style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:6, border:'1.5px solid #E8D4B0', background:'white', color:'#8E5915', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                  <PlusCircle size={13} /> Ajouter
+                </button>
+              </div>
+              <div style={{ border:'1px solid #E8D4B0', borderRadius:10, overflow:'hidden' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 36px', background:'#FFF8EE', padding:'8px 12px', borderBottom:'1px solid #E8D4B0' }}>
+                  {['Description','Qté',''].map((h, i) => (
+                    <span key={i} style={{ fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5 }}>{h}</span>
                   ))}
                 </div>
+                {blImportLines.map((line, idx) => (
+                  <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 36px', padding:'8px 12px', borderBottom: idx < blImportLines.length-1 ? '1px solid #E8D4B0' : 'none', alignItems:'center' }}>
+                    <input placeholder="Description..." value={line.description}
+                      onChange={e => updateBlImportLine(idx, 'description', e.target.value)}
+                      style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                    <input type="number" min="0.01" step="0.01" placeholder="1" value={line.quantity}
+                      onChange={e => updateBlImportLine(idx, 'quantity', e.target.value)}
+                      style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                    <button onClick={() => { if (blImportLines.length > 1) setBlImportLines(p => p.filter((_,i) => i !== idx)); }}
+                      disabled={blImportLines.length === 1}
+                      style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: blImportLines.length===1 ? 0.3 : 1 }}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
 
             {blImportError && (
               <div style={{ background:'#FFF0F0', border:'1px solid #FFCDD2', borderRadius:8, padding:'8px 12px', marginBottom:16, fontSize:12, color:'#D32F2F' }}>

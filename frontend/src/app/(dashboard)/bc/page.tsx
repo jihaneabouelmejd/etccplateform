@@ -274,20 +274,16 @@ export default function BCPage() {
     if (importMode === 'file' && !importFileUrl) {
       setImportError('Veuillez téléverser un fichier PDF ou image'); return;
     }
-    if (importMode === 'manual') {
-      const valid = importLines.filter(l => l.description.trim());
-      if (!valid.length) { setImportError('Ajoutez au moins une ligne avec une description'); return; }
-    }
+    const validLines = importLines.filter(l => l.description.trim());
+    if (!validLines.length) { setImportError('Ajoutez au moins une ligne avec une description'); return; }
 
     setImporting(true); setImportError('');
     try {
-      const lines = importMode === 'file'
-        ? [{ description: importFile?.name || 'Document importé', quantity: 1 }]
-        : importLines.filter(l => l.description.trim()).map(l => ({
-            description: l.description.trim(),
-            quantity: parseFloat(l.quantity) || 1,
-            unit_price: l.unit_price ? parseFloat(l.unit_price) : undefined,
-          }));
+      const lines = validLines.map(l => ({
+        description: l.description.trim(),
+        quantity: parseFloat(l.quantity) || 1,
+        unit_price: l.unit_price ? parseFloat(l.unit_price) : undefined,
+      }));
 
       await bcApi.import({
         client_id:          importClientId,
@@ -747,46 +743,47 @@ export default function BCPage() {
                     </a>
                   </div>
                 )}
+                <p style={{ fontSize:11, color:'#A33C00', marginTop:10 }}>
+                  ℹ️ Le fichier est gardé comme justificatif. Saisissez ci-dessous les articles réels du BC (avec quantités) — ils seront utilisés pour le BL et la facture.
+                </p>
               </div>
             )}
 
-            {/* ── Mode manuel : Lignes ─────────────────────────────────── */}
-            {importMode === 'manual' && (
-              <div style={{ marginBottom:18 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-                  <label style={{ ...labelStyle, marginBottom:0 }}>Lignes du BC *</label>
-                  <button onClick={() => setImportLines(p => [...p, emptyLine()])}
-                    style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:6, border:'1.5px solid #EDDEC1', background:'white', color:'#A33C00', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                    <PlusCircle size={13} /> Ajouter
-                  </button>
-                </div>
-                <div style={{ border:'1px solid #EDDEC1', borderRadius:10, overflow:'hidden' }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', background:'#FBF6EE', padding:'8px 12px', borderBottom:'1px solid #EDDEC1' }}>
-                    {['Description','Qté','P.U. HT',''].map((h, i) => (
-                      <span key={i} style={{ fontSize:10, fontWeight:700, color:'#A33C00', textTransform:'uppercase', letterSpacing:0.5 }}>{h}</span>
-                    ))}
-                  </div>
-                  {importLines.map((line, idx) => (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', padding:'8px 12px', borderBottom: idx < importLines.length-1 ? '1px solid #EDDEC1' : 'none', alignItems:'center' }}>
-                      <input placeholder="Description..." value={line.description}
-                        onChange={e => updateLine(idx, 'description', e.target.value)}
-                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                      <input type="number" min="0.01" step="0.01" placeholder="1" value={line.quantity}
-                        onChange={e => updateLine(idx, 'quantity', e.target.value)}
-                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                      <input type="number" min="0" step="0.01" placeholder="Prix HT" value={line.unit_price}
-                        onChange={e => updateLine(idx, 'unit_price', e.target.value)}
-                        style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                      <button onClick={() => { if (importLines.length > 1) setImportLines(p => p.filter((_,i) => i !== idx)); }}
-                        disabled={importLines.length === 1}
-                        style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: importLines.length===1 ? 0.3 : 1 }}>
-                        <X size={12} />
-                      </button>
-                    </div>
+            {/* ── Lignes / Articles du BC (toujours affiché) ─────────────── */}
+            <div style={{ marginBottom:18 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+                <label style={{ ...labelStyle, marginBottom:0 }}>Articles du BC *</label>
+                <button onClick={() => setImportLines(p => [...p, emptyLine()])}
+                  style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:6, border:'1.5px solid #EDDEC1', background:'white', color:'#A33C00', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                  <PlusCircle size={13} /> Ajouter
+                </button>
+              </div>
+              <div style={{ border:'1px solid #EDDEC1', borderRadius:10, overflow:'hidden' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', background:'#FBF6EE', padding:'8px 12px', borderBottom:'1px solid #EDDEC1' }}>
+                  {['Description','Qté','P.U. HT',''].map((h, i) => (
+                    <span key={i} style={{ fontSize:10, fontWeight:700, color:'#A33C00', textTransform:'uppercase', letterSpacing:0.5 }}>{h}</span>
                   ))}
                 </div>
+                {importLines.map((line, idx) => (
+                  <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', padding:'8px 12px', borderBottom: idx < importLines.length-1 ? '1px solid #EDDEC1' : 'none', alignItems:'center' }}>
+                    <input placeholder="Description..." value={line.description}
+                      onChange={e => updateLine(idx, 'description', e.target.value)}
+                      style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                    <input type="number" min="0.01" step="0.01" placeholder="1" value={line.quantity}
+                      onChange={e => updateLine(idx, 'quantity', e.target.value)}
+                      style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                    <input type="number" min="0" step="0.01" placeholder="Prix HT" value={line.unit_price}
+                      onChange={e => updateLine(idx, 'unit_price', e.target.value)}
+                      style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
+                    <button onClick={() => { if (importLines.length > 1) setImportLines(p => p.filter((_,i) => i !== idx)); }}
+                      disabled={importLines.length === 1}
+                      style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: importLines.length===1 ? 0.3 : 1 }}>
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
 
             {/* Signature */}
             {signatures.length > 0 && (

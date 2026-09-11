@@ -63,7 +63,7 @@ export interface DevisPDFData {
     phone?: string;
     email?: string;
   };
-  lines: { description: string; quantity: number; unit_price: number; total_ht: number }[];
+  lines: { description: string; unit?: string; quantity: number; unit_price: number; total_ht: number }[];
   total_ht_brut: number;
   discount_rate: number;
   discount_amount: number;

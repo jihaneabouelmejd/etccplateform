@@ -29,7 +29,9 @@ const btnSecondary = { padding:'8px 16px', borderRadius:8, border:'1.5px solid #
 const btnPrimary = { padding:'8px 18px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EBB800,#755C00)', color:'#1A141A', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 const btnDanger = { padding:'9px 20px', borderRadius:8, border:'none', background:'linear-gradient(135deg,#EF4444,#DC2626)', color:'white', fontSize:13, fontWeight:700 as const, cursor:'pointer' as const };
 
-interface Line { desc: string; qty: number; pu: number; }
+interface Line { desc: string; unit: string; qty: number; pu: number; }
+
+const UNIT_OPTIONS = ['U', 'ml', 'm²', 'm³', 'kg', 'sacs', 'barres', 'forfait'];
 
 export default function DevisPage() {
   const { user } = useAuth();
@@ -58,7 +60,7 @@ export default function DevisPage() {
 
   // Form state
   const [form, setForm] = useState({ client_id: '', project_id: '', prestation_id: '', object: '', site: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
-  const [lines, setLines] = useState<Line[]>([{ desc: '', qty: 1, pu: 0 }]);
+  const [lines, setLines] = useState<Line[]>([{ desc: '', unit: '', qty: 1, pu: 0 }]);
   const [signatures, setSignatures] = useState<any[]>([]);
 
   const totalHtBrut = lines.reduce((s, l) => s + l.qty * l.pu, 0);
@@ -106,7 +108,7 @@ export default function DevisPage() {
     prestationsApi.list().then(r => setPrestations(Array.isArray(r.data) ? r.data : [])).catch(() => {});
   }, []);
 
-  const addLine = () => setLines([...lines, { desc: '', qty: 1, pu: 0 }]);
+  const addLine = () => setLines([...lines, { desc: '', unit: '', qty: 1, pu: 0 }]);
   const removeLine = (i: number) => setLines(lines.filter((_, idx) => idx !== i));
   const updateLine = (i: number, field: keyof Line, value: string | number) => {
     const updated = [...lines];
@@ -117,7 +119,7 @@ export default function DevisPage() {
   const openCreate = () => {
     setEditTarget(null);
     setForm({ client_id: '', project_id: '', prestation_id: '', object: '', site: '', discount_rate: 0, payment_terms: '', notes: '', signature_id: '', number: '', issue_date: '' });
-    setLines([{ desc: '', qty: 1, pu: 0 }]);
+    setLines([{ desc: '', unit: '', qty: 1, pu: 0 }]);
     setSaveError('');
     setShowForm(true);
   };
@@ -140,7 +142,7 @@ export default function DevisPage() {
       number: full.number || '',
       issue_date: full.issue_date ? full.issue_date.split('T')[0] : '',
     });
-    setLines((full.lines || []).map((l: any) => ({ desc: l.description, qty: Number(l.quantity), pu: Number(l.unit_price) })));
+    setLines((full.lines || []).map((l: any) => ({ desc: l.description, unit: l.unit || '', qty: Number(l.quantity), pu: Number(l.unit_price) })));
     setSaveError('');
     setShowForm(true);
   };
@@ -162,7 +164,7 @@ export default function DevisPage() {
       signature_id: form.signature_id || undefined,
       number: form.number || undefined,
       issue_date: form.issue_date || undefined,
-      lines: lines.filter(l => l.desc).map(l => ({ description: l.desc, quantity: l.qty, unit_price: l.pu })),
+      lines: lines.filter(l => l.desc).map(l => ({ description: l.desc, unit: l.unit || undefined, quantity: l.qty, unit_price: l.pu })),
     };
     try {
       if (editTarget) {
@@ -505,12 +507,16 @@ export default function DevisPage() {
                 </div>
 
                 {/* Lignes */}
+                <datalist id="unit-options">
+                  {UNIT_OPTIONS.map(u => <option key={u} value={u} />)}
+                </datalist>
                 <div className="border border-honey-beige-soft rounded-lg overflow-hidden">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-honey-cream">
                         <th className="text-left px-3 py-2 text-[10px] font-semibold uppercase text-honey-caramel">Description</th>
                         <th className="text-right px-3 py-2 text-[10px] font-semibold uppercase text-honey-caramel w-20">Qté</th>
+                        <th className="text-right px-3 py-2 text-[10px] font-semibold uppercase text-honey-caramel w-20">Unité</th>
                         <th className="text-right px-3 py-2 text-[10px] font-semibold uppercase text-honey-caramel w-28">PU HT</th>
                         <th className="text-right px-3 py-2 text-[10px] font-semibold uppercase text-honey-caramel w-28">Total HT</th>
                         <th className="w-10"></th>
@@ -526,6 +532,11 @@ export default function DevisPage() {
                           <td className="px-2 py-1.5">
                               <input type="number" value={line.qty} onChange={(e) => updateLine(i, 'qty', parseFloat(e.target.value) || 0)}
                               className="w-full px-2 py-1.5 text-sm text-right font-mono outline-none border border-transparent rounded focus:border-honey-gold" />
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <input list="unit-options" value={line.unit} onChange={(e) => updateLine(i, 'unit', e.target.value)}
+                              placeholder="U, m²..."
+                              className="w-full px-2 py-1.5 text-sm text-right outline-none border border-transparent rounded focus:border-honey-gold" />
                           </td>
                           <td className="px-2 py-1.5">
                             <input type="number" value={line.pu} onChange={(e) => updateLine(i, 'pu', parseFloat(e.target.value) || 0)}
