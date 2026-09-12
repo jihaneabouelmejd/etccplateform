@@ -773,7 +773,7 @@ export default function BCPage() {
                 {importFileUrl && (
                   <button type="button" onClick={handleExtractLines} disabled={extractingLines}
                     style={{ marginTop:10, display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1.5px solid #EBB800', background: extractingLines ? '#FBF6EE' : 'linear-gradient(135deg,#F4B315,#E59312)', color: extractingLines ? '#A33C00' : 'white', fontSize:12, fontWeight:700, cursor: extractingLines ? 'default' : 'pointer', opacity: extractingLines ? 0.7 : 1 }}>
-                    {extractingLines ? '⏳ Extraction en cours...' : '✨ Extraire les articles automatiquement (IA)'}
+                    {extractingLines ? '⏳ Extraction en cours...' : '✨ Extraire les articles automatiquement'}
                   </button>
                 )}
                 {extractMessage && (

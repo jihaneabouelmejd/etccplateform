@@ -315,7 +315,11 @@ async function extractLinesWithClaude(filePath: string): Promise<{ success: bool
   }
 }
 
-async function runOcrOnFile(filePath: string) {
+// Extrait le texte brut d'un fichier (image ou PDF) via tesseract / pdf-parse,
+// sans en tirer de champs particuliers. Point d'entrée commun réutilisé à la
+// fois par runOcrOnFile (champs d'en-tête facture) et extractLinesWithRegex
+// (lignes d'articles BC/BL) pour éviter de dupliquer la logique OCR.
+async function getRawOcrText(filePath: string): Promise<{ text: string; source: string } | null> {
   const ext = extname(filePath).toLowerCase();
   const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/i.test(ext);
   const isPdf = ext === '.pdf';
@@ -326,37 +330,159 @@ async function runOcrOnFile(filePath: string) {
         `tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3 2>/dev/null`,
         { timeout: 30000, encoding: 'utf8' },
       );
-      if (!text || text.trim().length < 10) {
-        return { success: false, source: 'image', data: {}, message: 'Image illisible — veuillez saisir les montants manuellement' };
-      }
-      const data = parseInvoiceText(text);
-      return { success: Object.values(data).some(v => v !== null), source: 'image-ocr', data };
+      if (!text || text.trim().length < 10) return null;
+      return { text, source: 'image-ocr' };
     } catch {
-      return { success: false, source: 'image', data: {}, message: 'Extraction photo echouee — saisir manuellement' };
+      return null;
     }
   }
 
-  if (!isPdf) return { success: false, source: 'unknown', data: {}, message: 'Format non supporte' };
+  if (!isPdf) return null;
 
   try {
     const buffer = fs.readFileSync(filePath);
     const parsed = await pdfParse(buffer);
     const text = parsed.text || '';
-    if (!text || text.trim().length < 10) {
-      try {
-        const text2 = execSync(`tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3 2>/dev/null`, { timeout: 60000, encoding: 'utf8' });
-        if (text2 && text2.trim().length > 10) {
-          const data2 = parseInvoiceText(text2);
-          return { success: Object.values(data2).some(v => v !== null), source: 'pdf-ocr', data: data2 };
-        }
-      } catch {}
-      return { success: false, source: 'pdf', data: {}, message: 'PDF sans texte extractible — saisir manuellement' };
-    }
-    const data = parseInvoiceText(text);
-    return { success: Object.values(data).some(v => v !== null), source: 'pdf', data };
-  } catch (err: any) {
-    return { success: false, source: 'pdf', data: {}, message: err.message };
+    if (text && text.trim().length >= 10) return { text, source: 'pdf' };
+
+    try {
+      const text2 = execSync(`tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3 2>/dev/null`, { timeout: 60000, encoding: 'utf8' });
+      if (text2 && text2.trim().length > 10) return { text: text2, source: 'pdf-ocr' };
+    } catch {}
+    return null;
+  } catch {
+    return null;
   }
+}
+
+async function runOcrOnFile(filePath: string) {
+  const ocr = await getRawOcrText(filePath);
+  if (!ocr) {
+    const ext = extname(filePath).toLowerCase();
+    const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/i.test(ext);
+    const isPdf = ext === '.pdf';
+    if (!isImage && !isPdf) return { success: false, source: 'unknown', data: {}, message: 'Format non supporte' };
+    return {
+      success: false,
+      source: isImage ? 'image' : 'pdf',
+      data: {},
+      message: isImage ? 'Image illisible — veuillez saisir les montants manuellement' : 'PDF sans texte extractible — saisir manuellement',
+    };
+  }
+  const data = parseInvoiceText(ocr.text);
+  return { success: Object.values(data).some(v => v !== null), source: ocr.source, data };
+}
+
+// ─── Extraction gratuite (regex/tesseract) des lignes d'articles ───────────────
+// Alternative sans API/coût à extractLinesWithClaude : on réutilise le texte brut
+// déjà extractible localement (pdf-parse pour PDF avec calque texte, tesseract en
+// secours pour images/scans) et on essaie de repérer un tableau d'articles par
+// heuristiques plutôt que par une IA externe.
+//
+// Approche :
+//  1) Chercher une ligne d'en-tête de tableau ("désignation ... qté ...", etc.)
+//     et la première ligne de pied de tableau (total/TVA/net à payer) pour ne
+//     scanner que la zone du tableau si elle est détectable.
+//  2) Sur chaque ligne candidate, découper en "colonnes" via les doubles-espaces
+//     ou tabulations (pdf-parse et tesseract --psm 3 préservent grossièrement
+//     l'alignement des tableaux) ; les colonnes numériques en fin de ligne sont
+//     interprétées comme quantité / prix unitaire, le reste comme description.
+//
+// Limite connue : fonctionne bien sur des BC/BL au format tapé et bien aligné ;
+// est nettement moins fiable sur des scans manuscrits, photos de mauvaise
+// qualité ou tableaux mal alignés — d'où le message invitant à toujours vérifier
+// les lignes pré-remplies avant de valider l'import.
+const TABLE_HEADER_ROW = /(?:d[ée]signation|article|libell[ée]|produit)s?.{0,40}(?:qt[ée]|quantit[ée])|(?:qt[ée]|quantit[ée]).{0,40}(?:d[ée]signation|article|libell[ée])/i;
+const TABLE_FOOTER_ROW = /total\s*(?:h\.?t\.?|t\.?t\.?c\.?)?|sous[- ]total|net\s*[aà]\s*pay[ée]r?|t\.?v\.?a\.?|arr[êe]t[ée]e?\s+la\s+pr[ée]sente|montant\s*en\s*lettres|remise\s*globale|escompte/i;
+const META_ROW = /^(?:client|fournisseur|adresse|t[ée]l(?:\.|[ée]phone)?|fax|ice|if|rc|patente|cnss|date|page|signature|cachet|bon\s+de|n[o°]|r[ée]f[ée]rence|objet|conditions?|mode\s*de\s*paiement|livraison)\s*[:.]/i;
+const NUM_COL = /^-?\d+(?:[.,]\d{1,2})?$/;
+const TRAILING_NUM = /-?\d{1,3}(?:[ .]\d{3})*(?:[.,]\d{1,2})?|-?\d+(?:[.,]\d{1,2})?/g;
+
+function parseAmountToken(s: string): number {
+  return parseFloat(s.replace(/\s/g, '').replace(',', '.')) || 0;
+}
+
+function parseLineItemsFromText(text: string): { description: string; quantity: number; unit_price?: number }[] {
+  const lines = text.replace(/\r/g, '').split('\n').map(l => l.trim());
+
+  // Délimiter la zone du tableau si un en-tête de colonnes est détecté
+  let start = 0;
+  let end = lines.length;
+  const headerIdx = lines.findIndex(l => TABLE_HEADER_ROW.test(l));
+  if (headerIdx >= 0) {
+    start = headerIdx + 1;
+    const footerIdx = lines.findIndex((l, i) => i > headerIdx && TABLE_FOOTER_ROW.test(l));
+    if (footerIdx > headerIdx) end = footerIdx;
+  }
+  const zone = lines.slice(start, end);
+
+  const results: { description: string; quantity: number; unit_price?: number }[] = [];
+
+  for (const line of zone) {
+    if (line.length < 3) continue;
+    if (META_ROW.test(line) || TABLE_FOOTER_ROW.test(line) || TABLE_HEADER_ROW.test(line)) continue;
+
+    let cols = line.split(/\s{2,}|\t+/).map(c => c.trim()).filter(Boolean);
+
+    if (cols.length < 2) {
+      // Pas de colonnes détectables (espacement perdu par l'OCR) : on essaie de
+      // repérer des nombres en fin de ligne et de traiter le reste comme description.
+      const nums = line.match(TRAILING_NUM);
+      if (!nums || nums.length === 0) continue;
+      const lastNum = nums[nums.length - 1];
+      const idx = line.lastIndexOf(lastNum);
+      const descPart = line.slice(0, idx).trim().replace(/[-.:]+$/, '');
+      if (descPart.length < 2 || /^\d+$/.test(descPart)) continue;
+      cols = nums.length >= 2 ? [descPart, ...nums.slice(-2)] : [descPart, lastNum];
+    }
+
+    // Colonnes numériques en partant de la droite
+    const numericCols: number[] = [];
+    for (let i = cols.length - 1; i >= 0; i--) {
+      if (NUM_COL.test(cols[i])) numericCols.unshift(i);
+      else break;
+    }
+    if (numericCols.length === 0) continue;
+
+    const description = cols.slice(0, numericCols[0]).join(' ').trim();
+    if (!description || description.length < 2 || /^\d+$/.test(description)) continue;
+
+    const numVals = numericCols.map(i => parseAmountToken(cols[i]));
+    let quantity = 1;
+    let unit_price: number | undefined;
+
+    if (numVals.length === 1) {
+      const raw0 = cols[numericCols[0]];
+      if (/^\d+$/.test(raw0) && numVals[0] > 0 && numVals[0] <= 1000) quantity = numVals[0];
+      else unit_price = numVals[0];
+    } else {
+      // 2 colonnes: Qté | Montant(ou PU) — 3+ colonnes: Qté | PU | Montant (on garde les 2 premières)
+      quantity = numVals[0] > 0 ? numVals[0] : 1;
+      unit_price = numVals[1];
+    }
+
+    results.push({ description, quantity, unit_price });
+    if (results.length >= 60) break; // garde-fou
+  }
+
+  return results;
+}
+
+async function extractLinesWithRegex(filePath: string): Promise<{ success: boolean; lines: { description: string; quantity: number; unit_price?: number }[]; message?: string }> {
+  const ocr = await getRawOcrText(filePath);
+  if (!ocr) {
+    return {
+      success: false,
+      lines: [],
+      message: 'Document illisible (scan de mauvaise qualité ou format non supporté) — saisissez les articles manuellement',
+    };
+  }
+  const lines = parseLineItemsFromText(ocr.text);
+  return {
+    success: lines.length > 0,
+    lines,
+    message: lines.length ? undefined : "Aucun tableau d'articles détecté automatiquement — vérifiez le document ou saisissez manuellement",
+  };
 }
 
 // ─── Controller ───────────────────────────────────────────────────────────────
@@ -544,12 +670,16 @@ export class UploadController implements OnModuleInit {
     }
   }
 
-  // ── GET /upload/extract-lines?filename=<url> — extraction IA des articles ───
+  // ── GET /upload/extract-lines?filename=<url> — extraction des articles ──────
   // Contrairement à /upload/extract (champs d'en-tête facture via regex), ceci
   // renvoie les vraies lignes d'articles (description/quantité/prix) d'un BC/BL
-  // importé, via Claude (vision). Utilisé par les modales d'import BC/BL pour
-  // pré-remplir le tableau de lignes au lieu de laisser un nom de fichier en guise
-  // de description.
+  // importé. Utilisé par les modales d'import BC/BL pour pré-remplir le tableau
+  // de lignes au lieu de laisser un nom de fichier en guise de description.
+  //
+  // Stratégie : extraction locale gratuite par regex/tesseract en priorité (pas
+  // de coût, pas de clé API requise). Si elle ne trouve rien ET qu'une clé
+  // ANTHROPIC_API_KEY est configurée côté serveur, on tente Claude en secours —
+  // mais ce n'est jamais une dépendance obligatoire.
   @Get('extract-lines')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -560,12 +690,12 @@ export class UploadController implements OnModuleInit {
     let isTemp = false;
 
     if (filename.startsWith('http://') || filename.startsWith('https://')) {
-      this.logger.log(`[AI-Extract] Downloading: ${filename}`);
+      this.logger.log(`[Extract-Lines] Downloading: ${filename}`);
       try {
         filePath = await downloadToTmp(filename);
         isTemp = true;
       } catch (err: any) {
-        this.logger.error(`[AI-Extract] Download failed: ${err.message}`);
+        this.logger.error(`[Extract-Lines] Download failed: ${err.message}`);
         return { success: false, lines: [], message: 'Impossible de télécharger le fichier pour analyse' };
       }
     } else {
@@ -576,7 +706,15 @@ export class UploadController implements OnModuleInit {
     }
 
     try {
-      return await extractLinesWithClaude(filePath);
+      const regexResult = await extractLinesWithRegex(filePath);
+      if (regexResult.success) return regexResult;
+
+      if (ANTHROPIC_API_KEY) {
+        const aiResult = await extractLinesWithClaude(filePath);
+        if (aiResult.success) return aiResult;
+      }
+
+      return regexResult;
     } finally {
       if (isTemp) { try { fs.unlinkSync(filePath); } catch {} }
     }

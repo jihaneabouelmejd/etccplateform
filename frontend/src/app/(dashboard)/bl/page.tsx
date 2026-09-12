@@ -965,7 +965,7 @@ export default function BLPage() {
                 {blImportFileUrl && (
                   <button type="button" onClick={handleBlExtractLines} disabled={blExtractingLines}
                     style={{ marginTop:10, display:'flex', alignItems:'center', gap:6, padding:'8px 14px', borderRadius:8, border:'1.5px solid #E59312', background: blExtractingLines ? '#FFF8EE' : 'linear-gradient(135deg,#F4B315,#E59312)', color: blExtractingLines ? '#8E5915' : 'white', fontSize:12, fontWeight:700, cursor: blExtractingLines ? 'default' : 'pointer', opacity: blExtractingLines ? 0.7 : 1 }}>
-                    {blExtractingLines ? '⏳ Extraction en cours...' : '✨ Extraire les articles automatiquement (IA)'}
+                    {blExtractingLines ? '⏳ Extraction en cours...' : '✨ Extraire les articles automatiquement'}
                   </button>
                 )}
                 {blExtractMessage && (
