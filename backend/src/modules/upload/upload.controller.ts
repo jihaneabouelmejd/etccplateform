@@ -45,6 +45,27 @@ if (!fs.existsSync(uploadsPath)) {
   fs.mkdirSync(uploadsPath, { recursive: true });
 }
 
+// ─── Tesseract CLI availability ────────────────────────────────────────────────
+// Sur Railway, le binaire `tesseract` n'est PAS installé par défaut par
+// Nixpacks (uniquement Node.js) — il doit être ajouté explicitement dans
+// backend/nixpacks.toml (nixPkgs). Sans ça, tout OCR échoue silencieusement
+// (execSync lève ENOENT, intercepté par un try/catch qui renvoie juste
+// "Document illisible"). On vérifie sa présence une fois au démarrage pour
+// pouvoir logger un avertissement clair au lieu de laisser l'échec muet.
+// Le dossier tessdata/ (téléchargé pendant le build, voir nixpacks.toml) contient
+// les modèles fra/ara — sans lui, `-l fra+ara` échoue même si tesseract est présent.
+const TESSDATA_DIR = join(process.cwd(), 'tessdata');
+const HAS_BUNDLED_TESSDATA = fs.existsSync(join(TESSDATA_DIR, 'fra.traineddata')) && fs.existsSync(join(TESSDATA_DIR, 'ara.traineddata'));
+const TESSDATA_FLAG = HAS_BUNDLED_TESSDATA ? ` --tessdata-dir "${TESSDATA_DIR}"` : '';
+
+let TESSERACT_AVAILABLE = false;
+try {
+  execSync('tesseract --version', { timeout: 5000, stdio: 'ignore' });
+  TESSERACT_AVAILABLE = true;
+} catch {
+  TESSERACT_AVAILABLE = false;
+}
+
 // ─── Upload buffer → Cloudinary ───────────────────────────────────────────────
 function uploadBufferToCloudinary(
   buffer: Buffer,
@@ -325,14 +346,16 @@ async function getRawOcrText(filePath: string): Promise<{ text: string; source: 
   const isPdf = ext === '.pdf';
 
   if (isImage) {
+    if (!TESSERACT_AVAILABLE) return null;
     try {
       const text = execSync(
-        `tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3 2>/dev/null`,
+        `tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3${TESSDATA_FLAG} 2>/dev/null`,
         { timeout: 30000, encoding: 'utf8' },
       );
       if (!text || text.trim().length < 10) return null;
       return { text, source: 'image-ocr' };
-    } catch {
+    } catch (err: any) {
+      console.error('[OCR] tesseract (image) failed:', err.message || err);
       return null;
     }
   }
@@ -345,10 +368,13 @@ async function getRawOcrText(filePath: string): Promise<{ text: string; source: 
     const text = parsed.text || '';
     if (text && text.trim().length >= 10) return { text, source: 'pdf' };
 
+    if (!TESSERACT_AVAILABLE) return null;
     try {
-      const text2 = execSync(`tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3 2>/dev/null`, { timeout: 60000, encoding: 'utf8' });
+      const text2 = execSync(`tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3${TESSDATA_FLAG} 2>/dev/null`, { timeout: 60000, encoding: 'utf8' });
       if (text2 && text2.trim().length > 10) return { text: text2, source: 'pdf-ocr' };
-    } catch {}
+    } catch (err: any) {
+      console.error('[OCR] tesseract (pdf fallback) failed:', err.message || err);
+    }
     return null;
   } catch {
     return null;
@@ -501,6 +527,16 @@ export class UploadController implements OnModuleInit {
       if (!CLOUD_KEY)    this.logger.warn('   → CLOUDINARY_API_KEY is not set');
       if (!CLOUD_SECRET) this.logger.warn('   → CLOUDINARY_API_SECRET is not set');
       this.logger.warn('   Uploads will use LOCAL storage (ephemeral on Railway!)');
+    }
+
+    // Log tesseract/OCR availability — sans ce binaire, tout OCR (extraction
+    // de factures ET extraction de lignes BC/BL) échoue silencieusement.
+    if (TESSERACT_AVAILABLE) {
+      this.logger.log(`✅ Tesseract OCR ENABLED${HAS_BUNDLED_TESSDATA ? ' (fra+ara bundled)' : ' (⚠️ pas de tessdata fra/ara — voir nixpacks.toml)'}`);
+    } else {
+      this.logger.warn('⚠️  Tesseract OCR DISABLED — binaire "tesseract" introuvable sur ce serveur.');
+      this.logger.warn('   → L\'OCR image/scan (factures ET extraction de lignes BC/BL) ne fonctionnera pas.');
+      this.logger.warn('   → Ajouter "tesseract" à nixPkgs dans backend/nixpacks.toml et redéployer.');
     }
   }
 

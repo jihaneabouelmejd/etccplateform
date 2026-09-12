@@ -1,11 +1,17 @@
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_20", "tesseract", "curl"]
 
 [phases.install]
 cmds = ["npm install --legacy-peer-deps --include=dev"]
 
 [phases.build]
-cmds = ["npx prisma generate", "npm run build"]
+cmds = [
+  "npx prisma generate",
+  "npm run build",
+  "mkdir -p tessdata",
+  "curl -fsSL -o tessdata/fra.traineddata https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/fra.traineddata || echo '[build] fra.traineddata download failed — OCR fra sera indisponible'",
+  "curl -fsSL -o tessdata/ara.traineddata https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/main/ara.traineddata || echo '[build] ara.traineddata download failed — OCR ara sera indisponible'"
+]
 
 [start]
 cmd = "npx prisma migrate deploy && node dist/src/main"
