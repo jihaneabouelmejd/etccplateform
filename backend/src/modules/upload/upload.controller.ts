@@ -558,6 +558,24 @@ export class UploadController implements OnModuleInit {
     };
   }
 
+  // ── GET /upload/ocr-status — diagnostic endpoint (pas de guard : aucune donnée
+  // sensible, juste des booléens utiles pour déboguer "Document illisible" sans
+  // avoir besoin d'un token ni de fouiller les logs Railway) ──────────────────
+  @Get('ocr-status')
+  getOcrStatus() {
+    let version: string | null = null;
+    if (TESSERACT_AVAILABLE) {
+      try { version = execSync('tesseract --version', { timeout: 5000, encoding: 'utf8' }).split('\n')[0]; } catch {}
+    }
+    return {
+      tesseract_available: TESSERACT_AVAILABLE,
+      tesseract_version: version,
+      bundled_tessdata_dir: TESSDATA_DIR,
+      bundled_fra: fs.existsSync(join(TESSDATA_DIR, 'fra.traineddata')),
+      bundled_ara: fs.existsSync(join(TESSDATA_DIR, 'ara.traineddata')),
+    };
+  }
+
   // ── GET /upload/ping — test real Cloudinary connection ─────────────────────
   @Get('ping')
   @UseGuards(JwtAuthGuard)
