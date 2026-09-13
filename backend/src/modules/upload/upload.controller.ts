@@ -114,7 +114,13 @@ function uploadBufferToCloudinary(
 }
 
 // ─── Download URL → temp file (for OCR) ──────────────────────────────────────
-async function downloadToTmp(url: string): Promise<string> {
+// Note: Node's http(s).get() ne suit PAS les redirections 3xx et ne vérifie pas
+// le status code — un GET qui reçoit une erreur (401/403/404) ou une redirection
+// non suivie écrivait silencieusement le corps de la réponse (souvent une page
+// HTML) dans un fichier ".pdf", que pdf-parse échouait ensuite à parser → renvoyait
+// null → "Document illisible", même si le fichier original est parfaitement lisible.
+// On valide donc explicitement le status code et on suit les redirections nous-mêmes.
+async function downloadToTmp(url: string, redirectsLeft = 5): Promise<string> {
   const urlWithoutQuery = url.split('?')[0];
   let ext = extname(urlWithoutQuery) || '.tmp';
   if (!ext || ext === '.tmp') {
@@ -123,11 +129,40 @@ async function downloadToTmp(url: string): Promise<string> {
   const tmpPath = join(os.tmpdir(), `ocr_${crypto.randomBytes(8).toString('hex')}${ext}`);
   const httpLib = url.startsWith('https') ? require('https') : require('http');
   return new Promise((resolve, reject) => {
-    const file = fs.createWriteStream(tmpPath);
-    httpLib.get(url, (response: any) => {
+    const req = httpLib.get(url, (response: any) => {
+      const status = response.statusCode || 0;
+
+      // Redirection (Cloudinary/CDN peuvent rediriger) — non suivie par défaut par http.get
+      if (status >= 300 && status < 400 && response.headers.location && redirectsLeft > 0) {
+        response.resume(); // drain pour libérer la socket
+        const nextUrl = new URL(response.headers.location, url).toString();
+        downloadToTmp(nextUrl, redirectsLeft - 1).then(resolve, reject);
+        return;
+      }
+
+      if (status < 200 || status >= 300) {
+        // On lit un extrait du corps (souvent une page d'erreur HTML/JSON) pour le log,
+        // sans l'écrire sur disque.
+        let bodySnippet = '';
+        response.on('data', (chunk: Buffer) => {
+          if (bodySnippet.length < 200) bodySnippet += chunk.toString('utf8', 0, 200);
+        });
+        response.on('end', () => {
+          reject(new Error(`Téléchargement échoué (HTTP ${status}): ${bodySnippet.slice(0, 200)}`));
+        });
+        response.resume();
+        return;
+      }
+
+      const file = fs.createWriteStream(tmpPath);
       response.pipe(file);
       file.on('finish', () => { file.close(); resolve(tmpPath); });
-    }).on('error', (err: any) => {
+      file.on('error', (err: any) => {
+        fs.unlink(tmpPath, () => {});
+        reject(err);
+      });
+    });
+    req.on('error', (err: any) => {
       fs.unlink(tmpPath, () => {});
       reject(err);
     });
@@ -340,43 +375,68 @@ async function extractLinesWithClaude(filePath: string): Promise<{ success: bool
 // sans en tirer de champs particuliers. Point d'entrée commun réutilisé à la
 // fois par runOcrOnFile (champs d'en-tête facture) et extractLinesWithRegex
 // (lignes d'articles BC/BL) pour éviter de dupliquer la logique OCR.
+// Dernière raison d'échec de getRawOcrText, pour enrichir le message "Document
+// illisible" côté API sans avoir besoin de fouiller les logs Railway — précieux
+// pour diagnostiquer à distance (cf. bug où un fichier PDF parfaitement lisible
+// en local échouait uniquement via le pipeline upload → Cloudinary → download).
+let lastOcrDebugReason = '';
+
 async function getRawOcrText(filePath: string): Promise<{ text: string; source: string } | null> {
   const ext = extname(filePath).toLowerCase();
   const isImage = /\.(jpg|jpeg|png|gif|webp|bmp|tiff?)$/i.test(ext);
   const isPdf = ext === '.pdf';
 
   if (isImage) {
-    if (!TESSERACT_AVAILABLE) return null;
+    if (!TESSERACT_AVAILABLE) { lastOcrDebugReason = 'tesseract indisponible sur le serveur'; return null; }
     try {
       const text = execSync(
         `tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3${TESSDATA_FLAG} 2>/dev/null`,
         { timeout: 30000, encoding: 'utf8' },
       );
-      if (!text || text.trim().length < 10) return null;
+      if (!text || text.trim().length < 10) { lastOcrDebugReason = 'tesseract n\'a extrait aucun texte exploitable de l\'image'; return null; }
       return { text, source: 'image-ocr' };
     } catch (err: any) {
-      console.error('[OCR] tesseract (image) failed:', err.message || err);
+      lastOcrDebugReason = `tesseract (image) a échoué: ${err.message || err}`;
+      console.error('[OCR]', lastOcrDebugReason);
       return null;
     }
   }
 
-  if (!isPdf) return null;
+  if (!isPdf) { lastOcrDebugReason = `extension de fichier non reconnue comme PDF/image ("${ext || 'aucune'}")`; return null; }
+
+  let buffer: Buffer;
+  try {
+    buffer = fs.readFileSync(filePath);
+  } catch (err: any) {
+    lastOcrDebugReason = `impossible de lire le fichier téléchargé: ${err.message || err}`;
+    return null;
+  }
+
+  const magic = buffer.subarray(0, 5).toString('utf8');
+  if (magic !== '%PDF-') {
+    lastOcrDebugReason = `le contenu téléchargé n'est pas un vrai PDF (en-tête reçu: "${buffer.subarray(0, 40).toString('utf8').replace(/[^\x20-\x7e]/g, '·')}", ${buffer.length} octets) — probablement une erreur de téléchargement (Cloudinary a renvoyé autre chose que le fichier)`;
+    console.error('[OCR]', lastOcrDebugReason);
+    return null;
+  }
 
   try {
-    const buffer = fs.readFileSync(filePath);
     const parsed = await pdfParse(buffer);
     const text = parsed.text || '';
     if (text && text.trim().length >= 10) return { text, source: 'pdf' };
 
-    if (!TESSERACT_AVAILABLE) return null;
+    if (!TESSERACT_AVAILABLE) { lastOcrDebugReason = 'PDF sans calque texte et tesseract indisponible sur le serveur'; return null; }
     try {
       const text2 = execSync(`tesseract "${filePath}" stdout -l fra+ara --oem 1 --psm 3${TESSDATA_FLAG} 2>/dev/null`, { timeout: 60000, encoding: 'utf8' });
       if (text2 && text2.trim().length > 10) return { text: text2, source: 'pdf-ocr' };
+      lastOcrDebugReason = 'PDF sans calque texte, et le fallback tesseract n\'a extrait aucun texte exploitable';
     } catch (err: any) {
-      console.error('[OCR] tesseract (pdf fallback) failed:', err.message || err);
+      lastOcrDebugReason = `PDF sans calque texte, tesseract (fallback) a échoué: ${err.message || err}`;
+      console.error('[OCR]', lastOcrDebugReason);
     }
     return null;
-  } catch {
+  } catch (err: any) {
+    lastOcrDebugReason = `pdf-parse a échoué sur un fichier pourtant identifié comme PDF: ${err.message || err}`;
+    console.error('[OCR]', lastOcrDebugReason);
     return null;
   }
 }
@@ -497,10 +557,11 @@ function parseLineItemsFromText(text: string): { description: string; quantity: 
 async function extractLinesWithRegex(filePath: string): Promise<{ success: boolean; lines: { description: string; quantity: number; unit_price?: number }[]; message?: string }> {
   const ocr = await getRawOcrText(filePath);
   if (!ocr) {
+    const reason = lastOcrDebugReason ? ` [${lastOcrDebugReason}]` : '';
     return {
       success: false,
       lines: [],
-      message: 'Document illisible (scan de mauvaise qualité ou format non supporté) — saisissez les articles manuellement',
+      message: `Document illisible (scan de mauvaise qualité ou format non supporté) — saisissez les articles manuellement${reason}`,
     };
   }
   const lines = parseLineItemsFromText(ocr.text);
@@ -750,7 +811,7 @@ export class UploadController implements OnModuleInit {
         isTemp = true;
       } catch (err: any) {
         this.logger.error(`[Extract-Lines] Download failed: ${err.message}`);
-        return { success: false, lines: [], message: 'Impossible de télécharger le fichier pour analyse' };
+        return { success: false, lines: [], message: `Impossible de télécharger le fichier pour analyse [${err.message}]` };
       }
     } else {
       filePath = join(uploadsPath, filename);
