@@ -72,16 +72,21 @@ function uploadBufferToCloudinary(
   originalname: string,
 ): Promise<{ url: string; publicId: string }> {
   return new Promise((resolve, reject) => {
-    const isPdf = /\.pdf$/i.test(originalname);
-    const resourceType = isPdf ? 'raw' : 'image';
+    // IMPORTANT: on n'utilise JAMAIS resource_type 'raw' pour les PDFs. Cloudinary
+    // bloque par défaut (401, indépendamment de access_mode: 'public') la livraison
+    // directe des fichiers 'raw' de type PDF/ZIP — restriction de sécurité au niveau
+    // du compte, activable seulement depuis la console Cloudinary (Settings >
+    // Security > "Allow delivery of PDF and ZIP files"), pas via l'API d'upload.
+    // On uploade donc les PDFs en resource_type 'image' (supporté nativement par
+    // Cloudinary pour les PDF), qui n'est PAS soumis à cette restriction → la
+    // livraison marche immédiatement sans toucher aux réglages du compte.
+    const resourceType = 'image';
 
     // Sanitize original filename — conserver l'extension pour que l'URL soit détectable
-    const extMatch = originalname.match(/\.[^/.]+$/);
-    const ext      = extMatch ? extMatch[0].toLowerCase() : '';
     const baseName = originalname.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 55);
-    // Pour les PDFs (raw): inclure .pdf dans le public_id → URL se termine en .pdf
-    // Pour les images: Cloudinary gère le format séparément, on garde le baseName
-    const publicId = isPdf ? `${baseName}${ext}` : baseName;
+    // resource_type 'image': Cloudinary ajoute lui-même le format détecté (.pdf)
+    // en fin d'URL — pas besoin (et pas souhaitable) de l'inclure dans le public_id.
+    const publicId = baseName;
 
     const uploadStream = cloudinary.uploader.upload_stream(
       {
@@ -120,7 +125,7 @@ function uploadBufferToCloudinary(
 // HTML) dans un fichier ".pdf", que pdf-parse échouait ensuite à parser → renvoyait
 // null → "Document illisible", même si le fichier original est parfaitement lisible.
 // On valide donc explicitement le status code et on suit les redirections nous-mêmes.
-async function downloadToTmp(url: string, redirectsLeft = 5): Promise<string> {
+async function fetchToTmp(url: string, redirectsLeft = 5): Promise<string> {
   const urlWithoutQuery = url.split('?')[0];
   let ext = extname(urlWithoutQuery) || '.tmp';
   if (!ext || ext === '.tmp') {
@@ -136,7 +141,7 @@ async function downloadToTmp(url: string, redirectsLeft = 5): Promise<string> {
       if (status >= 300 && status < 400 && response.headers.location && redirectsLeft > 0) {
         response.resume(); // drain pour libérer la socket
         const nextUrl = new URL(response.headers.location, url).toString();
-        downloadToTmp(nextUrl, redirectsLeft - 1).then(resolve, reject);
+        fetchToTmp(nextUrl, redirectsLeft - 1).then(resolve, reject);
         return;
       }
 
@@ -167,6 +172,63 @@ async function downloadToTmp(url: string, redirectsLeft = 5): Promise<string> {
       reject(err);
     });
   });
+}
+
+// ─── Cloudinary: contourner le 401 sur les fichiers 'raw' déjà uploadés ────────
+// Cloudinary bloque par défaut la livraison CDN directe des fichiers resource_type
+// 'raw' de type PDF/ZIP (401), même avec access_mode:'public' — restriction de
+// sécurité au niveau du compte (voir uploadBufferToCloudinary, qui n'uploade plus
+// en 'raw' pour cette raison, précisément pour éviter ce problème sur les futurs
+// fichiers). Mais les fichiers déjà uploadés AVANT ce correctif restent stockés en
+// 'raw' sur Cloudinary et continueront de recevoir un 401 sur l'URL CDN directe.
+// On contourne ça via l'API REST signée de Cloudinary (même stratégie déjà
+// éprouvée par proxyFile() plus bas dans ce fichier), qui n'est pas soumise à
+// cette restriction.
+function extractCloudinaryInfo(url: string): { publicId: string; resourceType: string } | null {
+  const m = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
+  if (!m) return null;
+  return { publicId: m[2], resourceType: m[1] };
+}
+
+function buildCloudinarySignedDownloadUrl(publicId: string, resourceType: string): string | null {
+  if (!USE_CLOUDINARY) return null;
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const type = 'upload';
+    const paramsToSign = `public_id=${publicId}&timestamp=${timestamp}&type=${type}`;
+    const signature = crypto.createHash('sha1').update(paramsToSign + CLOUD_SECRET).digest('hex');
+    const qs = new URLSearchParams({
+      public_id: publicId,
+      type,
+      api_key: CLOUD_KEY,
+      timestamp: String(timestamp),
+      signature,
+    });
+    return `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/download?${qs.toString()}`;
+  } catch {
+    return null;
+  }
+}
+
+async function downloadToTmp(url: string): Promise<string> {
+  // Pour les URLs Cloudinary, on essaie d'abord l'API REST signée (contourne le
+  // 401 des anciens fichiers 'raw'). Si ça échoue pour une raison quelconque
+  // (identifiants rotés, edge-case de signature...), on retombe sur l'URL CDN
+  // directe telle quelle — pour ne pas transformer un cas récupérable en échec.
+  if (url.includes('res.cloudinary.com') && USE_CLOUDINARY) {
+    const info = extractCloudinaryInfo(url);
+    if (info) {
+      const signedUrl = buildCloudinarySignedDownloadUrl(info.publicId, info.resourceType);
+      if (signedUrl) {
+        try {
+          return await fetchToTmp(signedUrl);
+        } catch (err: any) {
+          console.warn(`[OCR] Téléchargement via API Cloudinary signée échoué (${err.message}) — nouvelle tentative via URL directe`);
+        }
+      }
+    }
+  }
+  return fetchToTmp(url);
 }
 
 // ─── OCR helpers ──────────────────────────────────────────────────────────────
