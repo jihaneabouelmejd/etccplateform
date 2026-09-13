@@ -194,6 +194,11 @@ export class AgendaController {
           title: task.title,
           description: task.description || undefined,
           due_date: task.due_date!,
+          // start_time/end_time étaient omis ici — syncTaskToCalendar tombait donc
+          // toujours dans sa branche "pas d'heure" et créait un événement journée
+          // entière, même quand l'utilisateur avait bien saisi des heures sur la tâche.
+          start_time: task.start_time,
+          end_time: task.end_time,
           project: task.project,
           google_event_id: task.google_event_id,
         });
