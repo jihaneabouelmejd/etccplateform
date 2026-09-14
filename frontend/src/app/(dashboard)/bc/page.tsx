@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Plus, Search, ArrowRight, Trash2, Upload, PlusCircle, X, FileImage, File, Eye, Download, Link2 } from 'lucide-react';
+import { Plus, Search, ArrowRight, Trash2, Upload, PlusCircle, X, FileImage, File, Eye, Download, Link2, ChevronUp, ChevronDown } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import FileViewerModal from '@/components/ui/FileViewerModal';
 import { useRouter } from 'next/navigation';
@@ -795,13 +795,13 @@ export default function BCPage() {
                 </button>
               </div>
               <div style={{ border:'1px solid #EDDEC1', borderRadius:10, overflow:'hidden' }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', background:'#FBF6EE', padding:'8px 12px', borderBottom:'1px solid #EDDEC1' }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 76px', background:'#FBF6EE', padding:'8px 12px', borderBottom:'1px solid #EDDEC1' }}>
                   {['Description','Qté','P.U. HT',''].map((h, i) => (
                     <span key={i} style={{ fontSize:10, fontWeight:700, color:'#A33C00', textTransform:'uppercase', letterSpacing:0.5 }}>{h}</span>
                   ))}
                 </div>
                 {importLines.map((line, idx) => (
-                  <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', padding:'8px 12px', borderBottom: idx < importLines.length-1 ? '1px solid #EDDEC1' : 'none', alignItems:'center' }}>
+                  <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 76px', padding:'8px 12px', borderBottom: idx < importLines.length-1 ? '1px solid #EDDEC1' : 'none', alignItems:'center' }}>
                     <input placeholder="Description..." value={line.description}
                       onChange={e => updateLine(idx, 'description', e.target.value)}
                       style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
@@ -811,11 +811,23 @@ export default function BCPage() {
                     <input type="number" min="0" step="0.01" placeholder="Prix HT" value={line.unit_price}
                       onChange={e => updateLine(idx, 'unit_price', e.target.value)}
                       style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                    <button onClick={() => { if (importLines.length > 1) setImportLines(p => p.filter((_,i) => i !== idx)); }}
-                      disabled={importLines.length === 1}
-                      style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: importLines.length===1 ? 0.3 : 1 }}>
-                      <X size={12} />
-                    </button>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}>
+                      <button type="button" disabled={idx===0} title="Monter"
+                        onClick={() => setImportLines(p => { const nl=[...p]; [nl[idx-1],nl[idx]]=[nl[idx],nl[idx-1]]; return nl; })}
+                        style={{ background:'none', border:'none', cursor: idx===0 ? 'default':'pointer', color:'#A33C00', opacity: idx===0?0.25:1, padding:2 }}>
+                        <ChevronUp size={12} />
+                      </button>
+                      <button type="button" disabled={idx===importLines.length-1} title="Descendre"
+                        onClick={() => setImportLines(p => { const nl=[...p]; [nl[idx+1],nl[idx]]=[nl[idx],nl[idx+1]]; return nl; })}
+                        style={{ background:'none', border:'none', cursor: idx===importLines.length-1 ? 'default':'pointer', color:'#A33C00', opacity: idx===importLines.length-1?0.25:1, padding:2 }}>
+                        <ChevronDown size={12} />
+                      </button>
+                      <button onClick={() => { if (importLines.length > 1) setImportLines(p => p.filter((_,i) => i !== idx)); }}
+                        disabled={importLines.length === 1}
+                        style={{ width:22, height:22, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: importLines.length===1 ? 0.3 : 1 }}>
+                        <X size={11} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1059,13 +1071,13 @@ export default function BCPage() {
                   </button>
                 </div>
                 <div style={{ border:'1px solid #EDDEC1', borderRadius:10, overflow:'hidden' }}>
-                  <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', background:'#FBF6EE', padding:'8px 12px', borderBottom:'1px solid #EDDEC1' }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 76px', background:'#FBF6EE', padding:'8px 12px', borderBottom:'1px solid #EDDEC1' }}>
                     {['Description','Qté','P.U. HT',''].map((h, i) => (
                       <span key={i} style={{ fontSize:10, fontWeight:700, color:'#A33C00', textTransform:'uppercase', letterSpacing:0.5 }}>{h}</span>
                     ))}
                   </div>
                   {editLines.map((line, idx) => (
-                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 36px', padding:'8px 12px', borderBottom: idx < editLines.length-1 ? '1px solid #EDDEC1' : 'none', alignItems:'center' }}>
+                    <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 80px 100px 76px', padding:'8px 12px', borderBottom: idx < editLines.length-1 ? '1px solid #EDDEC1' : 'none', alignItems:'center' }}>
                       <input placeholder="Description..." value={line.description}
                         onChange={e => updateEditLine(idx, 'description', e.target.value)}
                         style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
@@ -1075,11 +1087,23 @@ export default function BCPage() {
                       <input type="number" min="0" step="0.01" placeholder="Prix HT" value={line.unit_price}
                         onChange={e => updateEditLine(idx, 'unit_price', e.target.value)}
                         style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                      <button type="button" onClick={() => { if (editLines.length > 1) setEditLines(p => p.filter((_,i) => i !== idx)); }}
-                        disabled={editLines.length === 1}
-                        style={{ width:28, height:28, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: editLines.length===1 ? 0.3 : 1 }}>
-                        <X size={12} />
-                      </button>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}>
+                        <button type="button" disabled={idx===0} title="Monter"
+                          onClick={() => setEditLines(p => { const nl=[...p]; [nl[idx-1],nl[idx]]=[nl[idx],nl[idx-1]]; return nl; })}
+                          style={{ background:'none', border:'none', cursor: idx===0 ? 'default':'pointer', color:'#A33C00', opacity: idx===0?0.25:1, padding:2 }}>
+                          <ChevronUp size={12} />
+                        </button>
+                        <button type="button" disabled={idx===editLines.length-1} title="Descendre"
+                          onClick={() => setEditLines(p => { const nl=[...p]; [nl[idx+1],nl[idx]]=[nl[idx],nl[idx+1]]; return nl; })}
+                          style={{ background:'none', border:'none', cursor: idx===editLines.length-1 ? 'default':'pointer', color:'#A33C00', opacity: idx===editLines.length-1?0.25:1, padding:2 }}>
+                          <ChevronDown size={12} />
+                        </button>
+                        <button type="button" onClick={() => { if (editLines.length > 1) setEditLines(p => p.filter((_,i) => i !== idx)); }}
+                          disabled={editLines.length === 1}
+                          style={{ width:22, height:22, borderRadius:6, border:'1px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#EF4444', opacity: editLines.length===1 ? 0.3 : 1 }}>
+                          <X size={11} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

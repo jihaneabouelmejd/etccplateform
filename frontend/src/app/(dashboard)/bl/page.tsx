@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, ArrowRight, Camera, Upload, X, Eye, PlusCircle, File, FileImage, Download } from 'lucide-react';
+import { Plus, Search, Trash2, ArrowRight, Camera, Upload, X, Eye, PlusCircle, File, FileImage, Download, ChevronUp, ChevronDown } from 'lucide-react';
 import FileViewerModal from '@/components/ui/FileViewerModal';
 import api, { blApi, bcApi, devisApi, invoicesApi, uploadApi, signaturesApi, depensesApi, clientsApi, prestationsApi } from '@/lib/api';
 import { useAuth } from '@/hooks/useAuth';
@@ -713,7 +713,7 @@ export default function BLPage() {
                     <tr style={{ background:'#FFF8EE' }}>
                       <th style={{ textAlign:'left', padding:'8px 12px', fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5 }}>Description</th>
                       <th style={{ textAlign:'right', padding:'8px 12px', fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', letterSpacing:0.5, width:80 }}>Qte</th>
-                      <th style={{ width:32 }}></th>
+                      <th style={{ width:64 }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -728,12 +728,24 @@ export default function BLPage() {
                             style={{ ...inputStyle, padding:'6px 10px', textAlign:'right', fontFamily:'monospace' }} />
                         </td>
                         <td style={{ padding:'6px 4px', textAlign:'center' }}>
-                          {blLines.length > 1 && (
-                            <button type="button" onClick={() => setBlLines(blLines.filter((_,idx)=>idx!==i))}
-                              style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444', padding:4 }}>
-                              <Trash2 size={12} />
+                          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}>
+                            <button type="button" disabled={i===0} title="Monter"
+                              onClick={() => { const nl=[...blLines]; [nl[i-1],nl[i]]=[nl[i],nl[i-1]]; setBlLines(nl); }}
+                              style={{ background:'none', border:'none', cursor: i===0 ? 'default':'pointer', color:'#8E5915', opacity: i===0?0.25:1, padding:2 }}>
+                              <ChevronUp size={12} />
                             </button>
-                          )}
+                            <button type="button" disabled={i===blLines.length-1} title="Descendre"
+                              onClick={() => { const nl=[...blLines]; [nl[i+1],nl[i]]=[nl[i],nl[i+1]]; setBlLines(nl); }}
+                              style={{ background:'none', border:'none', cursor: i===blLines.length-1 ? 'default':'pointer', color:'#8E5915', opacity: i===blLines.length-1?0.25:1, padding:2 }}>
+                              <ChevronDown size={12} />
+                            </button>
+                            {blLines.length > 1 && (
+                              <button type="button" onClick={() => setBlLines(blLines.filter((_,idx)=>idx!==i))}
+                                style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444', padding:2 }}>
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1088,7 +1100,7 @@ export default function BLPage() {
                     <tr style={{ background:'#FFF8EE' }}>
                       <th style={{ textAlign:'left', padding:'8px 12px', fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase' }}>Description</th>
                       <th style={{ textAlign:'right', padding:'8px 12px', fontSize:10, fontWeight:700, color:'#8E5915', textTransform:'uppercase', width:80 }}>Qté</th>
-                      <th style={{ width:32 }}></th>
+                      <th style={{ width:64 }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1103,12 +1115,24 @@ export default function BLPage() {
                             style={{ ...inputStyle, padding:'6px 10px', textAlign:'right' as const, fontFamily:'monospace' }} />
                         </td>
                         <td style={{ padding:'6px 4px', textAlign:'center' as const }}>
-                          {editLines.length > 1 && (
-                            <button type="button" onClick={() => setEditLines(editLines.filter((_,idx)=>idx!==i))}
-                              style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444', padding:4 }}>
-                              <Trash2 size={12} />
+                          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:2 }}>
+                            <button type="button" disabled={i===0} title="Monter"
+                              onClick={() => { const nl=[...editLines]; [nl[i-1],nl[i]]=[nl[i],nl[i-1]]; setEditLines(nl); }}
+                              style={{ background:'none', border:'none', cursor: i===0 ? 'default':'pointer', color:'#8E5915', opacity: i===0?0.25:1, padding:2 }}>
+                              <ChevronUp size={12} />
                             </button>
-                          )}
+                            <button type="button" disabled={i===editLines.length-1} title="Descendre"
+                              onClick={() => { const nl=[...editLines]; [nl[i+1],nl[i]]=[nl[i],nl[i+1]]; setEditLines(nl); }}
+                              style={{ background:'none', border:'none', cursor: i===editLines.length-1 ? 'default':'pointer', color:'#8E5915', opacity: i===editLines.length-1?0.25:1, padding:2 }}>
+                              <ChevronDown size={12} />
+                            </button>
+                            {editLines.length > 1 && (
+                              <button type="button" onClick={() => setEditLines(editLines.filter((_,idx)=>idx!==i))}
+                                style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444', padding:2 }}>
+                                <Trash2 size={12} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

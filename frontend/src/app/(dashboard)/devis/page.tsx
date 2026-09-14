@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { FileText, Plus, Search, Trash2, ArrowRight, Copy, Pencil, Truck, ChevronDown, ChevronRight } from 'lucide-react';
+import { FileText, Plus, Search, Trash2, ArrowRight, Copy, Pencil, Truck, ChevronDown, ChevronRight, ChevronUp } from 'lucide-react';
 import { useLanguage } from '@/lib/i18n';
 import { cn, formatCurrency } from '@/lib/utils';
 import { devisApi, clientsApi, projectsApi, blApi, signaturesApi, prestationsApi } from '@/lib/api';
@@ -110,6 +110,13 @@ export default function DevisPage() {
 
   const addLine = () => setLines([...lines, { desc: '', unit: '', qty: 1, pu: 0 }]);
   const removeLine = (i: number) => setLines(lines.filter((_, idx) => idx !== i));
+  const moveLine = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= lines.length) return;
+    const nl = [...lines];
+    [nl[i], nl[j]] = [nl[j], nl[i]];
+    setLines(nl);
+  };
   const updateLine = (i: number, field: keyof Line, value: string | number) => {
     const updated = [...lines];
     updated[i] = { ...updated[i], [field]: value };
@@ -519,7 +526,7 @@ export default function DevisPage() {
                         <th className="text-right px-3 py-2 text-[10px] font-semibold uppercase text-honey-caramel w-20">Unité</th>
                         <th className="text-right px-3 py-2 text-[10px] font-semibold uppercase text-honey-caramel w-28">PU HT</th>
                         <th className="text-right px-3 py-2 text-[10px] font-semibold uppercase text-honey-caramel w-28">Total HT</th>
-                        <th className="w-10"></th>
+                        <th className="w-20"></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -544,7 +551,17 @@ export default function DevisPage() {
                           </td>
                           <td className="px-3 py-1.5 text-right font-mono text-sm font-semibold text-honey-dark">{formatCurrency(line.qty * line.pu)}</td>
                           <td className="px-1 py-1.5 text-center">
-                            {lines.length > 1 && <button type="button" onClick={() => removeLine(i)} className="text-red-400 hover:text-red-600"><Trash2 size={12} /></button>}
+                            <div className="flex items-center justify-center gap-0.5">
+                              <button type="button" onClick={() => moveLine(i, -1)} disabled={i === 0}
+                                className="text-honey-caramel hover:text-honey-dark disabled:opacity-25 disabled:cursor-default" title="Monter">
+                                <ChevronUp size={12} />
+                              </button>
+                              <button type="button" onClick={() => moveLine(i, 1)} disabled={i === lines.length - 1}
+                                className="text-honey-caramel hover:text-honey-dark disabled:opacity-25 disabled:cursor-default" title="Descendre">
+                                <ChevronDown size={12} />
+                              </button>
+                              {lines.length > 1 && <button type="button" onClick={() => removeLine(i)} className="text-red-400 hover:text-red-600" title="Supprimer"><Trash2 size={12} /></button>}
+                            </div>
                           </td>
                         </tr>
                       ))}
