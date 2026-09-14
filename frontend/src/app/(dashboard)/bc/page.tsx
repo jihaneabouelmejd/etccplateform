@@ -805,7 +805,7 @@ export default function BCPage() {
                     <input placeholder="Description..." value={line.description}
                       onChange={e => updateLine(idx, 'description', e.target.value)}
                       style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                    <input type="number" min="0.01" step="0.01" placeholder="1" value={line.quantity}
+                    <input type="number" step="0.01" placeholder="1" value={line.quantity}
                       onChange={e => updateLine(idx, 'quantity', e.target.value)}
                       style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
                     <input type="number" min="0" step="0.01" placeholder="Prix HT" value={line.unit_price}
@@ -1081,7 +1081,7 @@ export default function BCPage() {
                       <input placeholder="Description..." value={line.description}
                         onChange={e => updateEditLine(idx, 'description', e.target.value)}
                         style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                      <input type="number" min="0.01" step="0.01" placeholder="1" value={line.quantity}
+                      <input type="number" step="0.01" placeholder="1" value={line.quantity}
                         onChange={e => updateEditLine(idx, 'quantity', e.target.value)}
                         style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
                       <input type="number" min="0" step="0.01" placeholder="Prix HT" value={line.unit_price}

@@ -724,7 +724,7 @@ export default function BLPage() {
                             placeholder="Description de l'article..." style={{ ...inputStyle, padding:'6px 10px' }} />
                         </td>
                         <td style={{ padding:'6px 8px' }}>
-                          <input type="number" min={1} value={line.qty} onChange={e => { const nl=[...blLines]; nl[i]={...nl[i],qty:Number(e.target.value)||1}; setBlLines(nl); }}
+                          <input type="number" value={line.qty} onChange={e => { const nl=[...blLines]; nl[i]={...nl[i],qty:Number(e.target.value)||1}; setBlLines(nl); }}
                             style={{ ...inputStyle, padding:'6px 10px', textAlign:'right', fontFamily:'monospace' }} />
                         </td>
                         <td style={{ padding:'6px 4px', textAlign:'center' }}>
@@ -1009,7 +1009,7 @@ export default function BLPage() {
                     <input placeholder="Description..." value={line.description}
                       onChange={e => updateBlImportLine(idx, 'description', e.target.value)}
                       style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
-                    <input type="number" min="0.01" step="0.01" placeholder="1" value={line.quantity}
+                    <input type="number" step="0.01" placeholder="1" value={line.quantity}
                       onChange={e => updateBlImportLine(idx, 'quantity', e.target.value)}
                       style={{ ...inputStyle, marginRight:6, padding:'6px 10px', fontSize:12 }} />
                     <button onClick={() => { if (blImportLines.length > 1) setBlImportLines(p => p.filter((_,i) => i !== idx)); }}
@@ -1111,7 +1111,7 @@ export default function BLPage() {
                             placeholder="Description..." style={{ ...inputStyle, padding:'6px 10px' }} />
                         </td>
                         <td style={{ padding:'6px 8px' }}>
-                          <input type="number" min={1} value={line.qty} onChange={e => { const nl=[...editLines]; nl[i]={...nl[i],qty:Number(e.target.value)||1}; setEditLines(nl); }}
+                          <input type="number" value={line.qty} onChange={e => { const nl=[...editLines]; nl[i]={...nl[i],qty:Number(e.target.value)||1}; setEditLines(nl); }}
                             style={{ ...inputStyle, padding:'6px 10px', textAlign:'right' as const, fontFamily:'monospace' }} />
                         </td>
                         <td style={{ padding:'6px 4px', textAlign:'center' as const }}>
