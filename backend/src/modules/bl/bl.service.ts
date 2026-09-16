@@ -472,4 +472,20 @@ export class BLService {
       data: { client_signature_url: signed_scan_url, status: 'SIGNED' },
     });
   }
+
+  /** Supprime le scan du BL signé par le client. Si le BL n'avait pas encore
+   * été facturé, on repasse son statut à DELIVERED (le statut SIGNED n'a de
+   * sens que tant qu'un scan est réellement attaché). Si le BL a déjà été
+   * facturé (INVOICED), on ne touche pas au statut. */
+  async deleteSignedScan(id: string) {
+    const bl = await this.prisma.bonLivraison.findUnique({ where: { id } });
+    if (!bl) throw new NotFoundException('BL introuvable');
+    return this.prisma.bonLivraison.update({
+      where: { id },
+      data: {
+        client_signature_url: null,
+        status: bl.status === 'SIGNED' ? 'DELIVERED' : bl.status,
+      },
+    });
+  }
 }

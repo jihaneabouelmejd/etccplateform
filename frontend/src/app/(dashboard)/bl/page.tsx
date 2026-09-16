@@ -74,6 +74,7 @@ export default function BLPage() {
   const [scanUrl, setScanUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [savingScan, setSavingScan] = useState(false);
+  const [deletingScan, setDeletingScan] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Modal "Importer BL externe" ──────────────────────────────────────────
@@ -420,6 +421,18 @@ export default function BLPage() {
       fetchData(); setShowScanModal(false);
     } catch (e: any) { alert(e?.response?.data?.message || 'Erreur'); }
     finally { setSavingScan(false); }
+  };
+
+  const handleDeleteScan = async () => {
+    if (!scanTarget) return;
+    if (!confirm('Supprimer le BL signé par le client ? Cette action est irréversible.')) return;
+    setDeletingScan(true);
+    try {
+      await blApi.deleteSignedScan(scanTarget.id);
+      setScanPreview(null); setScanUrl(null);
+      fetchData(); setShowScanModal(false);
+    } catch (e: any) { alert(e?.response?.data?.message || 'Erreur'); }
+    finally { setDeletingScan(false); }
   };
 
   return (
@@ -858,15 +871,27 @@ export default function BLPage() {
             </div>
 
             {/* Footer */}
-            <div style={{ padding:'14px 22px', borderTop:'1px solid #F5E6D3', display:'flex', justifyContent:'flex-end', gap:10 }}>
-              <button onClick={() => setShowScanModal(false)} style={btnSecondary}>Annuler</button>
-              <button
-                onClick={handleSaveScan}
-                disabled={!scanUrl || savingScan || uploading}
-                style={{ ...btnPrimary, opacity: (!scanUrl || savingScan || uploading) ? 0.6 : 1 }}
-              >
-                {savingScan ? 'Enregistrement...' : 'Enregistrer'}
-              </button>
+            <div style={{ padding:'14px 22px', borderTop:'1px solid #F5E6D3', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10 }}>
+              {scanTarget?.client_signature_url ? (
+                <button
+                  onClick={handleDeleteScan}
+                  disabled={deletingScan || savingScan || uploading}
+                  style={{ ...btnDanger, opacity: (deletingScan || savingScan || uploading) ? 0.6 : 1, display:'flex', alignItems:'center', gap:6 }}
+                >
+                  <Trash2 size={13} />
+                  {deletingScan ? 'Suppression...' : 'Supprimer'}
+                </button>
+              ) : <span />}
+              <div style={{ display:'flex', gap:10 }}>
+                <button onClick={() => setShowScanModal(false)} style={btnSecondary}>Annuler</button>
+                <button
+                  onClick={handleSaveScan}
+                  disabled={!scanUrl || savingScan || uploading || deletingScan}
+                  style={{ ...btnPrimary, opacity: (!scanUrl || savingScan || uploading || deletingScan) ? 0.6 : 1 }}
+                >
+                  {savingScan ? 'Enregistrement...' : (scanTarget?.client_signature_url ? 'Remplacer' : 'Enregistrer')}
+                </button>
+              </div>
             </div>
           </div>
         </div>

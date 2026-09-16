@@ -88,6 +88,12 @@ export class BLController {
     return this.bl.saveSignedScan(id, url);
   }
 
+  @Delete(':id/signed-scan')
+  @Roles(Role.ADMIN, Role.GERANT)
+  deleteSignedScan(@Param('id') id: string) {
+    return this.bl.deleteSignedScan(id);
+  }
+
   @Delete(':id')
   @Roles(Role.ADMIN, Role.GERANT)
   remove(@Param('id') id: string) { return this.bl.remove(id); }
