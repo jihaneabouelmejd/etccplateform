@@ -19,7 +19,12 @@ const USE_CLOUDINARY = !!(CLOUD_NAME && CLOUD_KEY && CLOUD_SECRET);
 function extractCloudinaryInfo(url: string): { publicId: string; resourceType: string } | null {
   const m = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
   if (!m) return null;
-  return { publicId: m[2], resourceType: m[1] };
+  // Décoder le public_id capturé (peut contenir des %20 etc. sur les anciens
+  // fichiers uploadés avant la sanitization des noms) pour éviter un double
+  // encodage par URLSearchParams, qui casserait la signature SHA1.
+  let publicId = m[2];
+  try { publicId = decodeURIComponent(publicId); } catch { /* garde la valeur brute */ }
+  return { publicId, resourceType: m[1] };
 }
 
 function buildCloudinarySignedDownloadUrl(publicId: string, resourceType: string): string | null {

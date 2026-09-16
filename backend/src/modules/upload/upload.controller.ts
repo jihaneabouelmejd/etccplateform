@@ -187,7 +187,13 @@ async function fetchToTmp(url: string, redirectsLeft = 5): Promise<string> {
 function extractCloudinaryInfo(url: string): { publicId: string; resourceType: string } | null {
   const m = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
   if (!m) return null;
-  return { publicId: m[2], resourceType: m[1] };
+  // Le public_id capturé peut encore être URL-encodé (ex: espaces -> %20) sur les
+  // anciens fichiers uploadés avant la sanitization des noms de fichiers. Il faut
+  // le décoder ici, sinon URLSearchParams le ré-encode une seconde fois (%20 ->
+  // %2520), ce qui casse la signature SHA1 et fait échouer le téléchargement signé.
+  let publicId = m[2];
+  try { publicId = decodeURIComponent(publicId); } catch { /* garde la valeur brute */ }
+  return { publicId, resourceType: m[1] };
 }
 
 function buildCloudinarySignedDownloadUrl(publicId: string, resourceType: string): string | null {
@@ -951,7 +957,12 @@ export class UploadController implements OnModuleInit {
       // Matches: res.cloudinary.com/{cloud}/{image|video|raw}/{upload|authenticated}[/v123]/{public_id}
       const m = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
       if (!m) return null;
-      return { publicId: m[2], resourceType: m[1] };
+      // Décoder le public_id capturé (peut contenir des %20 etc. sur les anciens
+      // fichiers) pour éviter un double encodage lors de la signature SHA1 — voir
+      // extractCloudinaryInfo() plus haut dans ce fichier pour le détail du bug.
+      let publicId = m[2];
+      try { publicId = decodeURIComponent(publicId); } catch { /* garde la valeur brute */ }
+      return { publicId, resourceType: m[1] };
     };
 
     // ── Build Cloudinary REST API download URL with manual SHA1 signature ─────
