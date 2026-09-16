@@ -995,7 +995,7 @@ export class UploadController implements OnModuleInit {
           signature,
         });
         const url = `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/download?${qs.toString()}`;
-        this.logger.log(`[Proxy] API download URL: ${url.substring(0, 120)}`);
+        this.logger.log(`[Proxy] API download — public_id="${publicId}" resource_type=${resourceType} type=${type}`);
         return url;
       } catch (e: any) {
         this.logger.error(`[Proxy] buildApiUrl error: ${e.message}`);
@@ -1030,12 +1030,23 @@ export class UploadController implements OnModuleInit {
           }
 
           // ── Error ──────────────────────────────────────────────────────────
+          // On lit le corps de la réponse d'erreur (Cloudinary renvoie un JSON
+          // avec le vrai motif : "Invalid Signature", "Resource not found", etc.)
+          // pour pouvoir diagnostiquer sans accès aux logs serveur.
           if (sc >= 400) {
-            this.logger.error(`[Proxy] Error ${sc} at ${fetchUrl.substring(0, 80)}`);
-            if (isFinal && !res.headersSent) {
-              (res as any).status(sc).json({ message: `Fichier non accessible (${sc})` });
-            }
-            resolve(sc);
+            let errBody = '';
+            response.on('data', (chunk: any) => { if (errBody.length < 2000) errBody += chunk.toString(); });
+            response.on('end', () => {
+              this.logger.error(`[Proxy] Error ${sc} at ${fetchUrl.substring(0, 100)} — body: ${errBody.substring(0, 500)}`);
+              if (isFinal && !res.headersSent) {
+                (res as any).status(sc).json({
+                  message: `Fichier non accessible (${sc})`,
+                  detail: errBody.substring(0, 500) || undefined,
+                });
+              }
+              resolve(sc);
+            });
+            response.on('error', () => resolve(sc));
             return;
           }
 
