@@ -193,7 +193,17 @@ function extractCloudinaryInfo(url: string): { publicId: string; resourceType: s
   // %2520), ce qui casse la signature SHA1 et fait échouer le téléchargement signé.
   let publicId = m[2];
   try { publicId = decodeURIComponent(publicId); } catch { /* garde la valeur brute */ }
-  return { publicId, resourceType: m[1] };
+  const resourceType = m[1];
+  // Pour resource_type 'image'/'video', Cloudinary stocke le public_id SANS
+  // extension et l'ajoute lui-même en fin d'URL de livraison (voir
+  // uploadBufferToCloudinary) — mais l'URL CDN, elle, affiche toujours
+  // l'extension. Si on la laisse dans le public_id signé, la signature SHA1
+  // ne correspond plus à ce que Cloudinary attend → 401 "Invalid Signature".
+  // Seul 'raw' garde l'extension comme partie intégrante du public_id.
+  if (resourceType !== 'raw') {
+    publicId = publicId.replace(/\.[a-zA-Z0-9]{1,5}$/, '');
+  }
+  return { publicId, resourceType };
 }
 
 function buildCloudinarySignedDownloadUrl(publicId: string, resourceType: string): string | null {
@@ -962,7 +972,14 @@ export class UploadController implements OnModuleInit {
       // extractCloudinaryInfo() plus haut dans ce fichier pour le détail du bug.
       let publicId = m[2];
       try { publicId = decodeURIComponent(publicId); } catch { /* garde la valeur brute */ }
-      return { publicId, resourceType: m[1] };
+      const resourceType = m[1];
+      // Même correctif que extractCloudinaryInfo() : pour 'image'/'video', le
+      // public_id réel ne contient PAS l'extension (Cloudinary l'ajoute à la
+      // livraison) — il faut la retirer ici avant de signer, sinon 401.
+      if (resourceType !== 'raw') {
+        publicId = publicId.replace(/\.[a-zA-Z0-9]{1,5}$/, '');
+      }
+      return { publicId, resourceType };
     };
 
     // ── Build Cloudinary REST API download URL with manual SHA1 signature ─────

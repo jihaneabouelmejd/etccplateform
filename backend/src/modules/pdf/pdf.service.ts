@@ -24,7 +24,15 @@ function extractCloudinaryInfo(url: string): { publicId: string; resourceType: s
   // encodage par URLSearchParams, qui casserait la signature SHA1.
   let publicId = m[2];
   try { publicId = decodeURIComponent(publicId); } catch { /* garde la valeur brute */ }
-  return { publicId, resourceType: m[1] };
+  const resourceType = m[1];
+  // Pour 'image'/'video', le public_id réel stocké côté Cloudinary ne contient
+  // PAS l'extension (ajoutée par Cloudinary à la livraison) — il faut la
+  // retirer ici avant de signer, sinon la signature SHA1 ne correspond plus
+  // et l'API renvoie 401 "Invalid Signature". Seul 'raw' garde l'extension.
+  if (resourceType !== 'raw') {
+    publicId = publicId.replace(/\.[a-zA-Z0-9]{1,5}$/, '');
+  }
+  return { publicId, resourceType };
 }
 
 function buildCloudinarySignedDownloadUrl(publicId: string, resourceType: string): string | null {

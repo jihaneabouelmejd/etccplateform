@@ -1,0 +1,188 @@
+diff --git a/backend/src/modules/agenda/agenda.controller.ts b/backend/src/modules/agenda/agenda.controller.ts
+index 1b5965f..42f4d0d 100644
+--- a/backend/src/modules/agenda/agenda.controller.ts
++++ b/backend/src/modules/agenda/agenda.controller.ts
+@@ -189,19 +189,31 @@ export class AgendaController {
+ 
+     for (const task of tasks) {
+       try {
+-        const eventId = await this.googleCalendar.syncTaskToCalendar(tokens, {
+-          id: task.id,
+-          title: task.title,
+-          description: task.description || undefined,
+-          due_date: task.due_date!,
+-          // start_time/end_time étaient omis ici — syncTaskToCalendar tombait donc
+-          // toujours dans sa branche "pas d'heure" et créait un événement journée
+-          // entière, même quand l'utilisateur avait bien saisi des heures sur la tâche.
+-          start_time: task.start_time,
+-          end_time: task.end_time,
+-          project: task.project,
+-          google_event_id: task.google_event_id,
+-        });
++        // Garde-fou : le refresh de token OAuth interne à googleapis n'hérite pas du
++        // `timeout` passé à calendar.events.update/insert (celui-ci ne couvre que l'appel
++        // Calendar API lui-même). Si CE refresh traîne (réseau sortant Railway → Google
++        // lent/bloqué), l'appel restait bloqué indéfiniment et toute la requête
++        // /agenda/google/sync ne répondait jamais (symptôme : clic sur "Synchroniser" sans
++        // aucun message de succès/erreur, l'événement Google Agenda ne se met jamais à jour).
++        // On borne donc explicitement chaque tâche à 20s, quoi qu'il arrive.
++        const eventId = await Promise.race([
++          this.googleCalendar.syncTaskToCalendar(tokens, {
++            id: task.id,
++            title: task.title,
++            description: task.description || undefined,
++            due_date: task.due_date!,
++            // start_time/end_time étaient omis ici — syncTaskToCalendar tombait donc
++            // toujours dans sa branche "pas d'heure" et créait un événement journée
++            // entière, même quand l'utilisateur avait bien saisi des heures sur la tâche.
++            start_time: task.start_time,
++            end_time: task.end_time,
++            project: task.project,
++            google_event_id: task.google_event_id,
++          }),
++          new Promise<null>((_, reject) =>
++            setTimeout(() => reject(new Error('Délai dépassé (20s) — Google Agenda ne répond pas')), 20000),
++          ),
++        ]);
+ 
+         if (eventId) {
+           await this.agendaService.updateTaskGoogleEventId(task.id, eventId);
+diff --git a/backend/src/modules/agenda/google-calendar.service.ts b/backend/src/modules/agenda/google-calendar.service.ts
+index 7833831..019a3d3 100644
+--- a/backend/src/modules/agenda/google-calendar.service.ts
++++ b/backend/src/modules/agenda/google-calendar.service.ts
+@@ -93,20 +93,28 @@ export class GoogleCalendarService {
+         colorId: task.project ? '2' : '1', // sage green for project tasks
+       };
+ 
++      // IMPORTANT: sans `timeout`, gaxios n'a AUCUNE limite de temps par défaut. Si le
++      // réseau sortant de Railway vers googleapis.com bloque/traîne (ou si le refresh du
++      // token traîne), l'appel peut rester en attente indéfiniment — et comme syncToGoogle()
++      // boucle sur les tâches en série avec `await`, UNE SEULE tâche bloquée fait pendre
++      // toute la requête /agenda/google/sync pour l'utilisateur (symptôme observé :
++      // "Synchroniser" ne répond jamais, aucun message de succès/erreur n'apparaît).
++      const requestOptions = { timeout: 15000 };
++
+       if (task.google_event_id) {
+         // Update existing
+         const res = await calendar.events.update({
+           calendarId: 'primary',
+           eventId: task.google_event_id,
+           requestBody: event,
+-        });
++        }, requestOptions);
+         return res.data.id;
+       } else {
+         // Create new
+         const res = await calendar.events.insert({
+           calendarId: 'primary',
+           requestBody: event,
+-        });
++        }, requestOptions);
+         return res.data.id;
+       }
+     } catch (err: any) {
+diff --git a/backend/src/modules/upload/upload.controller.ts b/backend/src/modules/upload/upload.controller.ts
+index 5f95a46..4c363bd 100644
+--- a/backend/src/modules/upload/upload.controller.ts
++++ b/backend/src/modules/upload/upload.controller.ts
+@@ -187,7 +187,15 @@ async function fetchToTmp(url: string, redirectsLeft = 5): Promise<string> {
+ function extractCloudinaryInfo(url: string): { publicId: string; resourceType: string } | null {
+   const m = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
+   if (!m) return null;
+-  return { publicId: m[2], resourceType: m[1] };
++  // BUG trouvé: le nom de fichier original contient des espaces/caractères spéciaux
++  // ("Purchase order confirmation - MA05-PO000003037 - ...pdf"), donc l'URL Cloudinary
++  // les porte percent-encodés (%20 etc.). Sans decodeURIComponent ici, ce public_id
++  // encodé était ensuite repassé tel quel dans URLSearchParams, qui l'encodait UNE
++  // SECONDE FOIS (%20 → %2520) — à la fois dans la signature calculée ET dans la
++  // requête envoyée à Cloudinary. Signature invalide → l'API signée renvoyait une
++  // erreur, le code retombait sur l'URL CDN directe qui, elle, 401 toujours pour les
++  // anciens fichiers 'raw' → symptôme identique à avant le correctif.
++  return { publicId: decodeURIComponent(m[2]), resourceType: m[1] };
+ }
+ 
+ function buildCloudinarySignedDownloadUrl(publicId: string, resourceType: string): string | null {
+@@ -222,8 +230,16 @@ async function downloadToTmp(url: string): Promise<string> {
+       if (signedUrl) {
+         try {
+           return await fetchToTmp(signedUrl);
+-        } catch (err: any) {
+-          console.warn(`[OCR] Téléchargement via API Cloudinary signée échoué (${err.message}) — nouvelle tentative via URL directe`);
++        } catch (signedErr: any) {
++          console.warn(`[OCR] Téléchargement via API Cloudinary signée échoué (${signedErr.message}) — nouvelle tentative via URL directe`);
++          try {
++            return await fetchToTmp(url);
++          } catch (directErr: any) {
++            // Les deux tentatives ont échoué — on remonte les deux messages pour ne
++            // pas perdre l'info de la tentative signée (souvent la plus révélatrice)
++            // derrière le message générique de l'URL directe.
++            throw new Error(`signé: ${signedErr.message} | direct: ${directErr.message}`);
++          }
+         }
+       }
+     }
+@@ -951,7 +967,11 @@ export class UploadController implements OnModuleInit {
+       // Matches: res.cloudinary.com/{cloud}/{image|video|raw}/{upload|authenticated}[/v123]/{public_id}
+       const m = url.match(/res\.cloudinary\.com\/[^/]+\/(image|video|raw)\/(?:upload|authenticated)(?:\/v\d+)?\/(.*?)(?:\?|$)/);
+       if (!m) return null;
+-      return { publicId: m[2], resourceType: m[1] };
++      // Même bug que downloadToTmp: un nom de fichier original avec espaces/accents
++      // (fichiers uploadés avant la sanitisation du public_id) laisse des %20 etc.
++      // dans l'URL — sans decode, URLSearchParams les ré-encode une seconde fois
++      // (%20 → %2520), invalidant la signature envoyée à Cloudinary.
++      return { publicId: decodeURIComponent(m[2]), resourceType: m[1] };
+     };
+ 
+     // ── Build Cloudinary REST API download URL with manual SHA1 signature ─────
+diff --git a/frontend/src/app/(dashboard)/agenda/page.tsx b/frontend/src/app/(dashboard)/agenda/page.tsx
+index f0d7d23..3762b45 100644
+--- a/frontend/src/app/(dashboard)/agenda/page.tsx
++++ b/frontend/src/app/(dashboard)/agenda/page.tsx
+@@ -301,13 +301,31 @@ export default function AgendaPage() {
+     setSyncing(true);
+     try {
+       const res = await agendaApi.syncToGoogle();
+-      setNotification({
+-        type: 'success',
+-        msg: `${res.data.synced} tâche(s) synchronisée(s) vers Google Agenda.`,
+-      });
++      const { synced = 0, errors = 0, total = 0, errorDetails = [] } = res.data || {};
++      // Avant : on affichait toujours "X tâche(s) synchronisée(s)" en vert, même
++      // quand synced=0 et errors>0 (ex: token Google expiré, permission refusée) —
++      // l'utilisateur voyait un message de "succès" alors que rien n'avait
++      // vraiment été synchronisé, sans aucun indice sur la cause réelle.
++      if (total === 0) {
++        setNotification({
++          type: 'error',
++          msg: "Aucune tâche à synchroniser — seules les tâches avec une date d'échéance sont envoyées vers Google Agenda. Ajoutez une date sur vos tâches dans « Tâches ».",
++        });
++      } else if (errors > 0) {
++        setNotification({
++          type: 'error',
++          msg: `${synced}/${total} tâche(s) synchronisée(s), ${errors} échec(s) : ${errorDetails.slice(0, 2).join(' · ') || 'raison inconnue'}`,
++        });
++      } else {
++        setNotification({
++          type: 'success',
++          msg: `${synced} tâche(s) synchronisée(s) vers Google Agenda.`,
++        });
++      }
+       await load();
+-    } catch {
+-      setNotification({ type: 'error', msg: 'Erreur de synchronisation.' });
++    } catch (err: any) {
++      const apiMsg = err?.response?.data?.message;
++      setNotification({ type: 'error', msg: apiMsg ? `Erreur de synchronisation : ${apiMsg}` : 'Erreur de synchronisation.' });
+     } finally {
+       setSyncing(false);
+     }
+@@ -758,7 +776,7 @@ export default function AgendaPage() {
+               </div>
+             ))}
+             <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #EDDEC1', fontSize: 11, color: '#9CA3AF' }}>
+-              💡 Les tâches créées dans « Tâches » apparaissent automatiquement ici dès qu'une date est assignée.
++              💡 Les tâches créées dans « Tâches » apparaissent automatiquement ici dès qu'une date est assignée. Seules les tâches avec une date d'échéance sont envoyées vers Google Agenda via « Synchroniser ».
+             </div>
+           </div>
+         </div>

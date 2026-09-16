@@ -75,6 +75,7 @@ export default function BLPage() {
   const [uploading, setUploading] = useState(false);
   const [savingScan, setSavingScan] = useState(false);
   const [deletingScan, setDeletingScan] = useState(false);
+  const [deletingScanRowId, setDeletingScanRowId] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ── Modal "Importer BL externe" ──────────────────────────────────────────
@@ -435,6 +436,19 @@ export default function BLPage() {
     finally { setDeletingScan(false); }
   };
 
+  // Suppression directe du scan signé depuis l'icône de la ligne (sans passer
+  // par la modale) — demandée pour avoir des icônes dédiées supprimer/modifier
+  // pour le BL signé importé, séparées de celles du BL lui-même.
+  const handleDeleteScanRow = async (bl: any) => {
+    if (!confirm('Supprimer le BL signé par le client ? Cette action est irréversible.')) return;
+    setDeletingScanRowId(bl.id);
+    try {
+      await blApi.deleteSignedScan(bl.id);
+      fetchData();
+    } catch (e: any) { alert(e?.response?.data?.message || 'Erreur'); }
+    finally { setDeletingScanRowId(''); }
+  };
+
   return (
     <div>
       <div className="flex justify-between items-start mb-5">
@@ -592,32 +606,42 @@ export default function BLPage() {
                         {creatingInvoice === bl.id ? '...' : 'Facture'}
                       </button>
                     )}
-                    {/* Importer BL signe */}
-                    {canDel && (
+                    {/* Importer BL signe (uniquement si aucun scan n'existe encore) */}
+                    {canDel && !bl.client_signature_url && (
                       <button onClick={() => openScanModal(bl)}
-                        title={bl.client_signature_url ? 'Voir / Remplacer BL signe' : 'Importer BL signé par client'}
-                        className={cn(
-                          'px-2 py-1 rounded text-[10px] font-semibold border flex items-center gap-1 transition-all',
-                          bl.client_signature_url
-                            ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-                            : 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
-                        )}>
+                        title="Importer BL signé par client"
+                        className="px-2 py-1 rounded text-[10px] font-semibold border flex items-center gap-1 transition-all bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
                         <Camera size={10} />
-                        {bl.client_signature_url ? 'BL signe' : 'Importer signe'}
+                        Importer signe
                       </button>
                     )}
+                    {/* BL généré : modifier / supprimer */}
                     {canDel && (
-                      <button onClick={() => openEdit(bl)} title="Modifier numéro/date"
+                      <button onClick={() => openEdit(bl)} title="Modifier numéro/date du BL"
                         className="w-7 h-7 rounded-md border border-honey-beige-soft flex items-center justify-center text-honey-caramel hover:text-honey-dark hover:border-honey-gold hover:bg-honey-cream transition-all text-[11px] font-bold">
                         ✏️
                       </button>
                     )}
                     {/* Supprimer (tout sauf INVOICED) */}
                     {canDel && (
-                      <button onClick={() => setDeleteTarget(bl)} title="Supprimer définitivement"
+                      <button onClick={() => setDeleteTarget(bl)} title="Supprimer le BL définitivement"
                         className="w-7 h-7 rounded-md border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-all">
                         <Trash2 size={12} />
                       </button>
+                    )}
+                    {/* BL signé importé : modifier / supprimer (icônes séparées, uniquement si un scan existe) */}
+                    {canDel && bl.client_signature_url && (
+                      <>
+                        <button onClick={() => openScanModal(bl)} title="Modifier / remplacer le BL signé importé"
+                          className="w-7 h-7 rounded-md border border-purple-200 flex items-center justify-center text-purple-500 hover:text-purple-700 hover:border-purple-400 hover:bg-purple-50 transition-all">
+                          <Camera size={12} />
+                        </button>
+                        <button onClick={() => handleDeleteScanRow(bl)} disabled={deletingScanRowId === bl.id}
+                          title="Supprimer le BL signé importé"
+                          className="w-7 h-7 rounded-md border border-red-200 flex items-center justify-center text-red-400 hover:text-red-600 hover:border-red-400 hover:bg-red-50 transition-all disabled:opacity-50">
+                          <Trash2 size={12} />
+                        </button>
+                      </>
                     )}
                   </div>
                 </td>
