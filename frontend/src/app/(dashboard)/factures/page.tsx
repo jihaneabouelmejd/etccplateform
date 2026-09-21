@@ -114,6 +114,89 @@ export default function FacturesPage() {
   const [editHiddenBlocks, setEditHiddenBlocks] = useState<string[]>([]);
   const [editRubriques, setEditRubriques] = useState<Array<{ id: string; title: string; content: string; position: string }>>([]);
 
+  // Modifier une facture d'achat existante (fournisseur, montants, dates, notes...)
+  const [achatEditTarget, setAchatEditTarget] = useState<any>(null);
+  const [achatEditForm, setAchatEditForm] = useState({
+    fournisseur_id: '', fournisseur_libre: '', ref_fournisseur: '',
+    total_ht_brut: '', tva_amount: '', total_ttc: '',
+    issue_date: '', due_date: '', notes: '', prestation_id: '',
+  });
+  const [achatEditSaving, setAchatEditSaving] = useState(false);
+  const [achatEditError, setAchatEditError] = useState('');
+
+  useEffect(() => {
+    if (tab === 'RECEIVED' && fournisseurs.length === 0) {
+      fournisseursApi.list({ limit: 200 }).then(r => setFournisseurs(r.data.data || [])).catch(() => {});
+    }
+  }, [tab]);
+
+  const openAchatEdit = (inv: any) => {
+    const ref = inv.notes?.match(/Ref: ([^\s|]+)/)?.[1] || '';
+    const cleanedNotes = (inv.notes || '')
+      .split('|').map((s: string) => s.trim())
+      .filter((s: string) => s && !s.startsWith('Ref:') && !s.startsWith('Fournisseur:'))
+      .join(' | ');
+    setAchatEditForm({
+      fournisseur_id: inv.fournisseur_id || '',
+      fournisseur_libre: '',
+      ref_fournisseur: ref,
+      total_ht_brut: String(Number(inv.total_ht_brut) || ''),
+      tva_amount: String(Number(inv.tva_amount) || ''),
+      total_ttc: String(Number(inv.total_ttc) || ''),
+      issue_date: inv.issue_date ? inv.issue_date.slice(0, 10) : '',
+      due_date: inv.due_date ? inv.due_date.slice(0, 10) : '',
+      notes: cleanedNotes,
+      prestation_id: inv.prestation_id || '',
+    });
+    setAchatEditError('');
+    setAchatEditTarget(inv);
+  };
+
+  const handleEditHtChange = (val: string) => {
+    const ht = parseFloat(val) || 0;
+    const tva = Math.round(ht * TVA_RATE * 100) / 100;
+    const ttc = Math.round((ht + tva) * 100) / 100;
+    setAchatEditForm(f => ({ ...f, total_ht_brut: val, tva_amount: tva > 0 ? String(tva) : '', total_ttc: ttc > 0 ? String(ttc) : '' }));
+  };
+
+  const handleEditTvaChange = (val: string) => {
+    const ht = parseFloat(achatEditForm.total_ht_brut) || 0;
+    const tva = parseFloat(val) || 0;
+    setAchatEditForm(f => ({ ...f, tva_amount: val, total_ttc: String(Math.round((ht + tva) * 100) / 100) }));
+  };
+
+  const handleAchatEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!achatEditTarget) return;
+    if (!achatEditForm.fournisseur_id && !achatEditForm.fournisseur_libre.trim()) {
+      setAchatEditError('Le nom du fournisseur est obligatoire.');
+      return;
+    }
+    setAchatEditSaving(true); setAchatEditError('');
+    try {
+      const notesParts = [
+        achatEditForm.notes,
+        achatEditForm.ref_fournisseur ? `Ref: ${achatEditForm.ref_fournisseur}` : '',
+      ].filter(Boolean);
+      await invoicesApi.update(achatEditTarget.id, {
+        fournisseur_id: achatEditForm.fournisseur_id || undefined,
+        fournisseur_libre: (!achatEditForm.fournisseur_id && achatEditForm.fournisseur_libre.trim()) || undefined,
+        prestation_id: achatEditForm.prestation_id || null,
+        total_ht_brut: parseFloat(achatEditForm.total_ht_brut) || 0,
+        tva_amount: parseFloat(achatEditForm.tva_amount) || 0,
+        total_ttc: parseFloat(achatEditForm.total_ttc) || 0,
+        issue_date: achatEditForm.issue_date ? new Date(achatEditForm.issue_date) : undefined,
+        due_date: achatEditForm.due_date ? new Date(achatEditForm.due_date) : undefined,
+        notes: notesParts.join(' | ') || undefined,
+      });
+      setAchatEditTarget(null);
+      fetchData();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      setAchatEditError(Array.isArray(msg) ? msg.join(', ') : (msg || 'Erreur'));
+    } finally { setAchatEditSaving(false); }
+  };
+
   // Factures d'achat en attente (uploads employés)
   const [pendingFacs, setPendingFacs]       = useState<any[]>([]);
   const [rejectingFac, setRejectingFac]     = useState('');
@@ -593,7 +676,10 @@ export default function FacturesPage() {
                           <div style={{ flex:1, minWidth:0 }}>
                             <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                               <span style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#1A141A' }}>{inv.number}</span>
-                              <span style={{ fontSize:12, color:'#8E5915' }}>{inv.fournisseur?.name || '—'}</span>
+                              <span onClick={() => openAchatEdit(inv)} title="Cliquer pour modifier le fournisseur"
+                                style={{ fontSize:12, color: inv.fournisseur?.name ? '#8E5915' : '#DC2626', cursor:'pointer', textDecoration: inv.fournisseur?.name ? 'none' : 'underline', fontWeight: inv.fournisseur?.name ? 400 : 700 }}>
+                                {inv.fournisseur?.name || '⚠ Ajouter fournisseur'}
+                              </span>
                               {inv.notes && inv.notes.includes('Ref:') && (
                                 <span style={{ fontSize:10, color:'#B8A090', fontFamily:'monospace' }}>
                                   {inv.notes.match(/Ref: ([^\s|]+)/)?.[1]}
@@ -662,6 +748,10 @@ export default function FacturesPage() {
                                 <Banknote size={10} /> Payer
                               </button>
                             )}
+                            <button onClick={() => openAchatEdit(inv)} title="Modifier"
+                              style={{ width:28, height:28, borderRadius:7, border:'1.5px solid #E8D4B0', background:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                              <Pencil size={11} color="#8E5915" />
+                            </button>
                             {canDel && inv.status !== 'PAID' && inv.status !== 'CANCELLED' && (
                               <button onClick={() => setCancelTarget(inv)}
                                 style={{ width:28, height:28, borderRadius:7, border:'1.5px solid #FECACA', background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -1119,6 +1209,129 @@ export default function FacturesPage() {
                 </div>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL Modifier facture d'achat */}
+      {achatEditTarget && (
+        <div style={{ position:'fixed', inset:0, zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+          <div onClick={() => setAchatEditTarget(null)} style={{ position:'fixed', inset:0, background:'rgba(26,20,26,0.5)', backdropFilter:'blur(4px)' }} />
+          <div style={{ position:'relative', background:'white', borderRadius:16, maxWidth:520, width:'100%', maxHeight:'90vh', overflowY:'auto', boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 24px', borderBottom:'1px solid #F5E6D3' }}>
+              <h2 style={{ margin:0, fontSize:16, fontWeight:700, color:'#1A141A' }}>✏️ Modifier {achatEditTarget.number}</h2>
+              <button onClick={() => setAchatEditTarget(null)} style={{ background:'none', border:'none', fontSize:22, cursor:'pointer', color:'#8E5915' }}>×</button>
+            </div>
+            <form onSubmit={handleAchatEditSave} style={{ padding:24 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:16 }}>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={lStyle}>Fournisseur <span style={{ fontWeight:400, color:'#DC2626' }}>*obligatoire</span></label>
+                  <select value={achatEditForm.fournisseur_id}
+                    onChange={e => setAchatEditForm({...achatEditForm, fournisseur_id: e.target.value, fournisseur_libre: e.target.value ? '' : achatEditForm.fournisseur_libre})}
+                    style={{ ...iStyle, border: achatEditForm.fournisseur_id ? '1.5px solid #86EFAC' : '1.5px solid #E8D4B0', background: achatEditForm.fournisseur_id ? '#F0FFF4' : 'white' }}>
+                    <option value="">Sélectionner dans la liste...</option>
+                    {fournisseurs.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                  </select>
+                  {!achatEditForm.fournisseur_id && (
+                    <div style={{ marginTop:6 }}>
+                      <input
+                        value={achatEditForm.fournisseur_libre}
+                        onChange={e => setAchatEditForm({...achatEditForm, fournisseur_libre: e.target.value})}
+                        placeholder="Ou saisir le nom manuellement (obligatoire)..."
+                        style={{ ...iStyle, border: achatEditForm.fournisseur_libre ? '1.5px solid #FDE68A' : '1.5px solid #E8D4B0', background: achatEditForm.fournisseur_libre ? '#FFFDF5' : 'white' }}
+                      />
+                    </div>
+                  )}
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={lStyle}>Prestation <span style={{ fontWeight:400, color:'#B8A090' }}>(optionnel)</span></label>
+                  <select value={achatEditForm.prestation_id} onChange={e => setAchatEditForm({...achatEditForm, prestation_id: e.target.value})} style={iStyle}>
+                    <option value="">— Aucune —</option>
+                    {prestations.map(p => (
+                      <option key={p.id} value={p.id}>{p.nom} — {p.client}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={lStyle}>Référence fournisseur</label>
+                  <input
+                    value={achatEditForm.ref_fournisseur}
+                    onChange={e => setAchatEditForm({...achatEditForm, ref_fournisseur: e.target.value})}
+                    placeholder="N° de facture fournisseur..."
+                    style={iStyle}
+                  />
+                </div>
+                <div>
+                  <label style={lStyle}>Montant HT</label>
+                  <input
+                    type="number" step="0.01"
+                    value={achatEditForm.total_ht_brut}
+                    onChange={e => handleEditHtChange(e.target.value)}
+                    placeholder="0.00"
+                    style={{ ...iStyle, fontFamily:'monospace' }}
+                  />
+                </div>
+                <div>
+                  <label style={lStyle}>TVA</label>
+                  <input
+                    type="number" step="0.01"
+                    value={achatEditForm.tva_amount}
+                    onChange={e => handleEditTvaChange(e.target.value)}
+                    placeholder="0.00"
+                    style={{ ...iStyle, fontFamily:'monospace' }}
+                  />
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={lStyle}>Total TTC</label>
+                  <input
+                    type="number" step="0.01"
+                    value={achatEditForm.total_ttc}
+                    onChange={e => setAchatEditForm({...achatEditForm, total_ttc: e.target.value})}
+                    placeholder="0.00"
+                    style={{ ...iStyle, fontFamily:'monospace', fontWeight:700 }}
+                  />
+                </div>
+                <div>
+                  <label style={lStyle}>Date facture</label>
+                  <input
+                    type="date"
+                    value={achatEditForm.issue_date}
+                    onChange={e => setAchatEditForm({...achatEditForm, issue_date: e.target.value})}
+                    style={iStyle}
+                  />
+                </div>
+                <div>
+                  <label style={lStyle}>Date échéance</label>
+                  <input
+                    type="date"
+                    value={achatEditForm.due_date}
+                    onChange={e => setAchatEditForm({...achatEditForm, due_date: e.target.value})}
+                    style={iStyle}
+                  />
+                </div>
+                <div style={{ gridColumn:'1/-1' }}>
+                  <label style={lStyle}>Notes</label>
+                  <textarea
+                    value={achatEditForm.notes}
+                    onChange={e => setAchatEditForm({...achatEditForm, notes: e.target.value})}
+                    placeholder="Observations..."
+                    rows={2}
+                    style={{ ...iStyle, resize:'vertical' as const }}
+                  />
+                </div>
+              </div>
+              {achatEditError && (
+                <div style={{ padding:'8px 12px', borderRadius:8, background:'#FFF0F0', border:'1px solid #FCA5A5', fontSize:12, color:'#DC2626', marginBottom:14 }}>
+                  {achatEditError}
+                </div>
+              )}
+              <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+                <button type="button" onClick={() => setAchatEditTarget(null)} style={btnSec}>Annuler</button>
+                <button type="submit" disabled={achatEditSaving} style={{ ...btnPri, opacity: achatEditSaving ? 0.6 : 1, display:'flex', alignItems:'center', gap:6 }}>
+                  {achatEditSaving ? 'Enregistrement...' : '✓ Enregistrer'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

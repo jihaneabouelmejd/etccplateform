@@ -193,6 +193,27 @@ export class InvoicesService {
   }
 
   /**
+   * Résout un fournisseur_id à partir d'un id existant ou d'un nom saisi librement
+   * (rattache à un fournisseur existant du même nom, ou en crée un nouveau).
+   * Lève une erreur si ni l'un ni l'autre n'est fourni.
+   */
+  private async resolveFournisseurId(fournisseur_id?: string, fournisseur_libre?: string): Promise<string> {
+    const nameLibre = fournisseur_libre?.trim();
+    if (fournisseur_id) return fournisseur_id;
+
+    if (!nameLibre) {
+      throw new BadRequestException('Le nom du fournisseur est obligatoire pour une facture fournisseur.');
+    }
+
+    const existing = await this.prisma.fournisseur.findFirst({
+      where: { name: { equals: nameLibre, mode: 'insensitive' } },
+    });
+    return existing
+      ? existing.id
+      : (await this.prisma.fournisseur.create({ data: { name: nameLibre } })).id;
+  }
+
+  /**
    * Enregistrer une facture d'achat (reçue d'un fournisseur, scannée)
    */
   async createPurchaseInvoice(data: {
@@ -210,23 +231,7 @@ export class InvoicesService {
     notes?: string;
     lines?: InvoiceLineInput[];
   }, createdBy: string) {
-    const nameLibre = data.fournisseur_libre?.trim();
-    let fournisseurId = data.fournisseur_id || undefined;
-
-    if (!fournisseurId && !nameLibre) {
-      throw new BadRequestException('Le nom du fournisseur est obligatoire pour enregistrer une facture fournisseur.');
-    }
-
-    // Pas d'ID mais un nom saisi librement : on rattache à un fournisseur existant (même nom)
-    // ou on en crée un nouveau, pour que le nom soit toujours visible dans la liste sans ouvrir la facture.
-    if (!fournisseurId && nameLibre) {
-      const existing = await this.prisma.fournisseur.findFirst({
-        where: { name: { equals: nameLibre, mode: 'insensitive' } },
-      });
-      fournisseurId = existing
-        ? existing.id
-        : (await this.prisma.fournisseur.create({ data: { name: nameLibre } })).id;
-    }
+    const fournisseurId = await this.resolveFournisseurId(data.fournisseur_id, data.fournisseur_libre);
 
     const number = await this.generateNumber('RECEIVED');
 
@@ -356,8 +361,18 @@ export class InvoicesService {
     custom_layout?: any;
     retenue_garantie_rate?: number;
     paid_at?: Date | string | null;
+    fournisseur_id?: string;
+    fournisseur_libre?: string;
+    total_ht_brut?: number;
+    tva_amount?: number;
+    total_ttc?: number;
   }) {
     const invoice = await this.findOne(id);
+
+    let fournisseurId: string | undefined;
+    if (input.fournisseur_id || input.fournisseur_libre) {
+      fournisseurId = await this.resolveFournisseurId(input.fournisseur_id, input.fournisseur_libre);
+    }
 
     return this.prisma.$transaction(async (tx) => {
       let totals: any = {};
@@ -368,6 +383,13 @@ export class InvoicesService {
         const paid = Number(invoice.amount_paid);
         totals.balance = totals.total_ttc - paid;
         await tx.invoiceLine.deleteMany({ where: { invoice_id: id } });
+      } else if (input.total_ht_brut !== undefined || input.tva_amount !== undefined || input.total_ttc !== undefined) {
+        // Facture sans lignes (ex: facture d'achat/scan) : montants saisis manuellement
+        const total_ht_brut = input.total_ht_brut ?? Number(invoice.total_ht_brut);
+        const tva_amount = input.tva_amount ?? Number(invoice.tva_amount);
+        const total_ttc = input.total_ttc ?? Number(invoice.total_ttc);
+        const paid = Number(invoice.amount_paid);
+        totals = { total_ht_brut, total_ht_net: total_ht_brut, tva_amount, total_ttc, balance: total_ttc - paid };
       } else if (input.discount_rate !== undefined) {
         const existingLines = invoice.lines.map((l: any) => ({
           description: l.description,
@@ -395,6 +417,7 @@ export class InvoicesService {
           ...(input.custom_layout !== undefined && { custom_layout: input.custom_layout ?? null }),
           ...(input.retenue_garantie_rate !== undefined && { retenue_garantie_rate: input.retenue_garantie_rate }),
           ...(input.paid_at !== undefined && { paid_at: input.paid_at ? new Date(input.paid_at) : null }),
+          ...(fournisseurId && { fournisseur_id: fournisseurId }),
           ...totals,
           ...(input.lines && input.lines.length > 0 ? {
             lines: {
@@ -408,7 +431,7 @@ export class InvoicesService {
             },
           } : {}),
         },
-        include: { lines: { orderBy: { order: 'asc' } }, client: true, signature: true },
+        include: { lines: { orderBy: { order: 'asc' } }, client: true, signature: true, fournisseur: true },
       });
     });
   }
