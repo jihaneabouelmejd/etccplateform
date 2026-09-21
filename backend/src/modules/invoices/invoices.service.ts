@@ -197,6 +197,7 @@ export class InvoicesService {
    */
   async createPurchaseInvoice(data: {
     fournisseur_id?: string;
+    fournisseur_libre?: string;
     project_id?: string;
     prestation_id?: string;
     scanned_file_url?: string;
@@ -209,6 +210,24 @@ export class InvoicesService {
     notes?: string;
     lines?: InvoiceLineInput[];
   }, createdBy: string) {
+    const nameLibre = data.fournisseur_libre?.trim();
+    let fournisseurId = data.fournisseur_id || undefined;
+
+    if (!fournisseurId && !nameLibre) {
+      throw new BadRequestException('Le nom du fournisseur est obligatoire pour enregistrer une facture fournisseur.');
+    }
+
+    // Pas d'ID mais un nom saisi librement : on rattache à un fournisseur existant (même nom)
+    // ou on en crée un nouveau, pour que le nom soit toujours visible dans la liste sans ouvrir la facture.
+    if (!fournisseurId && nameLibre) {
+      const existing = await this.prisma.fournisseur.findFirst({
+        where: { name: { equals: nameLibre, mode: 'insensitive' } },
+      });
+      fournisseurId = existing
+        ? existing.id
+        : (await this.prisma.fournisseur.create({ data: { name: nameLibre } })).id;
+    }
+
     const number = await this.generateNumber('RECEIVED');
 
     return this.prisma.invoice.create({
@@ -216,7 +235,7 @@ export class InvoicesService {
         number,
         direction: 'RECEIVED',
         source: data.scanned_file_url ? 'SCANNED' : 'INTERNAL',
-        fournisseur_id: data.fournisseur_id || undefined,
+        fournisseur_id: fournisseurId,
         project_id: data.project_id,
         prestation_id: data.prestation_id,
         created_by: createdBy,

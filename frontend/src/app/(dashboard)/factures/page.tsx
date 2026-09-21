@@ -299,15 +299,19 @@ export default function FacturesPage() {
 
   const handleCreateAchat = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!achatForm.fournisseur_id && !achatForm.fournisseur_libre.trim()) {
+      setAchatError('Le nom du fournisseur est obligatoire.');
+      return;
+    }
     setCreatingAchat(true); setAchatError('');
     try {
       const notesParts = [
         achatForm.notes,
         achatForm.ref_fournisseur ? `Ref: ${achatForm.ref_fournisseur}` : '',
-        (!achatForm.fournisseur_id && achatForm.fournisseur_libre) ? `Fournisseur: ${achatForm.fournisseur_libre}` : '',
       ].filter(Boolean);
       await invoicesApi.createPurchase({
         fournisseur_id: achatForm.fournisseur_id || undefined,
+        fournisseur_libre: (!achatForm.fournisseur_id && achatForm.fournisseur_libre.trim()) || undefined,
         prestation_id: achatForm.prestation_id || undefined,
         total_ht_brut: parseFloat(achatForm.total_ht_brut) || 0,
         tva_amount: parseFloat(achatForm.tva_amount) || 0,
@@ -998,7 +1002,7 @@ export default function FacturesPage() {
               <form onSubmit={handleCreateAchat} style={{ padding:24 }}>
                 <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14, marginBottom:16 }}>
                   <div style={{ gridColumn:'1/-1' }}>
-                    <label style={lStyle}>Fournisseur <span style={{ fontWeight:400, color:'#B8A090' }}>(optionnel)</span></label>
+                    <label style={lStyle}>Fournisseur <span style={{ fontWeight:400, color:'#DC2626' }}>*obligatoire</span></label>
                     <select value={achatForm.fournisseur_id}
                       onChange={e => setAchatForm({...achatForm, fournisseur_id: e.target.value, fournisseur_libre: e.target.value ? '' : achatForm.fournisseur_libre})}
                       style={{ ...iStyle, border: achatForm.fournisseur_id ? '1.5px solid #86EFAC' : '1.5px solid #E8D4B0', background: achatForm.fournisseur_id ? '#F0FFF4' : 'white' }}>
@@ -1011,7 +1015,8 @@ export default function FacturesPage() {
                         <input
                           value={achatForm.fournisseur_libre}
                           onChange={e => setAchatForm({...achatForm, fournisseur_libre: e.target.value})}
-                          placeholder="Ou saisir le nom manuellement..."
+                          placeholder="Ou saisir le nom manuellement (obligatoire)..."
+                          required
                           style={{ ...iStyle, border: achatForm.fournisseur_libre ? '1.5px solid #FDE68A' : '1.5px solid #E8D4B0', background: achatForm.fournisseur_libre ? '#FFFDF5' : 'white' }}
                         />
                       </div>
