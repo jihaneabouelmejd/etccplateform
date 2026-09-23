@@ -125,11 +125,19 @@ function uploadBufferToCloudinary(
 // HTML) dans un fichier ".pdf", que pdf-parse échouait ensuite à parser → renvoyait
 // null → "Document illisible", même si le fichier original est parfaitement lisible.
 // On valide donc explicitement le status code et on suit les redirections nous-mêmes.
-async function fetchToTmp(url: string, redirectsLeft = 5): Promise<string> {
+async function fetchToTmp(url: string, redirectsLeft = 5, extHint?: string): Promise<string> {
   const urlWithoutQuery = url.split('?')[0];
   let ext = extname(urlWithoutQuery) || '.tmp';
   if (!ext || ext === '.tmp') {
-    ext = url.includes('/raw/') ? '.pdf' : '.jpg';
+    // La signed API Cloudinary (api.cloudinary.com/.../download?...) n'a aucune
+    // extension dans le chemin (tout est en query string) — extHint (dérivé de
+    // l'URL CDN d'origine, qui elle porte l'extension réelle) prime sur la
+    // déduction /raw/ ci-dessous, sinon un PDF uploadé en resource_type 'image'
+    // (voir uploadBufferToCloudinary — jamais 'raw' pour les PDFs) retombait sur
+    // '.jpg' par défaut : le fichier était alors passé à tesseract comme si
+    // c'était une image, qui échouait sur des octets PDF → message trompeur
+    // "Image illisible" au lieu de traiter le PDF correctement.
+    ext = extHint || (url.includes('/raw/') ? '.pdf' : '.jpg');
   }
   const tmpPath = join(os.tmpdir(), `ocr_${crypto.randomBytes(8).toString('hex')}${ext}`);
   const httpLib = url.startsWith('https') ? require('https') : require('http');
@@ -141,7 +149,7 @@ async function fetchToTmp(url: string, redirectsLeft = 5): Promise<string> {
       if (status >= 300 && status < 400 && response.headers.location && redirectsLeft > 0) {
         response.resume(); // drain pour libérer la socket
         const nextUrl = new URL(response.headers.location, url).toString();
-        fetchToTmp(nextUrl, redirectsLeft - 1).then(resolve, reject);
+        fetchToTmp(nextUrl, redirectsLeft - 1, extHint).then(resolve, reject);
         return;
       }
 
@@ -236,8 +244,12 @@ async function downloadToTmp(url: string): Promise<string> {
     if (info) {
       const signedUrl = buildCloudinarySignedDownloadUrl(info.publicId, info.resourceType);
       if (signedUrl) {
+        // La signed URL n'a pas d'extension dans le chemin — on la déduit de
+        // l'URL CDN d'origine (qui elle en a une) pour ne pas fausser la
+        // détection image-vs-PDF dans fetchToTmp (voir commentaire là-bas).
+        const origExt = extname(url.split('?')[0]);
         try {
-          return await fetchToTmp(signedUrl);
+          return await fetchToTmp(signedUrl, 5, origExt || undefined);
         } catch (err: any) {
           console.warn(`[OCR] Téléchargement via API Cloudinary signée échoué (${err.message}) — nouvelle tentative via URL directe`);
         }

@@ -1049,7 +1049,15 @@ export default function FacturesPage() {
                           <FileText size={26} color="#1A141A" />
                         </div>
                         <p style={{ fontSize:13, fontWeight:700, color:'#1A141A', margin:0 }}>Fichier PDF importé</p>
-                        {scanUrl && <a href={scanUrl} target="_blank" rel="noreferrer" style={{ fontSize:11, color:'#8E5915', textDecoration:'underline' }}>Ouvrir le PDF</a>}
+                        {scanUrl && (
+                          <a
+                            href={scanUrl.includes('cloudinary.com') ? `/api/upload/proxy?url=${encodeURIComponent(scanUrl)}` : scanUrl}
+                            target="_blank" rel="noreferrer"
+                            style={{ fontSize:11, color:'#8E5915', textDecoration:'underline' }}
+                          >
+                            Ouvrir le PDF
+                          </a>
+                        )}
                       </div>
                     ) : (
                       <img src={scanPreview!} alt="Facture" style={{ width:'100%', borderRadius:10, border:'1px solid #F5E6D3', maxHeight:380, objectFit:'contain', background:'#FFFDF5' }} />
